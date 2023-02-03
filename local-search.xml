@@ -5,6 +5,25 @@
   
   <entry>
     <title>Hello World</title>
+    <link href="/2023/02/04/%E6%B5%85%E8%B0%88%E5%87%A0%E7%A7%8DLinux%E4%BF%9D%E6%8A%A4%E6%9C%BA%E5%88%B6/"/>
+    <url>/2023/02/04/%E6%B5%85%E8%B0%88%E5%87%A0%E7%A7%8DLinux%E4%BF%9D%E6%8A%A4%E6%9C%BA%E5%88%B6/</url>
+    
+    <content type="html"><![CDATA[<h2 id="NX"><a href="#NX" class="headerlink" title="NX"></a>NX</h2><p>数据不可执行。原理是将数据所在内存页标识为不可执行，防止因为程序运行出现溢出而使得攻击者的shellcode可能会在数据区尝试执行的情况。NX在咱屡战屡败的经典栈溢出实验中有接触过，NX是对栈和堆的一种保护机制。实验需要关闭NX和地址随机化，否则执行shellcode时，CPU就会抛出异常，而不是去执行恶意指令。<br>Linux系统叫做NX，Windows系统中类似的机制叫DEP(Data Execute Prevention)。</p><h2 id="Stack-Canary"><a href="#Stack-Canary" class="headerlink" title="Stack Canary"></a>Stack Canary</h2><p>栈保护。栈溢出保护是一种缓冲区溢出攻击缓解手段。启用栈保护后，函数开始执行的时候会先往栈里插入cookie信息，当函数真正返回的时候会验证cookie信息是否合法，如果不合法就停止程序运行。攻击者在覆盖返回地址的时候往往也会将cookie信息给覆盖掉，导致栈保护检查失败而阻止shellcode的执行。在Linux中我们将cookie信息称为canary。<br>简单来说就是通过验证cookie，来判断执行的代码是不是恶意代码。</p><h2 id="PIE-ASLR"><a href="#PIE-ASLR" class="headerlink" title="PIE / ASLR"></a>PIE / ASLR</h2><p>地址随机化。就是保证同一个程序任意两次运行时的堆栈基址是不同的。如果堆栈基址不变会怎样？不变就可能被攻击，因为攻击者能确认程序的内存地址，然后通过覆盖返回地址在等手段执行恶意代码。咱屡战屡败的经典栈溢出实验就是通过覆盖返回地址执行恶意代码。</p><table><thead><tr><th></th><th>随机化段</th><th>设置</th></tr></thead><tbody><tr><td>ADLR</td><td>堆、栈、mmap（libc库）、VDSO page</td><td>由操作系统设置</td></tr><tr><td>PIE</td><td>数据段、代码段</td><td>由编译器设置</td></tr></tbody></table><h2 id="Relro"><a href="#Relro" class="headerlink" title="Relro"></a>Relro</h2><p>只读重定位。设置符号重定向表格为只读或在程序启动时就解析并绑定所有动态符号，从而减少对GOT攻击。在Linux中有”Partial RELRO” “Full RELRO”两种模式，默认开启Partical RELRO，开启Partical RELRO时，GOT是可写的，开启 FULL RELRO 时，GOT表是只读的。<br> 主要用来保护重定位表段对应数据区域，默认可写 </p><ol><li>Partial RELRO： got表不可写，got.plt可写 </li><li>Full RELRO： got表，got.plt不可写  </li></ol><p>部分RELRO 易受到攻击，例如攻击者可以<strong>atoi.got为system.plt，进而输入/bin/sh\x00获得shell</strong><br>完全RELRO 使整个 GOT 只读，从而无法被覆盖，但这样会大大增加程序的启动时间，因为程序在启动之前需要解析所有的符号。<br>参考：</p><h2 id="FORTIFY"><a href="#FORTIFY" class="headerlink" title="FORTIFY"></a>FORTIFY</h2><p>在编译的时候检查源码是否存在缓冲区溢出等错误。<br>简单地说，加了这个保护之后,一些敏感函数如read, fgets,memcpy, printf等等可能导致漏洞出现的函数都会被替换成__read_chk,__fgets_chk, __memcpy_chk, __printf_chk等。<br>这些带了chk的函数会检查读取/复制的字节长度是否超过缓冲区长度，通过检查诸如%n之类的字符串位置是否位于可能被用户修改的可写地址，避免了格式化字符串跳过某些参数（如直接%7$x）等方式来避免漏洞出现。</p><h2 id="BRATH"><a href="#BRATH" class="headerlink" title="BRATH"></a>BRATH</h2><p>程序运行时的环境变量，运行时所需要的共享库文件优先从该目录寻找，可以fake lib造成攻击。</p>]]></content>
+    
+    
+    
+    <tags>
+      
+      <tag>PWN</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>Hello World</title>
     <link href="/2023/02/03/hello-world/"/>
     <url>/2023/02/03/hello-world/</url>
     
