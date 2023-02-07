@@ -4,6 +4,37 @@
   
   
   <entry>
+    <title>BBCTF</title>
+    <link href="/2023/02/07/BBCTF/"/>
+    <url>/2023/02/07/BBCTF/</url>
+    
+    <content type="html"><![CDATA[<h1 id="Forensics"><a href="#Forensics" class="headerlink" title="Forensics"></a>Forensics</h1><h2 id="1-Memory-Dump"><a href="#1-Memory-Dump" class="headerlink" title="1. Memory Dump"></a>1. Memory Dump</h2><h3 id="题目说明"><a href="#题目说明" class="headerlink" title="题目说明"></a>题目说明</h3><p>I was learning powershell when my pc suddenly crashed. Can you retrieve my bash history?</p><h3 id="解题思路"><a href="#解题思路" class="headerlink" title="解题思路"></a>解题思路</h3><h4 id="法一"><a href="#法一" class="headerlink" title="法一"></a>法一</h4><p>之前长安杯做过PowerShell的取证题，PowerShell历史命令文件路径为<br><code>%USERPROFILE%\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt</code><br>所以我们直接去filescan<code>ConsoleHost_history.txt</code><br><img src="/mdimg/2023BBCTF/1.png"><br>虽然报错了 但还是找出来了捏 dump一下<br><img src="/mdimg/2023BBCTF/2.png"><br>cat 一下下<br><img src="/mdimg/2023BBCTF/3.png"><br>AES解密即可<br><img src="/mdimg/2023BBCTF/4.png"></p><h4 id="法二"><a href="#法二" class="headerlink" title="法二"></a>法二</h4><p>因为<code>ConsoleHost_history.txt</code>为文本形式，所以利用strings转换一下直接搜索<code>flag&#123;</code>即可<br><img src="/mdimg/2023BBCTF/5.png"></p><h2 id="2-Vastness-of-Space"><a href="#2-Vastness-of-Space" class="headerlink" title="2. Vastness of Space"></a>2. Vastness of Space</h2><h3 id="题目说明-1"><a href="#题目说明-1" class="headerlink" title="题目说明"></a>题目说明</h3><p>Is space really that empty?</p><h3 id="解题思路-1"><a href="#解题思路-1" class="headerlink" title="解题思路"></a>解题思路</h3><p>查看图片exif信息<br><img src="/mdimg/2023BBCTF/6.png"><br>steghide隐写 password：BBCTF<br><img src="/mdimg/2023BBCTF/7.png"><br>用matplotlib库还原一下</p><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs python"><span class="hljs-keyword">import</span> numpy <span class="hljs-keyword">as</span> np<br><span class="hljs-keyword">import</span> matplotlib.pyplot <span class="hljs-keyword">as</span> plt<br><br>data = np.genfromtxt(<span class="hljs-string">&quot;somedata.txt&quot;</span>, delimiter=<span class="hljs-string">&quot;,&quot;</span>)<br><br>num = data[:,<span class="hljs-number">0</span>]<br>data = data[:,<span class="hljs-number">1</span>]<br><br>plt.plot(num,data, <span class="hljs-string">&#x27;ro&#x27;</span>)<br><br>plt.xlabel(<span class="hljs-string">&#x27;x&#x27;</span>)<br>plt.ylabel(<span class="hljs-string">&#x27;y&#x27;</span>)<br>plt.show()<br></code></pre></td></tr></table></figure><p>![]/mdimg/2023BBCTF/8.png)<br>扫码即可get flag</p><h2 id="3-Random-Requests"><a href="#3-Random-Requests" class="headerlink" title="3. Random Requests"></a>3. Random Requests</h2><h3 id="题目说明-2"><a href="#题目说明-2" class="headerlink" title="题目说明"></a>题目说明</h3><p>I captured these very random http requests. Can you help me decode them?</p><h3 id="解题思路-2"><a href="#解题思路-2" class="headerlink" title="解题思路"></a>解题思路</h3><p>过滤HTTP流量可以看到有很多GET请求 flag=0/flag=1，所以猜测flag就是由二进制数据组成<br><img src="/mdimg/2023BBCTF/9.png"><br>写脚本&amp;手撸&amp;用tshark提取一下都可以，这里用tshark提取二进制数据<br><code>tshark -r random_requests.pcapng -Y &quot;http.request.method == &quot;GET&quot;&quot; | cut -d &#39;/&#39; -f2 | cut -d &#39; &#39; -f1 | cut -d &#39;=&#39; -f2 | tr -d &#39;\n&#39;</code><br><img src="/mdimg/2023BBCTF/10.png"><br>然后cyberchef一把梭<br><img src="/mdimg/2023BBCTF/11.png"></p><h2 id="4-Imageception"><a href="#4-Imageception" class="headerlink" title="4. Imageception"></a>4. Imageception</h2><h3 id="题目说明-3"><a href="#题目说明-3" class="headerlink" title="题目说明"></a>题目说明</h3><p>“The painter has the universe in his mind and hands.”<br>-Leonardo Da Vinci</p><h3 id="解题思路-3"><a href="#解题思路-3" class="headerlink" title="解题思路"></a>解题思路</h3><p>题目名称为imageception，所以直接FileScan搜索<br><code>python vol.py -f ./BBCTF/Imageception.raw windows.filescan.FileScan | grep &quot;imageception&quot;</code><br><img src="/mdimg/2023BBCTF/12.png"><br>发现有个<code>imageception.png</code> 把他dump下来<br><img src="/mdimg/2023BBCTF/13.png"><br>这里显示Error dumping file 但是文件夹里已经dump出来了。<br><img src="/mdimg/2023BBCTF/14.png"></p>]]></content>
+    
+    
+    <categories>
+      
+      <category>CTF</category>
+      
+      <category>Write Up</category>
+      
+      <category>Forensics</category>
+      
+    </categories>
+    
+    
+    <tags>
+      
+      <tag>Write Up</tag>
+      
+      <tag>Forensics</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
     <title>第二届山石网科冬令营结营赛</title>
     <link href="/2023/02/06/2023%E5%B1%B1%E7%9F%B3%E5%86%AC%E4%BB%A4%E8%90%A5/"/>
     <url>/2023/02/06/2023%E5%B1%B1%E7%9F%B3%E5%86%AC%E4%BB%A4%E8%90%A5/</url>
