@@ -16,24 +16,24 @@
   <meta name="author" content="g0at">
   <meta name="keywords" content="">
   
-    <meta name="description" content="NNG协议入门">
+    <meta name="description" content="车联网简单入门概述">
 <meta property="og:type" content="article">
-<meta property="og:title" content="IoT安全之NNG协议1">
-<meta property="og:url" content="http://example.com/2023/08/10/NNG1/index.html">
+<meta property="og:title" content="IoT安全之车联网1">
+<meta property="og:url" content="http://example.com/2023/08/11/%E8%BD%A6%E8%81%94%E7%BD%911/index.html">
 <meta property="og:site_name" content="G0AT">
-<meta property="og:description" content="NNG协议入门">
+<meta property="og:description" content="车联网简单入门概述">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://example.com/mdimg/mqtt1/3.png">
-<meta property="article:published_time" content="2023-08-10T07:13:45.000Z">
-<meta property="article:modified_time" content="2023-08-10T08:31:32.686Z">
+<meta property="og:image" content="http://example.com/mdimg/mqtt1/4.png">
+<meta property="article:published_time" content="2023-08-11T08:38:00.000Z">
+<meta property="article:modified_time" content="2023-08-11T09:19:40.598Z">
 <meta property="article:author" content="g0at">
-<meta property="article:tag" content="NNG">
+<meta property="article:tag" content="车联网安全">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="http://example.com/mdimg/mqtt1/3.png">
+<meta name="twitter:image" content="http://example.com/mdimg/mqtt1/4.png">
   
   
   
-  <title>IoT安全之NNG协议1 - G0AT</title>
+  <title>IoT安全之车联网1 - G0AT</title>
 
   <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
 
@@ -211,7 +211,7 @@
       <div class="banner-text text-center fade-in-up">
         <div class="h2">
           
-            <span id="subtitle" data-typed-text="IoT安全之NNG协议1"></span>
+            <span id="subtitle" data-typed-text="IoT安全之车联网1"></span>
           
         </div>
 
@@ -227,8 +227,8 @@
     
       <span class="post-meta">
         <i class="iconfont icon-date-fill" aria-hidden="true"></i>
-        <time datetime="2023-08-10 15:13" pubdate>
-          2023年8月10日 下午
+        <time datetime="2023-08-11 16:38" pubdate>
+          2023年8月11日 下午
         </time>
       </span>
     
@@ -239,7 +239,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          3.1k 字
+          2.3k 字
         
       </span>
     
@@ -250,7 +250,7 @@
         
         
         
-          26 分钟
+          20 分钟
         
       </span>
     
@@ -288,92 +288,64 @@
         <div id="board">
           <article class="post-content mx-auto">
             <!-- SEO header -->
-            <h1 style="display: none">IoT安全之NNG协议1</h1>
+            <h1 style="display: none">IoT安全之车联网1</h1>
             
             
               <div class="markdown-body">
                 
-                <h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p><a target="_blank" rel="noopener" href="https://github.com/nanomsg/nng">NNG</a> 是 nanomsg 的继任版本，而 nanomsg 则是流行的 ZMQ （一个简单好用的传输层，像框架一样的一个 socket library）的 C 重写版。</p>
-<p>NNG 将通信使用的协议和传输分离，同一个协议可以工作在不同的传输层上，类似与 TCP/IP 的应用层和传输层的分层，同时接口上屏蔽了底层细节，统一用字符串 URL 来描述传输模式。这样当使用场景修改时，可以通过简单修改 URL 来实现适应，极具灵活性。</p>
-<p>同时如 NNG 描述所言 “light-weight brokerless messaging”，NNG 中的通信各方是不需要第三方程序介入的，这与 MQTT/Redis 通信需要服务器不同。这样很适合作为通信库来使用而没有其他依赖。</p>
-<p>以下是一些 nng 的主要特点：</p>
+                <h2 id="车联网系统"><a href="#车联网系统" class="headerlink" title="车联网系统"></a>车联网系统</h2><p>车联网系统一般包含四部分：<strong>信息娱乐系统(IVI)、车载网关(T-BOX)、手机APP以及云平台系统(TSP)</strong></p>
+<p>不同厂商的车联网实现架构不同，但总体架构可分为4部分：</p>
 <ol>
-<li>协议独立性： nng 提供了多种通信模式（协议），如请求-回复、发布-订阅、推送-拉取等。每种模式都有相应的协议，使开发人员能够根据应用程序的需求选择适当的通信方式。</li>
-<li>轻量级： nng 的设计着重于保持轻量级和高性能。它专注于提供基本的通信机制，避免过多的复杂性。</li>
-<li>可扩展性： nng 允许开发人员在需要的时候添加新的传输协议，以适应不同的通信需求。这使得 nng 在不同的场景中都能够发挥作用。</li>
-<li>错误处理和可靠性： nng 设计了更好的错误处理机制，以便在通信出现问题时更好地报告和处理错误。它还提供了一些协议，如 REQ/REP，以实现可靠的请求和回复模式。</li>
-<li>异步通信： nng 支持异步通信模式，使开发人员能够实现高效的并发操作。</li>
-<li>跨平台： nng 可在多个操作系统上运行，包括 Linux、Windows 和 macOS。</li>
+<li>信息娱乐系统(IVI)</li>
+<li>车载网关(TBOX)</li>
+<li>手机端车联网应用(APP)</li>
+<li>车联网云平台服务(TSP)</li>
 </ol>
-<h2 id="通信协议"><a href="#通信协议" class="headerlink" title="通信协议"></a>通信协议</h2><ul>
-<li>PAIR 一对一双向通信。</li>
-<li>PIPELINE(PUSH/PULL) 单向通信，类似与生产者消费者模型的消息队列。</li>
-<li>PUB/SUB 单向广播。</li>
-<li>REQ/REP 请求-应答模式，类似与 RPC 模式。</li>
-<li>BUS 网状连接通信，每个加入节点都可以发送/接受广播消息。</li>
-<li>SURVEY 用于多节点表决或者服务发现。</li>
-</ul>
-<h2 id="传输模式"><a href="#传输模式" class="headerlink" title="传输模式"></a>传输模式</h2><ul>
-<li>inproc 进程内线程间传输</li>
-<li>ipc 主机内进程间传输</li>
-<li>tcp 网络内主机间传输</li>
-</ul>
-<h2 id="通讯模式"><a href="#通讯模式" class="headerlink" title="通讯模式"></a>通讯模式</h2><ol>
-<li>不同机器进程间：<br>TCP - network transport via TCP<br>WS - websockets over TCP<br>服务端：”tcp://*:5555”<br>客户端：”tcp://localhost:5555”</li>
-<li>同台机器进程间：<br>IPC - transport between processes on a single machine<br>ipc:///tmp/reqrep.ipc</li>
-</ol>
-<p>​     INPROC - transport within a process (between threads, modules etc.)</p>
-<ol>
-<li>同进程的线程，模块间通信：<br>“inproc://rot13”</li>
-</ol>
-<p>通信协议里除了 PAIR 之外，基本都是一对多的通信模式，这点需要注意。</p>
-<p>以 PIPELINE 和 PUB/SUB 为例：</p>
+<p><strong>IVI</strong>：车载信息娱乐系统(In-Vehicle Infotainment)。早期以CD机的形式进行音频播放，在车联网功能推广后，目前的车载娱乐系统可以通过蜂窝网络接入互联网，并提供以下常见功能：实时导航，网页浏览，视频播放，手机投屏，语音控车等。车载信息娱乐系统通常具备一部分CAN总线操控能力，因此车载信息娱乐系统”功能外溢”现象产生的攻击面很可能会导致控车漏洞的产生。</p>
+<p><strong>T-BOX</strong>：车载网关(Telematics BOX)。负责车机内部的以太网通信，同时提供联网能力，实现车端与云平台(TSP)的远程长连接。T-BOX具备一定CAN总线的能力，也是数字钥匙(手机控车)的实现载体。通过数字钥匙，用户可以通过手机对车辆进行远程操控(云钥匙)或者近场操控(蓝牙钥匙，NFC钥匙)。其中云钥匙的实现架构如下图所示：<br> <img src="/mdimg/mqtt1/5.png" srcset="/img/loading.gif" lazyload><br><strong>APP</strong>：手机端车联网应用程序。多数车联网汽车厂商会向车主提供车联网应用程序，此类APP通常具备以下功能: 车主服务，应用商城，远程控车等。</p>
+<p><strong>TSP</strong>：车载信息服务提供商(TelematicsServiceProvider)。在车联网系统中以云的形式向用户侧与车辆侧提供以下服务：用户信息维护，车辆定位，状态监控等。</p>
+<h2 id="UART协议"><a href="#UART协议" class="headerlink" title="UART协议"></a>UART协议</h2><h3 id="概念"><a href="#概念" class="headerlink" title="概念"></a>概念</h3><p>通用异步收发传输器（Universal Asynchronous Receiver/Transmitter)，通常称作UART。<br>它将要传输的资料在串行通信与并行通信之间加以转换。作为把并行输入信号转成串行输出信号的芯片，UART通常被集成于其他通讯接口的连结上。<br>具体实物表现为独立的模块化芯片，或作为集成于微处理器中的周边设备。一般是RS-232C规格的，与类似Maxim的MAX232之类的标准信号幅度变换芯片进行搭配，作为连接外部设备的接口。在UART上追加同步方式的序列信号变换电路的产品，被称为USART(Universal Synchronous Asynchronous Receiver Transmitter)。</p>
+<h3 id="接线"><a href="#接线" class="headerlink" title="接线"></a>接线</h3><p>一般情况硬件连接比较简单，仅需要3条线，<strong>注意连接时两个设备UART电平，如电平范围不一致请做电平转换后再连接</strong>，如下图所示：</p>
 <ul>
-<li>PIPELINE 的 PUSH 端是 client，一个 PUSH 可以连接多个 PULL 端，发送数据时会选择其中一个可用的发送；PULL 端是 server，一个 PULL 可以接收多个 PUSH 连接和数据。</li>
-<li>PUB/SUB 的 SUB 端是 client，一个 SUB 可以连接多个不同的 PUB 端，接收多个 PUB 端广播的数据；PUB 端是 server，一个 PUB 可以接收多个 SUB 连接并广播数据。</li>
+<li>TX：发送数据端，要接对面设备的RX</li>
+<li>RX：接收数据端，要接对面设备的TX</li>
+<li>GND：保证两设备共地，有统一的参考平面</li>
 </ul>
-<p>基于以上，多个程序是没办法共用一个 PUB/SUB 通道来广播数据的，这与 ROS 里的 topic 和 LCM 中的 channel 模式不同。如果要实现类似功能，则可以使用 PIPELINE + PUB/SUB 来处理：</p>
+<p><img src="/mdimg/mqtt1/6.png" srcset="/img/loading.gif" lazyload><br><strong>1)正常 USART 模式下，通过这些引脚以帧的形式发送和接收串行数据：</strong></p>
 <ul>
-<li>独立一个话题发布的程序，拥有一个 PULL 和 PUB。</li>
-<li>PULL 约定一个 URL，所有需要发布该话题的程序都 PUSH 数据到该 URL 上。</li>
-<li>PUB 约定一个 URL，所有需要获取该话题的程序都 SUB 到该 URL 上。</li>
-<li>程序内部循环将 PULL 读取的数据发送到 PUB 上。</li>
-<li>以上则可以模拟出 ROS topic 数据合并 或者 LCM 中 channel 的类似功能。</li>
+<li>发送或接收前保持空闲线路</li>
+<li>起始位</li>
+<li>数据（字长 8 位或 9 位），最低有效位在前</li>
+<li>用于指示帧传输已完成的 0.5 个、1 个、1.5 个、2 个停止位</li>
+<li>该接口使用小数波特率发生器 - 带 12 位尾数和 4 位小数</li>
+<li>状态寄存器 (USART_SR)</li>
+<li>数据寄存器 (USART_DR)</li>
+<li>波特率寄存器 (USART_BRR) - 12 位尾数和 4 位小数。</li>
+<li>智能卡模式下的保护时间寄存器 (USART_GTPR)。</li>
 </ul>
-<p>整体上看，NNG 的 API 很简约，主要是 4 个，open/recv/send/close，open 根据协议不同使用的函数会不同。配置则是 setopt/getopt，与 UNIX API 类似。API 中没有上下文环境（context-less）依赖，只需要一个 nng_socket，这种设计和实现方法值得去学习一下（初步揣测应该是使用指针值作为handle，如果要强制编译器做类型检测，则会套上一层 struct，如 <code>typedef struct &#123; _nng_xxx_socket * p &#125; nng_socket;</code></p>
-<p>NNG 协议基本上囊括了常见的通信需求，一些特殊的需求，也可以通过组合协议来实现，比如上面的模拟 ROS topic 或者 LCM channel 的方法。这样一来，如果在程序中使用 NNG，不管是多进程，还是多线程，通过设计，可以进一步增强模块化，同时不乏灵活性。如果环境变化，程序不管是由多进程改成多线程，还是由多线程改成多主机，都很容易实现。</p>
-<p>常见模块/进程/线程间通信，可以依据具体需求来使用 PIPELINE（消息队列） 还是 REQ/REP（过程调用），而不是锁+全局变量，每个模块单元只需要做单一相关的具体事务，无需知晓全局状态。</p>
-<h2 id="代码结构"><a href="#代码结构" class="headerlink" title="代码结构"></a>代码结构</h2><figure class="highlight avrasm"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs avrasm"><span class="hljs-symbol">nng.h:</span><br></code></pre></td></tr></table></figure>
-
-<p>nng对外暴露的 api 接口</p>
-<figure class="highlight avrasm"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs avrasm"><span class="hljs-symbol">transport.h:</span><br></code></pre></td></tr></table></figure>
-
-<p>通信层定义，主要是为了暴露给用户以实现扩展，但目前包含了utils下的相关头文件，其中<code>inproc.h/ipc.h/tcp.h</code>是对应的transport</p>
-<figure class="highlight avrasm"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs avrasm"><span class="hljs-symbol">protocol.h:</span><br></code></pre></td></tr></table></figure>
-
-<p>协议层定义，也是为了暴露给用户以实现扩展，其中<code>reqrep.h/pubsub.h/bus.h/pair.h/pipeline.h/survey.h</code>是对应的protocol</p>
-<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs makefile"><span class="hljs-section">utils/:</span><br></code></pre></td></tr></table></figure>
-
-<p>实用工具包，包含基本数据结构(<code>list/queue/hash</code>)、互斥及原子操作(<code>mutex/atomic</code>)等</p>
-<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs makefile"><span class="hljs-section">transports/:</span><br></code></pre></td></tr></table></figure>
-
-<p>通信层实现，包括(inproc:进程内通信；ipc:进程间通信；tcp：tcp通信)</p>
-<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs makefile"><span class="hljs-section">protocols/:</span><br></code></pre></td></tr></table></figure>
-
-<p>协议层实现，包括(REQREP:请求响应；PUBSUB:订阅发布等)</p>
-<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs makefile"><span class="hljs-section">core/:</span><br></code></pre></td></tr></table></figure>
-
-<p>通用代码</p>
-<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs makefile"><span class="hljs-section">aio/:</span><br></code></pre></td></tr></table></figure>
-
-<p>线程池模拟的异步操作，带状态机的事件驱动等</p>
-<h2 id="数据传输"><a href="#数据传输" class="headerlink" title="数据传输"></a>数据传输</h2><h3 id="发送数据"><a href="#发送数据" class="headerlink" title="发送数据"></a>发送数据</h3><figure class="highlight jboss-cli"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs jboss-cli">nng_sendmsg<br><br>nng_aio_<span class="hljs-keyword">set</span>_timeout<br><br>nng_aio_<span class="hljs-keyword">set</span>_msg<br><br>nng_send_aio<br><br>nni_aio_get_msg<br><br>nni_sock_find<br><br>nni_sock_send --&gt; sock_send<br><br>nni_sock_rele<br><br>nng_aio_wait<br><br>nng_aio_result<br></code></pre></td></tr></table></figure>
-
-<h3 id="接收数据"><a href="#接收数据" class="headerlink" title="接收数据"></a>接收数据</h3><figure class="highlight xl"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs xl">nng_recvmsg<br><br>nng_aio_set_timeout<br><br>nng_recv_aio<br><br>nni_sock_find<br><br><span class="hljs-function"><span class="hljs-title">nni_sock_recv</span> --&gt;</span> sock_recv<br><br>nni_sock_rele<br><br>nng_aio_wait<br><br>nng_aio_result<br><br>nng_aio_free<br></code></pre></td></tr></table></figure>
-
-<h2 id="AIO"><a href="#AIO" class="headerlink" title="AIO"></a>AIO</h2><h3 id="AIO状态"><a href="#AIO状态" class="headerlink" title="AIO状态"></a>AIO状态</h3><p>AIO 结构可以携带最多 4 个不同的输入值，最多 4 个不同的输出值，以及最多 4 个不同的“私有状态”值。 输入和输出的含义由被调用的 I/O 函数决定。</p>
-<figure class="highlight elm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs elm">typedef enum &#123;<br><br><span class="hljs-type">NNG_INIT_RECV</span> = 0,<br><br><span class="hljs-type">NNG_RECV_RET_SEND</span>,<br><br><span class="hljs-type">NNG_SEND_RET_RECV</span>,<br><br><span class="hljs-type">NNG_RECV_RET_RECV</span>,<br><br>&#125; nng_aio_state_t;<br></code></pre></td></tr></table></figure>
-
+<p><strong>2）在同步模式下连接时需要以下引脚：</strong></p>
+<ul>
+<li><p>SCLK：发送器时钟输出。该引脚用于输出发送器数据时钟，以便按照 SPI 主模式进行同步发送（起始位和结束位上无时钟脉冲，可通过软件向最后一个数据位发送时钟脉冲）。RX 上可同步接收并行数据。这一点可用于控制带移位寄存器的外设（如 LCD 驱动器）。时钟相位和极性可通过软件编程。在智能卡模式下，SCLK 可向智能卡提供时钟。在硬件流控制模式下需要以下引脚：</p>
+</li>
+<li><p>nCTS：“清除以发送”用于在当前传输结束时阻止数据发送（高电平时）。</p>
+</li>
+<li><p>nRTS：“请求以发送”用于指示 USART 已准备好接收数据（低电平时）。</p>
+<h3 id="协议"><a href="#协议" class="headerlink" title="协议"></a>协议</h3><p>UART作为异步串口通信协议的一种，工作原理是将传输数据的每个字符一位接一位地传输。<br><img src="/mdimg/mqtt1/7.png" srcset="/img/loading.gif" lazyload><br><img src="/mdimg/mqtt1/8.png" srcset="/img/loading.gif" lazyload></p>
+</li>
+<li><p>起始位：先发出一个逻辑”0”的信号，表示传输字符的开始。</p>
+</li>
+<li><p>资料位：紧接着起始位之后。资料位的个数可以是4、5、6、7、8等，构成一个字符。通常采用ASCII码。从最低位开始传送，靠时钟定位。</p>
+</li>
+<li><p>奇偶校验位：资料位加上这一位后，使得“1”的位数应为偶数(偶校验)或奇数(奇校验)，以此来校验资料传送的正确性。</p>
+</li>
+<li><p>停止位：它是一个字符数据的结束标志。可以是1位、1.5位、2位的高电平。 由于数据是在传输线上定时的，并且每一个设备有其自己的时钟，很可能在通信中两台设备间出现了小小的不同步。因此停止位不仅仅是表示传输的结束，并且提供计算机校正时钟同步的机会。适用于停止位的位数越多，不同时钟同步的容忍程度越大，但是数据传输率同时也越慢。</p>
+</li>
+<li><p>空闲位：处于逻辑“1”状态，表示当前线路上没有资料传送。</p>
+</li>
+<li><p>波特率：是衡量资料传送速率的指标。表示每秒钟传送的符号数（symbol）。一个符号代表的信息量（比特数）与符号的阶数有关。例如传输使用256阶符号，每8bit代表一个符号，资料传送速率为120字符/秒，则波特率就是120baud，比特率是120*8=960bit/s。这两者的概念很容易搞错。</p>
+<h3 id="举例"><a href="#举例" class="headerlink" title="举例"></a>举例</h3><p>以<code>9600 8N1</code>（9600波特率，8个数据位，没有校验位，1位停止位）为例，这是目前最常用的串口配置，现在我们传输’O’’K’两个ASCII值，’O’的ASCII为79，对应的二进制数据为01001111 ，’K’对应的二进制数据为01001011 ，传输的格式数据如下图所示：<br><img src="/mdimg/mqtt1/9.png" srcset="/img/loading.gif" lazyload><br>串口波特率为9600，1bit传输时间大约为104us，传送一个数据实际是10个比特（开始位，8个数据位，停止位)，一个bytes传输速率实际为9600*8/10=7680bps。</p>
+</li>
+</ul>
 
                 
               </div>
@@ -407,7 +379,7 @@
     <div class="post-meta">
       <i class="iconfont icon-tags"></i>
       
-        <a href="/tags/NNG/">#NNG</a>
+        <a href="/tags/%E8%BD%A6%E8%81%94%E7%BD%91%E5%AE%89%E5%85%A8/">#车联网安全</a>
       
     </div>
   
@@ -419,8 +391,8 @@
 
   <div class="license-box my-3">
     <div class="license-title">
-      <div>IoT安全之NNG协议1</div>
-      <div>http://example.com/2023/08/10/NNG1/</div>
+      <div>IoT安全之车联网1</div>
+      <div>http://example.com/2023/08/11/车联网1/</div>
     </div>
     <div class="license-meta">
       
@@ -432,7 +404,7 @@
       
         <div class="license-meta-item license-meta-date">
           <div>发布于</div>
-          <div>2023年8月10日</div>
+          <div>2023年8月11日</div>
         </div>
       
       
@@ -464,18 +436,12 @@
                   <article class="post-prev col-6">
                     
                     
-                      <a href="/2023/08/11/%E8%BD%A6%E8%81%94%E7%BD%911/" title="IoT安全之车联网1">
-                        <i class="iconfont icon-arrowleft"></i>
-                        <span class="hidden-mobile">IoT安全之车联网1</span>
-                        <span class="visible-mobile">上一篇</span>
-                      </a>
-                    
                   </article>
                   <article class="post-next col-6">
                     
                     
-                      <a href="/2023/08/09/MQTT1/" title="IoT安全之MQTT协议1">
-                        <span class="hidden-mobile">IoT安全之MQTT协议1</span>
+                      <a href="/2023/08/10/NNG1/" title="IoT安全之NNG协议1">
+                        <span class="hidden-mobile">IoT安全之NNG协议1</span>
                         <span class="visible-mobile">下一篇</span>
                         <i class="iconfont icon-arrowright"></i>
                       </a>
