@@ -7,8 +7,8 @@
 
 <head>
   <meta charset="UTF-8">
-  <link rel="apple-touch-icon" sizes="76x76" href="/img/g.png">
-  <link rel="icon" href="/img/g.png">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/G.png">
+  <link rel="icon" href="/img/G.png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
   <meta http-equiv="x-ua-compatible" content="ie=edge">
   
@@ -75,7 +75,7 @@
   <script id="fluid-configs">
     var Fluid = window.Fluid || {};
     Fluid.ctx = Object.assign({}, Fluid.ctx)
-    var CONFIG = {"hostname":"g1at.github.io","root":"/","version":"1.9.4","typing":{"enable":true,"typeSpeed":80,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":true,"baidu":null,"google":null,"gtag":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":"rF6DPbqXmz9oaKXSwioOtyuv-gzGzoHsz","app_key":"7WylA7nweHQ3Z3Y3lnez5NTm","server_url":"https://rf6dpbqx.lc-cn-n1-shared.com","path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml"};
+    var CONFIG = {"hostname":"g1at.github.io","root":"/","version":"1.9.5","typing":{"enable":true,"typeSpeed":80,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":true,"baidu":null,"google":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":"rF6DPbqXmz9oaKXSwioOtyuv-gzGzoHsz","app_key":"7WylA7nweHQ3Z3Y3lnez5NTm","server_url":"https://rf6dpbqx.lc-cn-n1-shared.com","path":"window.location.pathname","ignore_local":false},"gtag":null},"search_path":"/local-search.xml","include_content_in_search":true};
 
     if (CONFIG.web_analytics.follow_dnt) {
       var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
@@ -84,8 +84,6 @@
   </script>
   <script  src="/js/utils.js" ></script>
   <script  src="/js/color-schema.js" ></script>
-  
-
   
 
   
@@ -316,8 +314,7 @@
       <div class="container nopadding-x-md" id="board-ctn">
         <div id="board">
           <article class="post-content mx-auto">
-            <!-- SEO header -->
-            <h1 style="display: none">LA CTF 2023</h1>
+            <h1 id="seo-header">LA CTF 2023</h1>
             
             
               <div class="markdown-body">
@@ -342,7 +339,7 @@
 <p>After the reverse order, use quip to blast.</p>
 <figure class="highlight dust"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dust"><span class="language-xml">lactf</span><span class="hljs-template-variable">&#123;rolling_and_rolling_and_rolling_until_the_pigs_go_home&#125;</span><br></code></pre></td></tr></table></figure>
 
-<h4 id="4-greek-cipher"><a href="#4-greek-cipher" class="headerlink" title="4. greek cipher"></a>4. greek cipher</h4><figure class="highlight haxe"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs haxe">κςκ ωπν αζπλ ιησι χνοςνθ μσγθσρ λσθ ζπι ιηγ δςρθι ψγρθπζ ςζ ηςθιπρω θνθψγμιγκ πδ νθςζε γζμρωψιςπζ? τγ ζγςιηγρ. κςκ ωπν αζπλ ιησι χνοςνθ μσγθσρ λσθ ψρπξσξοω δονγζι ςζ εργγα? τγ ζγςιηγρ. ς οςαγ ηπλ εργγα μησρσμιγρ οππα ιηπνεη, γυγζ ςδ ς μσζ<span class="hljs-string">&#x27;ι ργσκ ιηγτ. οσμιδ&#123;ς_ενγθθ_νθςζε_τσζω_εργγα_μησρσμιγρθ_κςκζ&#x27;</span>ι<span class="hljs-literal">_</span>θιπψ<span class="hljs-literal">_</span>ωπν.<span class="hljs-literal">_</span>λγοο<span class="hljs-literal">_</span>ψοσωγκ<span class="hljs-literal">_</span>ς<span class="hljs-literal">_</span>τνθι<span class="hljs-literal">_</span>θσω.μπζερσιθ!&#125;<br>print(<span class="hljs-string">&#x27;&#x27;</span>.join(sorted(<span class="hljs-keyword">set</span>(input()))))<br></code></pre></td></tr></table></figure>
+<h4 id="4-greek-cipher"><a href="#4-greek-cipher" class="headerlink" title="4. greek cipher"></a>4. greek cipher</h4><figure class="highlight haxe"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs haxe">κςκ ωπν αζπλ ιησι χνοςνθ μσγθσρ λσθ ζπι ιηγ δςρθι ψγρθπζ ςζ ηςθιπρω θνθψγμιγκ πδ νθςζε γζμρωψιςπζ? τγ ζγςιηγρ. κςκ ωπν αζπλ ιησι χνοςνθ μσγθσρ λσθ ψρπξσξοω δονγζι ςζ εργγα? τγ ζγςιηγρ. ς οςαγ ηπλ εργγα μησρσμιγρ οππα ιηπνεη, γυγζ ςδ ς μσζ<span class="hljs-string">&#x27;ι ργσκ ιηγτ. οσμιδ&#123;ς_ενγθθ_νθςζε_τσζω_εργγα_μησρσμιγρθ_κςκζ&#x27;</span>ι<span class="hljs-literal">_</span>θιπψ<span class="hljs-literal">_</span>ωπν<span class="hljs-number">._</span>λγοο<span class="hljs-literal">_</span>ψοσωγκ<span class="hljs-literal">_</span>ς<span class="hljs-literal">_</span>τνθι<span class="hljs-literal">_</span>θσω.μπζερσιθ!&#125;<br>print(<span class="hljs-string">&#x27;&#x27;</span>.join(sorted(<span class="hljs-keyword">set</span>(input()))))<br></code></pre></td></tr></table></figure>
 
 <p>This code implements the de-reordering function of a string. It takes user input as a string, converts it to a set, and removes duplicate characters. Then, it sorts the collection, and converts it back to a string. Finally, the code prints out the result using the “print” function.<br>and then with the help of a tool site<a target="_blank" rel="noopener" href="https://tio.run/#">https://tio.run/#</a><br><img src="/mdimg/LACTF2023/3.png" srcset="/img/loading.gif" lazyload><br>Then use Cyberchef’s Substitute.<br><img src="/mdimg/LACTF2023/4.png" srcset="/img/loading.gif" lazyload><br>Finally, quipqiup can be blasted.</p>
 <figure class="highlight ada"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ada">lactf&#123;i_guess_using_many_greek_characters_didn<span class="hljs-symbol">&#x27;t_stop_you._well_played_i_must_say.congrats</span>!&#125;<br></code></pre></td></tr></table></figure>
@@ -365,7 +362,7 @@
 <h4 id="3-hidden-in-plain-sheets"><a href="#3-hidden-in-plain-sheets" class="headerlink" title="3. hidden in plain sheets"></a>3. hidden in plain sheets</h4><p>The flag is in another Sheet but we don’t have permission to view it.</p>
 <p><img src="/mdimg/LACTF2023/17.png" srcset="/img/loading.gif" lazyload><br>After checking the data, I found that the <code>IMPORTRANGE</code> function of Google Sheets can import the content.<br><img src="/mdimg/LACTF2023/18.png" srcset="/img/loading.gif" lazyload><br>So use IMPORTRANGE to get the flag directly<br><img src="/mdimg/LACTF2023/19.png" srcset="/img/loading.gif" lazyload></p>
 <h4 id="4-discord-l34k"><a href="#4-discord-l34k" class="headerlink" title="4. discord l34k"></a>4. discord l34k</h4><p>The topic gave a discord link</p>
-<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs awk">https:<span class="hljs-regexp">//</span>discord.com<span class="hljs-regexp">/channels/</span><span class="hljs-number">1060030874722259057</span><span class="hljs-regexp">/1060030875187822724/</span><span class="hljs-number">1060031064669700186</span><br></code></pre></td></tr></table></figure>
+<figure class="highlight apache"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs apache"><span class="hljs-attribute">https</span>://discord.com/channels/<span class="hljs-number">1060030874722259057</span>/<span class="hljs-number">1060030875187822724</span>/<span class="hljs-number">1060031064669700186</span><br></code></pre></td></tr></table></figure>
 
 <p><a target="_blank" rel="noopener" href="https://discord.com/blog/add-the-discord-widget-to-your-site/">https://discord.com/blog/add-the-discord-widget-to-your-site/</a>  Find key images in this post.<br><img src="/mdimg/LACTF2023/20.png" srcset="/img/loading.gif" lazyload></p>
 <p>Below the image see the URL for the JSON API. In the given URL, the first ID ( 1060030874722259057 ) refers to the server, so we put that in the image where the example ID is. This gives us the link.</p>
@@ -410,7 +407,7 @@
     <div class="post-meta">
       <i class="iconfont icon-tags"></i>
       
-        <a href="/tags/Write-Up/">#Write Up</a>
+        <a href="/tags/Write-Up/" class="print-no-link">#Write Up</a>
       
     </div>
   
@@ -446,7 +443,7 @@
             
               
               
-                <a target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
                   <span class="hint--top hint--rounded" aria-label="BY - 署名">
                     <i class="iconfont icon-by"></i>
                   </span>
