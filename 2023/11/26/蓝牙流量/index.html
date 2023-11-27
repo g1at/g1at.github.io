@@ -25,7 +25,7 @@
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="http://g0at.com/mdimg/Bluetooth/bt.jpg">
 <meta property="article:published_time" content="2023-11-26T13:22:23.000Z">
-<meta property="article:modified_time" content="2023-11-26T17:09:46.788Z">
+<meta property="article:modified_time" content="2023-11-27T05:51:53.223Z">
 <meta property="article:author" content="g0at">
 <meta property="article:tag" content="蓝牙流量">
 <meta name="twitter:card" content="summary_large_image">
@@ -260,7 +260,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          2.6k 字
+          5.2k 字
         
       </span>
     
@@ -271,7 +271,7 @@
         
         
         
-          22 分钟
+          44 分钟
         
       </span>
     
@@ -326,17 +326,17 @@
 <table>
 <thead>
 <tr>
-<th>Value</th>
-<th>0x00</th>
-<th>0x01</th>
-<th>0x02</th>
+<th align="center">Value</th>
+<th align="center">0x00</th>
+<th align="center">0x01</th>
+<th align="center">0x02</th>
 </tr>
 </thead>
 <tbody><tr>
-<td>Morse</td>
-<td>.</td>
-<td>-</td>
-<td>/</td>
+<td align="center">Morse</td>
+<td align="center">.</td>
+<td align="center">-</td>
+<td align="center">/</td>
 </tr>
 </tbody></table>
 <p>写脚本将所有通信过程打印出来，并转化为Morse电码：</p>
@@ -352,6 +352,30 @@
 <p>往下看，在Handle为<code>0x0014</code>的通信中发现密文<br><img src="/mdimg/Bluetooth/4.png" srcset="/img/loading.gif" lazyload><br><img src="/mdimg/Bluetooth/5.png" srcset="/img/loading.gif" lazyload><br>切换为原始存储，手动去掉0即可密文c<br><img src="/mdimg/Bluetooth/6.png" srcset="/img/loading.gif" lazyload></p>
 <figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><code class="hljs python">s = <span class="hljs-string">&quot;&quot;&quot;</span><br><span class="hljs-string">00:a2:8f:1f:19:e6:91:65:42:e1:f8:de:ec:a3:1b:</span><br><span class="hljs-string">59:97:f4:ef:34:75:d0:3d:26:07:d7:e3:8f:8b:65:</span><br><span class="hljs-string">1a:43:ce:5b:e7:fc:24:6c:e0:60:94:56:6e:87:a4:</span><br><span class="hljs-string">72:76:5f:89:0a:cb:46:10:37:44:49:f5:95:42:a4:</span><br><span class="hljs-string">44:09:d4:a8:09</span><br><span class="hljs-string">&quot;&quot;&quot;</span><br>m=<span class="hljs-string">&quot;&quot;&quot;</span><br><span class="hljs-string">00:cb:ff:72:e2:e2:5f:91:23:68:34:16:a2:6f:7f:</span><br><span class="hljs-string">77:df</span><br><span class="hljs-string">&quot;&quot;&quot;</span><br>x=<span class="hljs-string">&quot;392969b018ffa093b9ab5e45ba86b4aa070e78b839abf11377e783626d7f9c4091392aef8e13ae9a22844288e2d27f63d2ebd0fb90871016fde87077d50ae538&quot;</span><br><br>n = s.replace(<span class="hljs-string">&#x27;:&#x27;</span>, <span class="hljs-string">&#x27;&#x27;</span>).replace(<span class="hljs-string">&#x27;\n&#x27;</span>, <span class="hljs-string">&#x27;&#x27;</span>)<br>e = m.replace(<span class="hljs-string">&#x27;:&#x27;</span>, <span class="hljs-string">&#x27;&#x27;</span>).replace(<span class="hljs-string">&#x27;\n&#x27;</span>, <span class="hljs-string">&#x27;&#x27;</span>)<br><br>n = <span class="hljs-built_in">int</span>(n, <span class="hljs-number">16</span>)<br>e = <span class="hljs-built_in">int</span>(e, <span class="hljs-number">16</span>)<br>c = <span class="hljs-built_in">int</span>(x, <span class="hljs-number">16</span>)<br><br><span class="hljs-comment">#factorDB分解一下n</span><br>p = <span class="hljs-number">92270847179792937622745249326651258492889546364106258880217519938223418249279</span><br>q = <span class="hljs-number">92270847179792937622745249326651258492889546364106258880217519938223418258871</span><br><br><br><span class="hljs-keyword">import</span> libnum<br><span class="hljs-keyword">from</span> Crypto.Util.number <span class="hljs-keyword">import</span> *<br><br>phi_n=(p-<span class="hljs-number">1</span>)*(q-<span class="hljs-number">1</span>)<br>d=libnum.invmod(e,phi_n)<br>m=<span class="hljs-built_in">pow</span>(c,d,n)<br><span class="hljs-comment">#print(m)</span><br><span class="hljs-built_in">print</span>(long_to_bytes(m))<br><br><span class="hljs-comment">#CHTB&#123;5p34k_fr13nd_4nd_3n73r&#125;</span><br></code></pre></td></tr></table></figure>
 
+<h2 id="CVVD-2022智能网联汽车漏洞挖掘赛"><a href="#CVVD-2022智能网联汽车漏洞挖掘赛" class="headerlink" title="CVVD 2022智能网联汽车漏洞挖掘赛"></a>CVVD 2022智能网联汽车漏洞挖掘赛</h2><h3 id="蓝牙钥匙的春天"><a href="#蓝牙钥匙的春天" class="headerlink" title="蓝牙钥匙的春天"></a>蓝牙钥匙的春天</h3><p>一个蓝牙流量包，随便翻翻发现存在 SMP 协议，全称是 Secure Manager Protocol，是蓝牙用来定义配对和密钥分发的，具体可以看这篇文章<a target="_blank" rel="noopener" href="http://t.csdnimg.cn/VMihl">http://t.csdnimg.cn/VMihl</a></p>
+<p>另外可以注意到这里使用了BlUETOOTH_LE_LL帧。</p>
+<p><img src="/mdimg/Bluetooth/7.png" srcset="/img/loading.gif" lazyload></p>
+<p>由于配对后的流量是被加密的，所以这里看不到他们传输了什么信息，但是有个工具 crackle 是可以解密这种数据包的，这个工具解密蓝牙流量有三个前提，这也在官方的 FAQ 中提到了：<br><a target="_blank" rel="noopener" href="https://github.com/mikeryan/crackle/blob/master/FAQ.md">https://github.com/mikeryan/crackle/blob/master/FAQ.md</a></p>
+<p>When should I use Crackle?</p>
+<p>Crackle is useful when you have sniffed a BLE connection that uses Link Layer encryption and LE Legacy pairing. Before attempting to use Crackle, it’s worth asking the following questions:</p>
+<ol>
+<li>Can I log the data without having to sniff it at all?</li>
+<li>If not, is my device actually using Link Layer encryption?</li>
+<li>Is the device using Legacy Pairing or LE Secure Connections?</li>
+</ol>
+<p>If the answers to these questions are “no”, “yes”, and “legacy pairing”, Crackle is the right tool for the job.</p>
+<p>翻译一下就是：使用链路层加密和 LE Legacy 配对的 BLE 连接时，Crackle 非常有用。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs bash">git <span class="hljs-built_in">clone</span> https://github.com/arunima06/crackle.git<br><br><span class="hljs-built_in">cd</span> crackle<br><br>sudo apt-get install libpcap-dev<br><br>make<br><br>sudo make install<br></code></pre></td></tr></table></figure>
+
+<p>使用添加了BlUETOOTH_LE_LL帧支持的老哥的工具解密流量</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs bash">g0at@Ubuntu22:~/桌面$ crackle -i uploads_2022_04_11_h5kAcZEg_ble.pcapng -o de.pcapng<br>PCAP contains [BLUETOOTH_LE_LL] frames<br>Found 1 connection<br><br>Analyzing connection 0:<br>  7e:6f:08:2a:8d:36 (random) -&gt; 34:15:13:87:bf:e9 (public)<br>  Found 51 encrypted packets<br>  Cracking with strategy 0, 20 bits of entropy<br><br>  !!!<br>  TK found: 000000<br>  ding ding ding, using a TK of 0! Just Cracks(tm)<br>  !!!<br><br>  Decrypted 51 packets<br>  LTK found: 34f4bcd107ad8f6833acf01059719d8b<br><br>Decrypted 51 packets, dumping to PCAP<br>Done, processed 1494 total packets, decrypted 51<br></code></pre></td></tr></table></figure>
+
+<p>再打开解密后的流量包，可以看到Handle为<code>0x0012</code>处已经有数据</p>
+<p><img src="/mdimg/Bluetooth/8.png" srcset="/img/loading.gif" lazyload></p>
+<p>拿到赛博厨子的魔术棒显示，解两次Hex就是字符串，另外发现Value有一些重复</p>
+<p><img src="/mdimg/Bluetooth/9.png" srcset="/img/loading.gif" lazyload></p>
+<p>然后就是基于GPT的exp构造</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><code class="hljs bash">import pyshark<br><br>pcap = pyshark.FileCapture(<span class="hljs-string">&#x27;de.pcapng&#x27;</span>, display_filter=<span class="hljs-string">&#x27;btatt.opcode == 0x52&#x27;</span>, tshark_path=<span class="hljs-string">&#x27;D:/Wireshark/tshark&#x27;</span>)<br><br>values = []<br><br><span class="hljs-keyword">for</span> pkt <span class="hljs-keyword">in</span> pcap:<br>    <span class="hljs-keyword">if</span> hasattr(pkt, <span class="hljs-string">&#x27;btatt&#x27;</span>) and hasattr(pkt.btatt, <span class="hljs-string">&#x27;value&#x27;</span>):<br>        <span class="hljs-comment"># 去掉冒号</span><br>        value_without_colon = pkt.btatt.value.replace(<span class="hljs-string">&#x27;:&#x27;</span>, <span class="hljs-string">&#x27;&#x27;</span>)<br>        <span class="hljs-comment"># 在每个value后面加上换行符</span><br>        value_with_newline = value_without_colon + <span class="hljs-string">&#x27;\n&#x27;</span><br>        values.append(value_with_newline)<br><br><span class="hljs-comment"># 使用set去除重复的value，然后再转换回list</span><br>values = list(<span class="hljs-built_in">set</span>(values))<br><br><span class="hljs-built_in">print</span>(<span class="hljs-string">&#x27;&#x27;</span>.<span class="hljs-built_in">join</span>(values))<br><br><span class="hljs-comment"># 对每个value单独解两次hex编码</span><br><span class="hljs-keyword">for</span> value <span class="hljs-keyword">in</span> values:<br>    decoded_value = bytes.fromhex(value).decode(<span class="hljs-string">&#x27;utf-8&#x27;</span>)<br>    final_decoded_value = bytes.fromhex(decoded_value).decode(<span class="hljs-string">&#x27;utf-8&#x27;</span>)<br>    <span class="hljs-built_in">print</span>(final_decoded_value)<br><br><span class="hljs-string">&#x27;&#x27;</span><span class="hljs-string">&#x27;</span><br><span class="hljs-string">3337333333363335333236333330363536353330</span><br><span class="hljs-string">3636364336313637374233393632363133333339</span><br><span class="hljs-string">33343334333136323634333433303744</span><br><span class="hljs-string">3633333733363633363133363633363233333336</span><br><span class="hljs-string"></span><br><span class="hljs-string">73652c0ee0</span><br><span class="hljs-string">c76ca6cb36</span><br><span class="hljs-string">flag&#123;9ba39</span><br><span class="hljs-string">441bd40&#125;</span><br><span class="hljs-string">&#x27;</span><span class="hljs-string">&#x27;&#x27;</span><br><br><span class="hljs-comment">#flag&#123;9ba3973652c0ee0c76ca6cb36441bd40&#125;</span><br><span class="hljs-comment">#flag&#123;9ba39c76ca6cb3673652c0ee0441bd40&#125;</span><br></code></pre></td></tr></table></figure>
 
                 
               </div>
