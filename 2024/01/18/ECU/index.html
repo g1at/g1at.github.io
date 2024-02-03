@@ -1,0 +1,1383 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/ggg.png">
+  <link rel="icon" href="/img/ggg.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="g0at">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="《汽车电子控制器大全》">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ECU">
+<meta property="og:url" content="https://g1at.github.io/2024/01/18/ECU/index.html">
+<meta property="og:site_name" content="g0at&#39;s Blog">
+<meta property="og:description" content="《汽车电子控制器大全》">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://g1at.github.io/img/ECU.png">
+<meta property="article:published_time" content="2024-01-18T14:47:40.000Z">
+<meta property="article:modified_time" content="2024-02-03T14:55:27.423Z">
+<meta property="article:author" content="g0at">
+<meta property="article:tag" content="IoV">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://g1at.github.io/img/ECU.png">
+  
+  
+  
+  <title>ECU - g0at&#39;s Blog</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+  
+<link rel="stylesheet" href="/css/mac.css">
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"g1at.github.io","root":"/","version":"1.9.5","typing":{"enable":true,"typeSpeed":80,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":true,"baidu":null,"google":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":"rF6DPbqXmz9oaKXSwioOtyuv-gzGzoHsz","app_key":"7WylA7nweHQ3Z3Y3lnez5NTm","server_url":"https://rf6dpbqx.lc-cn-n1-shared.com","path":"window.location.pathname","ignore_local":false},"gtag":null},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    
+  
+
+
+
+  
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>g0at&#39;s Blog</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/links/">
+                <i class="iconfont icon-link-fill"></i>
+                <span>友链</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/wp.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="ECU"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-author" aria-hidden="true"></i>
+        g0at
+      </span>
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2024-01-18 22:47" pubdate>
+          2024年1月18日 晚上
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          4.3k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          37 分钟
+        
+      </span>
+    
+
+    
+    
+      
+        <span id="leancloud-page-views-container" class="post-meta" style="display: none">
+          <i class="iconfont icon-eye" aria-hidden="true"></i>
+          <span id="leancloud-page-views"></span> 次
+        </span>
+        
+      
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">ECU</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p><a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/%E7%94%B5%E5%AD%90%E6%8E%A7%E5%88%B6%E5%99%A8">ECU</a>（Electronic Control Unit）是<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/%E6%B1%BD%E8%BB%8A%E9%9B%BB%E5%AD%90">汽车电子</a>系统中用来控制电气系统、电子系统及汽车子系统的<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/%E5%B5%8C%E5%85%A5%E5%BC%8F%E7%B3%BB%E7%BB%9F">嵌入式系统</a>。无论是看车辆架构图还是UDS诊断报文分析都离不开ECU，现如今电车高度智能化，ECU也多的让人眼花缭乱，吐血整理ECU缩写及其对应的释义，方便后期分析学习。</p>
+<table>
+<thead>
+<tr>
+<th align="center"><strong>缩写</strong></th>
+<th align="center"><strong>英文</strong></th>
+<th align="center"><strong>中文</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center"><strong>ACCM</strong></td>
+<td align="center">Air compressor Control Module</td>
+<td align="center">空调压缩机模块</td>
+</tr>
+<tr>
+<td align="center"><strong>ACM</strong></td>
+<td align="center">Alternator Control Module</td>
+<td align="center">交流电机控制模块</td>
+</tr>
+<tr>
+<td align="center"><strong>AFU</strong></td>
+<td align="center">Air Fragance Unit</td>
+<td align="center">空气芬香模块</td>
+</tr>
+<tr>
+<td align="center"><strong>AGM</strong></td>
+<td align="center">Active Grill Shutter Module</td>
+<td align="center">主动格栅关闭模块</td>
+</tr>
+<tr>
+<td align="center"><strong>AIU</strong></td>
+<td align="center">Air Ionizer Unit</td>
+<td align="center">空气负离子发生器</td>
+</tr>
+<tr>
+<td align="center"><strong>ALM</strong></td>
+<td align="center">Ambience Lights Module</td>
+<td align="center">氛围灯</td>
+</tr>
+<tr>
+<td align="center"><strong>APMS</strong></td>
+<td align="center">Air Particulate Matter Sensor</td>
+<td align="center">PM2.5</td>
+</tr>
+<tr>
+<td align="center"><strong>ASDM</strong></td>
+<td align="center">Active Safety Domain Master</td>
+<td align="center">主动安全域控制器</td>
+</tr>
+<tr>
+<td align="center"><strong>ASSM</strong></td>
+<td align="center">Active Spoiler Shutter Module</td>
+<td align="center">主动扰流模块</td>
+</tr>
+<tr>
+<td align="center"><strong>ASWM</strong></td>
+<td align="center">Adjustable Steering Wheel Module</td>
+<td align="center">可调方向盘模块</td>
+</tr>
+<tr>
+<td align="center"><strong>AUD</strong></td>
+<td align="center">Audio Module</td>
+<td align="center">音响模块</td>
+</tr>
+<tr>
+<td align="center"><strong>BBM</strong></td>
+<td align="center">Brake Booster Module</td>
+<td align="center">制动助力器模块</td>
+</tr>
+<tr>
+<td align="center"><strong>BBS</strong></td>
+<td align="center">Battery Backed-up Sounder</td>
+<td align="center">后备电池报警器</td>
+</tr>
+<tr>
+<td align="center"><strong>BECM</strong></td>
+<td align="center">Battery Energy Control Module</td>
+<td align="center">电池管理系统</td>
+</tr>
+<tr>
+<td align="center"><strong>BMS</strong></td>
+<td align="center">Battery Monitoring Sensor</td>
+<td align="center">蓄电池监测传感器</td>
+</tr>
+<tr>
+<td align="center"><strong>CCM</strong></td>
+<td align="center">Climate Control Module</td>
+<td align="center">空调控制模块</td>
+</tr>
+<tr>
+<td align="center"><strong>CCSM</strong></td>
+<td align="center">Center Console Switch Module</td>
+<td align="center">中控开关模块</td>
+</tr>
+<tr>
+<td align="center"><strong>CEM</strong></td>
+<td align="center">Central Electronic Module</td>
+<td align="center">中央电控模块（车身控制模块）</td>
+</tr>
+<tr>
+<td align="center"><strong>CFCM</strong></td>
+<td align="center">Charger Flap Control Module</td>
+<td align="center">充电口盖</td>
+</tr>
+<tr>
+<td align="center"><strong>CMS</strong></td>
+<td align="center">Camera Monitoring System</td>
+<td align="center">流媒体监视系统</td>
+</tr>
+<tr>
+<td align="center"><strong>CSD</strong></td>
+<td align="center">Center Stack Display</td>
+<td align="center">中控台显示屏</td>
+</tr>
+<tr>
+<td align="center"><strong>CSDM</strong></td>
+<td align="center">Console Switch Display Module</td>
+<td align="center">中控触摸显示屏（副屏）</td>
+</tr>
+<tr>
+<td align="center"><strong>DDM</strong></td>
+<td align="center">Driver Door Module</td>
+<td align="center">驾驶员车门模块</td>
+</tr>
+<tr>
+<td align="center"><strong>DDS</strong></td>
+<td align="center">Driver Door Switches</td>
+<td align="center">驾驶员侧车门组合开关</td>
+</tr>
+<tr>
+<td align="center"><strong>DEM</strong></td>
+<td align="center">Differential Electronic Module</td>
+<td align="center">电子差速器模块</td>
+</tr>
+<tr>
+<td align="center"><strong>DIG</strong></td>
+<td align="center">Driver intelligent change colour glass module</td>
+<td align="center">驾驶侧智能变色玻璃模块</td>
+</tr>
+<tr>
+<td align="center"><strong>DIM</strong></td>
+<td align="center">Driver Information Module</td>
+<td align="center">驾驶员信息模块</td>
+</tr>
+<tr>
+<td align="center"><strong>DMM</strong></td>
+<td align="center">Driver Monitor Module</td>
+<td align="center">驾驶员状态监测模块</td>
+</tr>
+<tr>
+<td align="center"><strong>DMSM</strong></td>
+<td align="center">Drive Mode Switch Module</td>
+<td align="center">驾驶模式开关模块</td>
+</tr>
+<tr>
+<td align="center"><strong>DPOD</strong></td>
+<td align="center">Driver Power Operated Door</td>
+<td align="center">驾驶侧电动门控制模块</td>
+</tr>
+<tr>
+<td align="center"><strong>DRM</strong></td>
+<td align="center">Driver Radar module</td>
+<td align="center">驾驶侧雷达模块</td>
+</tr>
+<tr>
+<td align="center"><strong>DSRC</strong></td>
+<td align="center">Dedicated Short Range Communication</td>
+<td align="center">近程通讯模块</td>
+</tr>
+<tr>
+<td align="center"><strong>DVR</strong></td>
+<td align="center">Digital Video Record</td>
+<td align="center">行车记录仪</td>
+</tr>
+<tr>
+<td align="center"><strong>EAV</strong></td>
+<td align="center">Electric exhaust Acoustic Valve</td>
+<td align="center">排气电动调音阀</td>
+</tr>
+<tr>
+<td align="center"><strong>ECM</strong></td>
+<td align="center">Engine Control Module</td>
+<td align="center">发动机控制模块</td>
+</tr>
+<tr>
+<td align="center"><strong>ECPM</strong></td>
+<td align="center">Engine Coolant Pump Module</td>
+<td align="center">发动机冷却泵模块</td>
+</tr>
+<tr>
+<td align="center"><strong>ECS</strong></td>
+<td align="center">Electic Clutch System</td>
+<td align="center">电子离合器</td>
+</tr>
+<tr>
+<td align="center"><strong>EDCP</strong></td>
+<td align="center">Electric Drivetrain Coolant Pump</td>
+<td align="center">电控动力传动系统冷却泵</td>
+</tr>
+<tr>
+<td align="center"><strong>EGSM</strong></td>
+<td align="center">Electronic Gear Selector Module</td>
+<td align="center">电子换档模块</td>
+</tr>
+<tr>
+<td align="center"><strong>ESM</strong></td>
+<td align="center">Exterior Sound Module</td>
+<td align="center">外部发声模块</td>
+</tr>
+<tr>
+<td align="center"><strong>FCSI</strong></td>
+<td align="center">Fast Charger Socket Indicator</td>
+<td align="center">快充指示</td>
+</tr>
+<tr>
+<td align="center"><strong>FLC</strong></td>
+<td align="center">Forward Looking Camera</td>
+<td align="center">前视摄像头</td>
+</tr>
+<tr>
+<td align="center"><strong>FLR</strong></td>
+<td align="center">Forward Looking Radar</td>
+<td align="center">前视雷达</td>
+</tr>
+<tr>
+<td align="center"><strong>FMDM</strong></td>
+<td align="center">Foot Movement Detection Module</td>
+<td align="center">脚下移动侦测模块</td>
+</tr>
+<tr>
+<td align="center"><strong>FPM</strong></td>
+<td align="center">Finger Print Module</td>
+<td align="center">指纹识别模块</td>
+</tr>
+<tr>
+<td align="center"><strong>FSRL</strong></td>
+<td align="center">Front Side Radar Left</td>
+<td align="center">前左侧方雷达</td>
+</tr>
+<tr>
+<td align="center"><strong>FSRR</strong></td>
+<td align="center">Front Side Radar Right</td>
+<td align="center">前右侧方雷达</td>
+</tr>
+<tr>
+<td align="center"><strong>HBMF</strong></td>
+<td align="center">HVAC Blower Module Front</td>
+<td align="center">前空调鼓风机模块</td>
+</tr>
+<tr>
+<td align="center"><strong>HCML</strong></td>
+<td align="center">Head Lamp Control Module Left</td>
+<td align="center">左前大灯控制模块</td>
+</tr>
+<tr>
+<td align="center"><strong>HCMR</strong></td>
+<td align="center">Head Lamp Control Module Right</td>
+<td align="center">右前大灯控制模块</td>
+</tr>
+<tr>
+<td align="center"><strong>HFAF</strong></td>
+<td align="center">HVAC Flap Actuators Front</td>
+<td align="center">风门电机</td>
+</tr>
+<tr>
+<td align="center"><strong>HUD</strong></td>
+<td align="center">Head Up Display</td>
+<td align="center">抬头显示</td>
+</tr>
+<tr>
+<td align="center"><strong>HVCH</strong></td>
+<td align="center">High Voltage Coolant Heater</td>
+<td align="center">高压冷却液加热器</td>
+</tr>
+<tr>
+<td align="center"><strong>IEM</strong></td>
+<td align="center">Inverter ERAD Module</td>
+<td align="center">逆变式电动后桥驱动模块</td>
+</tr>
+<tr>
+<td align="center"><strong>IGM</strong></td>
+<td align="center">Inverter Generator Module</td>
+<td align="center">变频发电机模块</td>
+</tr>
+<tr>
+<td align="center"><strong>IHU</strong></td>
+<td align="center">Infotainment Head Unit</td>
+<td align="center">信息娱乐主机（音响主机）</td>
+</tr>
+<tr>
+<td align="center"><strong>IMS</strong></td>
+<td align="center">Interior Movement Sensor</td>
+<td align="center">内部运动传感器</td>
+</tr>
+<tr>
+<td align="center"><strong>IRMM</strong></td>
+<td align="center">Interior Rear view Mirror Module</td>
+<td align="center">内后视镜模块</td>
+</tr>
+<tr>
+<td align="center"><strong>ISGM</strong></td>
+<td align="center">Integrated start generator module</td>
+<td align="center">智能发电机模块</td>
+</tr>
+<tr>
+<td align="center"><strong>LPOD</strong></td>
+<td align="center">left Rear Operated Door</td>
+<td align="center">左后电动门控制模块</td>
+</tr>
+<tr>
+<td align="center"><strong>MMD</strong></td>
+<td align="center">Driver Massage Module</td>
+<td align="center">驾驶侧按摩模块</td>
+</tr>
+<tr>
+<td align="center"><strong>MML</strong></td>
+<td align="center">Massage Module Left</td>
+<td align="center">左后乘客侧按摩模块</td>
+</tr>
+<tr>
+<td align="center"><strong>MMP</strong></td>
+<td align="center">Passenger Massage Module</td>
+<td align="center">副驾驶侧按摩模块</td>
+</tr>
+<tr>
+<td align="center"><strong>MMR</strong></td>
+<td align="center">Massage Module Right</td>
+<td align="center">右后乘客侧按摩模块</td>
+</tr>
+<tr>
+<td align="center"><strong>MVBM</strong></td>
+<td align="center">Medium Voltage Battery Module</td>
+<td align="center">中压电池管理</td>
+</tr>
+<tr>
+<td align="center"><strong>MVCM</strong></td>
+<td align="center">Middle voltage control module</td>
+<td align="center">中压控制模块</td>
+</tr>
+<tr>
+<td align="center"><strong>NVM</strong></td>
+<td align="center">Night Vision Module</td>
+<td align="center">夜视模块</td>
+</tr>
+<tr>
+<td align="center"><strong>OBC</strong></td>
+<td align="center">On Board Charger</td>
+<td align="center">充电口（车载充电器)</td>
+</tr>
+<tr>
+<td align="center"><strong>OHC</strong></td>
+<td align="center">Overhead Console</td>
+<td align="center">顶灯模块（带天窗控制开关）</td>
+</tr>
+<tr>
+<td align="center"><strong>OWS</strong></td>
+<td align="center">Occupant Weight Sensor</td>
+<td align="center">成员检测传感器（座椅内部，用来检测是否坐人的传感器）</td>
+</tr>
+<tr>
+<td align="center"><strong>PAC</strong></td>
+<td align="center">Park Assist Camera</td>
+<td align="center">驻车辅助摄像头</td>
+</tr>
+<tr>
+<td align="center"><strong>PAS</strong></td>
+<td align="center">Parking Assist System</td>
+<td align="center">驻车辅助系统</td>
+</tr>
+<tr>
+<td align="center"><strong>PDM</strong></td>
+<td align="center">Passenger Door Module</td>
+<td align="center">副驾驶门模块</td>
+</tr>
+<tr>
+<td align="center"><strong>PIG</strong></td>
+<td align="center">Passenger intelligent change colour glass module</td>
+<td align="center">副驾驶侧智能变色玻璃模块</td>
+</tr>
+<tr>
+<td align="center"><strong>POT</strong></td>
+<td align="center">Power Operated Tailgate</td>
+<td align="center">电动后背门</td>
+</tr>
+<tr>
+<td align="center"><strong>PPOD</strong></td>
+<td align="center">Passenger Power Operated Door</td>
+<td align="center">乘客侧电动门控制模块</td>
+</tr>
+<tr>
+<td align="center"><strong>PRM</strong></td>
+<td align="center">Passenger Radar module</td>
+<td align="center">副驾驶侧雷达模块</td>
+</tr>
+<tr>
+<td align="center"><strong>PSCM</strong></td>
+<td align="center">Power Steering Control Module</td>
+<td align="center">电动助力转向模块</td>
+</tr>
+<tr>
+<td align="center"><strong>RCML</strong></td>
+<td align="center">Rear Lamp Control Module Left</td>
+<td align="center">左尾灯控制模块</td>
+</tr>
+<tr>
+<td align="center"><strong>RCMR</strong></td>
+<td align="center">Rear Lamp Control Module Right</td>
+<td align="center">右尾灯控制模块</td>
+</tr>
+<tr>
+<td align="center"><strong>RCSM</strong></td>
+<td align="center">Rear Console Switch Module</td>
+<td align="center">后开关控制模块</td>
+</tr>
+<tr>
+<td align="center"><strong>RDDM</strong></td>
+<td align="center">Rear Driver Door Module</td>
+<td align="center">后驾驶侧门模块</td>
+</tr>
+<tr>
+<td align="center"><strong>RDIG</strong></td>
+<td align="center">Rear Driver intelligent change colour glass module</td>
+<td align="center">左后乘客侧智能变色玻璃模块</td>
+</tr>
+<tr>
+<td align="center"><strong>RDRM</strong></td>
+<td align="center">Rear Driver Radar module</td>
+<td align="center">驾驶侧后雷达模块</td>
+</tr>
+<tr>
+<td align="center"><strong>RLSM</strong></td>
+<td align="center">Rain and Light Sensor Module</td>
+<td align="center">阳光雨量传感器</td>
+</tr>
+<tr>
+<td align="center"><strong>RMD</strong></td>
+<td align="center">Rear View Mirror Display</td>
+<td align="center">内后视镜显示</td>
+</tr>
+<tr>
+<td align="center"><strong>RML</strong></td>
+<td align="center">Restraint Module Left</td>
+<td align="center">左约束模块（气囊安全带控制模块）</td>
+</tr>
+<tr>
+<td align="center"><strong>RMR</strong></td>
+<td align="center">Restraint Module Right</td>
+<td align="center">右约束模块（气囊安全带控制模块）</td>
+</tr>
+<tr>
+<td align="center"><strong>RPDM</strong></td>
+<td align="center">Rear Passenger Door Module</td>
+<td align="center">后排乘客门模块</td>
+</tr>
+<tr>
+<td align="center"><strong>RPIG</strong></td>
+<td align="center">Rear Passenger intelligent change colour glass module</td>
+<td align="center">右后乘客侧智能变色玻璃模块</td>
+</tr>
+<tr>
+<td align="center"><strong>RPOD</strong></td>
+<td align="center">Right Rear Operated Door</td>
+<td align="center">右后电动门控制模块</td>
+</tr>
+<tr>
+<td align="center"><strong>RPRM</strong></td>
+<td align="center">Rear Passenger Radar module</td>
+<td align="center">副驾驶侧后雷达模块</td>
+</tr>
+<tr>
+<td align="center"><strong>SAS</strong></td>
+<td align="center">Steering Angle Sensor</td>
+<td align="center">转向角传感器</td>
+</tr>
+<tr>
+<td align="center"><strong>SCL</strong></td>
+<td align="center">Steering Column Lock</td>
+<td align="center">转向柱锁</td>
+</tr>
+<tr>
+<td align="center"><strong>SCM</strong></td>
+<td align="center">Sun Curtain Module</td>
+<td align="center">遮阳帘模块</td>
+</tr>
+<tr>
+<td align="center"><strong>SCSI</strong></td>
+<td align="center">Slow Charger Socket Indicator</td>
+<td align="center">慢充指示</td>
+</tr>
+<tr>
+<td align="center"><strong>SGT</strong></td>
+<td align="center">Skylight glass top</td>
+<td align="center">天窗玻璃星空顶</td>
+</tr>
+<tr>
+<td align="center"><strong>SHD</strong></td>
+<td align="center">Driver Seat Heating</td>
+<td align="center">座椅通风</td>
+</tr>
+<tr>
+<td align="center"><strong>SHR</strong></td>
+<td align="center">Seat Heat Rear Module</td>
+<td align="center">后座椅加热模块</td>
+</tr>
+<tr>
+<td align="center"><strong>SIG</strong></td>
+<td align="center">Sunroof intelligent change colour glass module</td>
+<td align="center">智能天窗玻璃变色模块</td>
+</tr>
+<tr>
+<td align="center"><strong>SMD</strong></td>
+<td align="center">Driver Seat Module</td>
+<td align="center">驾驶侧座椅模块</td>
+</tr>
+<tr>
+<td align="center"><strong>SMP</strong></td>
+<td align="center">Passenger Seat Module</td>
+<td align="center">乘客侧座椅模块</td>
+</tr>
+<tr>
+<td align="center"><strong>SMR</strong></td>
+<td align="center">Seat Module Rear</td>
+<td align="center">后座椅模块</td>
+</tr>
+<tr>
+<td align="center"><strong>SODL</strong></td>
+<td align="center">Side Obstacle Detection Left</td>
+<td align="center">左侧障碍侦测</td>
+</tr>
+<tr>
+<td align="center"><strong>SODR</strong></td>
+<td align="center">Side Obstacle Detection Right</td>
+<td align="center">右侧障碍侦测</td>
+</tr>
+<tr>
+<td align="center"><strong>SRM</strong></td>
+<td align="center">Sun Roof Module</td>
+<td align="center">天窗模块</td>
+</tr>
+<tr>
+<td align="center"><strong>SRS</strong></td>
+<td align="center">Supplementary Restraint System</td>
+<td align="center">约束系统—安全气囊</td>
+</tr>
+<tr>
+<td align="center"><strong>SUM</strong></td>
+<td align="center">Suspension Module</td>
+<td align="center">悬架模块</td>
+</tr>
+<tr>
+<td align="center"><strong>SWM</strong></td>
+<td align="center">Steering Wheel Module</td>
+<td align="center">组合开关模块</td>
+</tr>
+<tr>
+<td align="center"><strong>SWSM</strong></td>
+<td align="center">Steering Wheel Switch Module</td>
+<td align="center">转向盘开关模块</td>
+</tr>
+<tr>
+<td align="center"><strong>TACM</strong></td>
+<td align="center">Transmission Actuator Control Module</td>
+<td align="center">变速箱执行器控制模块</td>
+</tr>
+<tr>
+<td align="center"><strong>TCAM</strong></td>
+<td align="center">Telematics &amp; Connectivity Antenna Module</td>
+<td align="center">车载信息系统连接天线模块</td>
+</tr>
+<tr>
+<td align="center"><strong>TCH</strong></td>
+<td align="center">Thermal Cup Holder</td>
+<td align="center">冷热杯托</td>
+</tr>
+<tr>
+<td align="center"><strong>TCM</strong></td>
+<td align="center">Transmission Control Module</td>
+<td align="center">变速器控制模块</td>
+</tr>
+<tr>
+<td align="center"><strong>TPM</strong></td>
+<td align="center">Touch Panel Module</td>
+<td align="center">触控手写板</td>
+</tr>
+<tr>
+<td align="center"><strong>TRM</strong></td>
+<td align="center">Trailer Module</td>
+<td align="center">拖车模块</td>
+</tr>
+<tr>
+<td align="center"><strong>VBMR</strong></td>
+<td align="center">VAC Blower Module Rear</td>
+<td align="center">后空调鼓风机模块</td>
+</tr>
+<tr>
+<td align="center"><strong>VDDM</strong></td>
+<td align="center">Vehicle Dynamics Domain Master</td>
+<td align="center">动力域主节点（FLEXRAY的主干网的节点，也有ESP功能）</td>
+</tr>
+<tr>
+<td align="center"><strong>VGM</strong></td>
+<td align="center">Vehicle Gateway Module</td>
+<td align="center">车辆网关模块</td>
+</tr>
+<tr>
+<td align="center"><strong>VMPS</strong></td>
+<td align="center">Vehicle Motion Position system</td>
+<td align="center">车辆移动定位系统</td>
+</tr>
+<tr>
+<td align="center"><strong>VRM</strong></td>
+<td align="center">Vehicle Refrigerator Module</td>
+<td align="center">车载冰箱</td>
+</tr>
+<tr>
+<td align="center"><strong>WMM</strong></td>
+<td align="center">Wiper Motor Module</td>
+<td align="center">电动雨刮</td>
+</tr>
+<tr>
+<td align="center"><strong>WPC</strong></td>
+<td align="center">Wireless Power Charge</td>
+<td align="center">手机无线充电</td>
+</tr>
+<tr>
+<td align="center"><strong>NFC</strong></td>
+<td align="center">Near Field Communication</td>
+<td align="center">近场通信</td>
+</tr>
+<tr>
+<td align="center"><strong>WPT</strong></td>
+<td align="center">Wireless Power Transfer</td>
+<td align="center">无线充电模块</td>
+</tr>
+<tr>
+<td align="center"><strong>VGA</strong></td>
+<td align="center">Vent Grill Actuator</td>
+<td align="center">空调出风口</td>
+</tr>
+</tbody></table>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/IoV/" class="category-chain-item">IoV</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/IoV/" class="print-no-link">#IoV</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>ECU</div>
+      <div>https://g1at.github.io/2024/01/18/ECU/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>g0at</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2024年1月18日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2023/12/21/%E5%BC%BA%E7%BD%91%E6%9D%AF2023/" title="强网杯S7">
+                        <span class="hidden-mobile">强网杯S7</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+  
+  
+    <article id="comments" lazyload>
+      
+  <div id="valine"></div>
+  <script type="text/javascript">
+    Fluid.utils.loadComments('#valine', function() {
+      Fluid.utils.createScript('https://lib.baomitu.com/valine/1.5.1/Valine.min.js', function() {
+        var options = Object.assign(
+          {"appId":"rF6DPbqXmz9oaKXSwioOtyuv-gzGzoHsz","appKey":"7WylA7nweHQ3Z3Y3lnez5NTm","path":"window.location.pathname","placeholder":"来唠嗑","avatar":"retro","meta":["nick","mail","link"],"requiredFields":[],"pageSize":10,"lang":"zh-CN","highlight":false,"recordIP":false,"serverURLs":"","emojiCDN":null,"emojiMaps":null,"enableQQ":false},
+          {
+            el: "#valine",
+            path: window.location.pathname
+          }
+        )
+        new Valine(options);
+        Fluid.utils.waitElementVisible('#valine .vcontent', () => {
+          var imgSelector = '#valine .vcontent img:not(.vemoji)';
+          Fluid.plugins.imageCaption(imgSelector);
+          Fluid.plugins.fancyBox(imgSelector);
+        })
+      });
+    });
+  </script>
+  <noscript>Please enable JavaScript to view the comments</noscript>
+
+
+    </article>
+  
+
+
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       Hor1zon <i class="iconfont icon-love"></i> g0at 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="leancloud-site-pv-container" style="display: none">
+        访问量 
+        <span id="leancloud-site-pv"></span>
+         次
+      </span>
+    
+    
+      <span id="leancloud-site-uv-container" style="display: none">
+        访客数 
+        <span id="leancloud-site-uv"></span>
+         人
+      </span>
+    
+    
+
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.0/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.18.2/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script defer src="/js/leancloud.js" ></script>
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
