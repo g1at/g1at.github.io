@@ -1,0 +1,994 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/ggg.png">
+  <link rel="icon" href="/img/ggg.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="g0at">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="Android APP中可能出现的安全漏洞的类型和原理的简单总结。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Android APP常见安全漏洞">
+<meta property="og:url" content="https://g1at.github.io/2024/02/18/Android-App-Security-Vulnerabilities/index.html">
+<meta property="og:site_name" content="g0at&#39;s Blog">
+<meta property="og:description" content="Android APP中可能出现的安全漏洞的类型和原理的简单总结。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://p.sda1.dev/16/a9db2d684070ea246e6c93799dd45271/92916.png">
+<meta property="article:published_time" content="2024-02-18T08:12:27.000Z">
+<meta property="article:modified_time" content="2024-03-07T08:30:01.812Z">
+<meta property="article:author" content="g0at">
+<meta property="article:tag" content="IoV">
+<meta property="article:tag" content="Android">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://p.sda1.dev/16/a9db2d684070ea246e6c93799dd45271/92916.png">
+  
+  
+  
+  <title>Android APP常见安全漏洞 - g0at&#39;s Blog</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+  
+<link rel="stylesheet" href="/css/mac.css">
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"g1at.github.io","root":"/","version":"1.9.5","typing":{"enable":true,"typeSpeed":80,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":true,"baidu":null,"google":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":"rF6DPbqXmz9oaKXSwioOtyuv-gzGzoHsz","app_key":"7WylA7nweHQ3Z3Y3lnez5NTm","server_url":"https://rf6dpbqx.lc-cn-n1-shared.com","path":"window.location.pathname","ignore_local":false},"gtag":null},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    
+  
+
+
+
+  
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>g0at&#39;s Blog</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/links/">
+                <i class="iconfont icon-link-fill"></i>
+                <span>友链</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/wp.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Android APP常见安全漏洞"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-author" aria-hidden="true"></i>
+        g0at
+      </span>
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2024-02-18 16:12" pubdate>
+          2024年2月18日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          12k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          99 分钟
+        
+      </span>
+    
+
+    
+    
+      
+        <span id="leancloud-page-views-container" class="post-meta" style="display: none">
+          <i class="iconfont icon-eye" aria-hidden="true"></i>
+          <span id="leancloud-page-views"></span> 次
+        </span>
+        
+      
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Android APP常见安全漏洞</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p><strong>Android漏洞可能存在的点</strong>：</p>
+<ol>
+<li>协议——通信协议（本地、网络），协议大部分是由C/C++实现，存在以下安全问题：通信数据引发的逻辑漏洞；通信数据引发的<code>缓冲区溢出</code>等可能导致远程代码执行/拒绝服务的代码漏洞。</li>
+<li>组件安全——Activity，Service服务,Content Provider内容提供者，BroadcastReceiver广播接收器中可能存在的安全问题，其中最主要的就是intent组件通信导致的拒绝服务/越权漏洞。</li>
+<li>开放端口——可通过命令查看各APP运行时存在的开放端口，然后去逆向分析APP查看其在此开放端口上进行的操作，从而找寻可能的漏洞。</li>
+<li>IPC（进程间通信）安全——同1。</li>
+<li>文件读写安全/数据加密安全——Android平台上的隐私泄露也是一个值得关注的攻击面。</li>
+</ol>
+<h2 id="Android-APP常见安全漏洞"><a href="#Android-APP常见安全漏洞" class="headerlink" title="Android APP常见安全漏洞"></a>Android APP常见安全漏洞</h2><p><img src="https://p.sda1.dev/16/eb2ba5b35945e4a672cf3248296a7b20/12.png" srcset="/img/loading.gif" lazyload></p>
+<h3 id="四大组件"><a href="#四大组件" class="headerlink" title="四大组件"></a>四大组件</h3><p><strong>四大组件的安全问题很大一部分是由于组件设置成导出状态（android:exported=true）引起的。</strong><br>Android 四大组件中，Activity，Service，BroadcastReceiver广播接收器之间都可以通过<code>Intent</code>进行通信，所以他们都存在由Intent传输数据引发的本地拒绝服务漏洞。</p>
+<ol>
+<li><strong>背景知识</strong>：Android系统中的Intent机制负责对应用中一次操作的动作、动作涉及数据、附加数据进行描述，系统则根据此Intent的描述，负责找到对应的组件，将Intent传递给调用的组件，并完成组件的调用。</li>
+<li><strong>产生原理</strong>：Android应用本地拒绝服务漏洞源于程序处理<code>Intent.getXXXExtra()</code>获取的数据时没有进行异常捕获，从而导致攻击者可通过向受害者应用发送此类空数据、异常或者畸形数据来达到使该应用崩溃的目的。</li>
+<li><strong>危害</strong>：</li>
+</ol>
+<ul>
+<li>导致安全防护等应用的防护功能被绕过或失效（如杀毒应用、安全卫士、防盗锁屏等）。</li>
+<li>被竞争方应用利用并攻击，使得己方应用崩溃，造成不同程度的经济利益损失。</li>
+</ul>
+<ol start="4">
+<li><strong>防护</strong>：</li>
+</ol>
+<ul>
+<li>将不必要的组件设置为不导出，在<code>AndroidMenifest.xml</code>文件中，将相应组件的<code>android:exported</code>属性设置为<code>false</code>，防止引起拒绝服务，尤其是杀毒、安全防护、锁屏防盗等安全应用。</li>
+<li>处理通过<code>Intent.getXXXExtra()</code>获取的数据时进行以下判断，同时用try-catch方式捕获所有异常，以防止应用出现拒绝服务漏洞：空指针异常、类型转换异常、数组越界访问异常、类未定义异常、其他异常。</li>
+</ul>
+<ol start="5">
+<li><strong>攻击代码示例</strong>：包括NullPointerException异常、ClassCastException异常、IndexOutOfBoundsException异常、ClassNotFoundException异常。</li>
+</ol>
+<h4 id="Activity"><a href="#Activity" class="headerlink" title="Activity"></a><a target="_blank" rel="noopener" href="https://www.jianshu.com/p/32938446e4e0">Activity</a></h4><h5 id="组件导出导致钓鱼欺诈"><a href="#组件导出导致钓鱼欺诈" class="headerlink" title="组件导出导致钓鱼欺诈"></a>组件导出导致钓鱼欺诈</h5><h6 id="原理"><a href="#原理" class="headerlink" title="原理"></a>原理</h6><p>Android为了提高用户的用户体验，对于不同的应用程序之间的切换，基本上是无缝。他们切换的只是一个Activity，让切换的到前台显示，另一个应用则被覆盖到后台，不可见。Activity的概念相当于一个与用户交互的界面。而Activity的调度是交由Android系统中的AMS管理的。AMS即ActivityManagerService(Activity管理服务),各个应用想启动或停止一个进程，都是先报告给AMS。当AMS收到要启动或停止Activity的消息时，它先更新内部记录，在通知相应的进程运行或停止指定的Activity。当新的Activity启动，前一个Activity就会停止，这些Activity都保留在系统中年的Activity历史栈中。每有一个Activity启动，它就压入历史栈顶，并在手机上显示。当用户按下back键时，顶部Activity弹出，恢复前一个Activity，栈顶指向当前的Activity。由于Activity的这种特性，如果在启动一个Activity时，给它加入一个标志位FLAGACTIVITYNEW_TASK,就能使它置于栈顶并立马呈现给用户。如果这个Activity是用于盗号的伪装Activity，那么就会产生钓鱼安全事件或者是一个Activity中有webview加载，如果允许加载任意网页也有可能会产生钓鱼事件。</p>
+<h6 id="防护"><a href="#防护" class="headerlink" title="防护"></a>防护</h6><p>如果当前的程序进入后台，则需要提示用户当前进程状态。</p>
+<h5 id="隐式启动intent包含敏感数据"><a href="#隐式启动intent包含敏感数据" class="headerlink" title="隐式启动intent包含敏感数据"></a>隐式启动intent包含敏感数据</h5><h6 id="Intent类型"><a href="#Intent类型" class="headerlink" title="Intent类型"></a><a target="_blank" rel="noopener" href="https://blog.csdn.net/Kelaker/article/details/80569232">Intent类型</a></h6><ul>
+<li><strong>显式 Intent</strong>：按名称（完全限定类名）指定要启动的组件。 通常，您会在自己的应用中使用显式 Intent 来启动组件，这是因为您知道要启动的 Activity 或服务的类名。例如，启动新 Activity 以响应用户操作，或者启动服务以在后台下载文件。</li>
+</ul>
+<blockquote>
+<p>创建显式 Intent 启动 Activity 或服务时，系统将立即启动 Intent 对象中指定的应用组件。</p>
+</blockquote>
+<ul>
+<li><strong>隐式 Intent</strong> ：不会指定特定的组件，而是声明要执行的常规操作，从而允许其他应用中的组件来处理它。 例如，如需在地图上向用户显示位置，则可以使用隐式 Intent，请求另一具有此功能的应用在地图上显示指定的位置。</li>
+</ul>
+<blockquote>
+<p>创建隐式 Intent 时，Android 系统通过将 Intent 的内容与在设备上其他应用的清单文件中声明的 Intent 过滤器进行比较，从而找到要启动的相应组件。 如果 Intent 与 Intent 过滤器匹配，则系统将启动该组件，并向其传递 Intent 对象。 如果多个 Intent 过滤器兼容，则系统会显示一个对话框，支持用户选取要使用的应用。</p>
+</blockquote>
+<p>对于显式Intent，Android不需要去做解析，因为目标组件已经很明确，Android需要解析的是那些隐式Intent，通过解析，将Intent映射给可以处理此Intent的Activity、IntentReceiver或Service。<br><img src="https://p.sda1.dev/16/d767398f9c81da798d2ce518a239d2e9/5.png" srcset="/img/loading.gif" lazyload></p>
+<h4 id="Service"><a href="#Service" class="headerlink" title="Service"></a><a target="_blank" rel="noopener" href="https://blog.csdn.net/javazejian/article/details/52709857">Service</a></h4><h5 id="概述-1"><a href="#概述-1" class="headerlink" title="概述"></a>概述</h5><p> Service(服务)是一个一种可以在后台执行长时间运行操作而没有用户界面的应用组件。服务可由其他应用组件启动（如Activity），服务一旦被启动将在后台一直运行，即使启动服务的组件（Activity）已销毁也不受影响。 此外，组件可以绑定到服务，以与之进行交互，甚至是执行进程间通信 (IPC)。 例如，服务可以处理网络事务、播放音乐，执行文件 I/O 或与内容提供程序交互，而所有这一切均可在后台进行，Service基本上分为两种形式：</p>
+<ol>
+<li><p>启动状态</p>
+<p>当应用组件（如 Activity）通过调用 startService() 启动服务时，服务即处于“启动”状态。一旦启动，服务即可在后台无限期运行，即使启动服务的组件已被销毁也不受影响，除非手动调用才能停止服务， 已启动的服务通常是执行单一操作，而且不会将结果返回给调用方。</p>
+</li>
+<li><p>绑定状态</p>
+<p>当应用组件通过调用 bindService() 绑定到服务时，服务即处于“绑定”状态。绑定服务提供了一个客户端-服务器接口，允许组件与服务进行交互、发送请求、获取结果，甚至是利用进程间通信 (IPC) 跨进程执行这些操作。 仅当与另一个应用组件绑定时，绑定服务才会运行。 多个组件可以同时绑定到该服务，但全部取消绑定后，该服务即会被销毁。</p>
+</li>
+</ol>
+<h5 id="危害"><a href="#危害" class="headerlink" title="危害"></a>危害</h5><p>如果一个导出的 Service没有做严格的限制，任何应用可以去启动并且绑定到这个 Service上，取决于被暴露的功能，这有可能使得一个应用去<strong>执行未授权的行为</strong>，获取敏感信息或者是污染修改内部应用的状态造成威胁。</p>
+<h4 id="Broadcast-receiver"><a href="#Broadcast-receiver" class="headerlink" title="Broadcast receiver"></a><a target="_blank" rel="noopener" href="https://www.jianshu.com/p/ca3d87a4cdf3">Broadcast receiver</a></h4><h5 id="概述-2"><a href="#概述-2" class="headerlink" title="概述"></a>概述</h5><p>BroadcastReceiver是 Android的四大组件之一，这个组件涉及两个概念：广播发送者和广播接收者。这里的广播实际上指的就是 intent。当发送一个广播时，系统会将发送的广播 (intent)与系统中所有注册的符合条件的接收者的 IntentFilter进行匹配，若匹配成功，则执行相应接收者的 onReceive函数。可以通过两种方式注册广播接收器，一种是在Manifest.xml文件中通过标签静态注册，另一种是通过Context.registerReceiver()动态注册，指定相应的intentfilter参数。而动态注册的广播是默认导出的。</p>
+<h5 id="危害-1"><a href="#危害-1" class="headerlink" title="危害"></a>危害</h5><p>发送广播时如果处理不当，恶意应用便可以<strong>嗅探</strong>、<strong>拦截广播</strong>，致使<strong>敏感数据泄露</strong>等；</p>
+<ul>
+<li>原理：发送的intent没有明确指定接收者，而是简单的通过action匹配。恶意应用可注册一个广播接收者嗅探拦截这个广播。</li>
+<li>防护：使用<code>LocalBroadcastManager.sendBroadcast()</code>发出的广播只能被app自身广播器接收。</li>
+</ul>
+<p>如果接收广播时处理不当，便可导致<strong>拒绝服务攻击</strong>、<strong>伪造消息</strong>、<strong>越权操作</strong>等。</p>
+<h4 id="Content-Provider"><a href="#Content-Provider" class="headerlink" title="Content Provider"></a><a target="_blank" rel="noopener" href="https://www.jianshu.com/p/ea8bc4aaf057">Content Provider</a></h4><h5 id="概述-3"><a href="#概述-3" class="headerlink" title="概述"></a>概述</h5><p>Content Provider负责进行<strong>数据交互&amp;共享</strong>，即跨进程通信<br><img src="https://p.sda1.dev/16/5eee352e2127dded73fdb4516abe0e5d/944365-3c4339c5f1d4a0fd.png" srcset="/img/loading.gif" lazyload></p>
+<h5 id="危害-2"><a href="#危害-2" class="headerlink" title="危害"></a>危害</h5><h6 id="信息泄露漏洞"><a href="#信息泄露漏洞" class="headerlink" title="信息泄露漏洞"></a>信息泄露漏洞</h6><p>如果对Content Provider的权限没有做好控制，就有可能导致恶意程序通过构造Content URI读取App的敏感数据。</p>
+<h6 id="SQL注入漏洞"><a href="#SQL注入漏洞" class="headerlink" title="SQL注入漏洞"></a>SQL注入漏洞</h6><p>对Content Provider进行增删改查操作时，程序没有对用户的输入进行过滤，未采用参数化查询的方式，可能导致sql注入攻击。</p>
+<h6 id="目录遍历漏洞"><a href="#目录遍历漏洞" class="headerlink" title="目录遍历漏洞"></a>目录遍历漏洞</h6><p>对外暴露的Content Provider组件实现了openFile()接口，并且没有对Content Provider组件的访问进行权限控制，也没有对访问的目标文件的Uri进行有效判断，第三方应用程序可以利用该接口进行文件目录遍历，访问任意可读文件。</p>
+<h4 id="四大组件的安全防护"><a href="#四大组件的安全防护" class="headerlink" title="四大组件的安全防护"></a>四大组件的安全防护</h4><h5 id="Activity-1"><a href="#Activity-1" class="headerlink" title="Activity"></a>Activity</h5><ol>
+<li><p>谨慎处理接收的Intent以及其携带的信息；</p>
+</li>
+<li><p>私有Activity不应被其他应用启动且应该确保相对是安全的；</p>
+</li>
+<li><p>当Activity返回数据时候需注意目标Activity是否有泄露信息的风险，同时谨慎处理Activity返回的数据，目的Activity返回的数据有可能是恶意应用伪造的；</p>
+</li>
+<li><p>目标Activity十分明确时尽量使用显式Intent；</p>
+</li>
+<li><p>验证目标Activity是否属于恶意app，以免受到Intent欺骗，可用hash签名验证；</p>
+</li>
+<li><p>尽可能的不发送敏感信息，应考虑到启动public Activity中Intent的信息均有可能被恶意应用窃取的风险；</p>
+</li>
+<li><p>不需要被外部程序调用的组件应该添加<code>android:exported=&quot;false&quot;</code>属性，这个属性说明它是私有的，只有同一个应用程序的组件或带有相同用户ID的应用程序才能启动或绑定该组件；</p>
+</li>
+<li><p>对于希望Activity能够被特定的外部程序访问，可以为其设置访问权限，具体做法有以下两种：</p>
+<p>①组件添加android：permission属性；</p>
+<p><code>android:permission:&quot;android.perrmission.SEND SMS&quot;</code><br>②protectionLevel权限声明；<br><code>android:protectionLevel=&quot;dangerous&quot;</code></p>
+</li>
+</ol>
+<h5 id="Service-1"><a href="#Service-1" class="headerlink" title="Service"></a>Service</h5><ol>
+<li>私有的service尽量不定义intent-filter并且设置exported属性为false；</li>
+<li>尽量用显式的方式启动service；</li>
+<li>合作service需对合作方的app签名做校验；</li>
+<li>Service接收到的数据需要谨慎处理；</li>
+<li>内部service需使用签名级别的protectionLevel来判断是否为内部应用调用；</li>
+<li>Service不应在onCreate时决定是否提供服务，应在onStartCommand/onBind/onHandleIntent等方法被调用时做判断；</li>
+<li>当service有返回数据时，应判断接收数据的组件是否有信息泄露的风险；</li>
+<li>尽量不发送敏感信息；</li>
+</ol>
+<h5 id="Content-Provider-1"><a href="#Content-Provider-1" class="headerlink" title="Content Provider"></a>Content Provider</h5><ol>
+<li>如果不需要与其他应用程序进行数据共享，就应该在manifest文件中设置<code>android:exported=&quot;false&quot;</code>；</li>
+<li>注意,在API Level低于8时，即使显式地声明了<code>android:exported=&quot;false&quot;</code>，其它应用程序仍然可以访问对应的Content Provider，所以尽量避免使用Level低于8的API；</li>
+<li>需要向外部提供数据的Content Provider需设置访问权限；</li>
+<li>传递给ContentProvider的参数应该被视为不可信的输入，不应该在没有经过任何处理的情况下直接用于SQL查询；</li>
+<li>避免使用SQLiteDatabase对象的execSQL()方法；</li>
+</ol>
+<h5 id="Broadcast-Receiver"><a href="#Broadcast-Receiver" class="headerlink" title="Broadcast Receiver"></a>Broadcast Receiver</h5><ol>
+<li>私有广播接收器设置<code>android:exported=&quot;false&quot;</code>，尽量不配置intent-filter；</li>
+<li>私有广播尽量使用LocalBroadcastManager动态注册和使用；</li>
+<li>暴露的广播接收器需要对数据来源进行权限控制和身份验证；</li>
+<li>广播接收器对于接收的数据要谨慎地使用多种异常来控制数据处理；</li>
+<li>发送广播时如果包含敏感数据则需要显示意图，并通过setPackage()指定接收者包名；</li>
+</ol>
+<h3 id="默认设置漏洞"><a href="#默认设置漏洞" class="headerlink" title="默认设置漏洞"></a>默认设置漏洞</h3><h4 id="AndroidManifest-xml配置文件中默认设置相关问题"><a href="#AndroidManifest-xml配置文件中默认设置相关问题" class="headerlink" title="AndroidManifest.xml配置文件中默认设置相关问题"></a>AndroidManifest.xml配置文件中默认设置相关问题</h4><ol>
+<li>allowBackup默认设置风险（Android 2.1以上的系统可为App提供应用程序数据的备份和恢复功能，AndroidManifest.xml文件中的allowBackup属性值控制，其默认值为true。当该属性没有显式设置为false时，攻击者可通过adb backup和adb restore对App的应用数据进行备份和恢复。）</li>
+<li>Debuggable默认设置风险</li>
+<li>组件默认导出风险</li>
+</ol>
+<h4 id="WebView的默认设置问题"><a href="#WebView的默认设置问题" class="headerlink" title="WebView的默认设置问题"></a>WebView的默认设置问题</h4><p>在 Android开发中，经常会使用 Webview来实现WEB页面的展示，在 Activity中启动自己的浏览器或者简单的展示一些在线内容等。</p>
+<ul>
+<li>setAllowFileAccess()</li>
+<li>setAllowContentAccess()</li>
+<li>setAllowFileAccessFromFileURLs()</li>
+<li>setAllowUniversalAccessFromFileURLs()</li>
+<li>setSavePassword()</li>
+</ul>
+<ol>
+<li>Webview默认开启密码保存功能 mWebview.setSavePassword(true)，如果该功能未关闭，在用户输入密码时，会弹出提示框，询问用户是否保存密码，如果选择“是”，密码会被明文保到<code>/data/data/com.package.name/databases/webview.db</code>，如果手机被root之后，获取roo权限的APP就可以任意读取私有目录下的文件去获取用户的密码，因此建议用户密码需要加密存储。</li>
+<li>Android中默认mWebView.setAllowFileAccess(true)，在File域下，能够执行任意的JavaScript代码，同源策略跨域访问能够对私有目录文件进行访问等。APP对嵌入的 Webview未对file://形式的URL做限制，会导致隐私信息泄露，针对IM类软件会导致聊天信息、联系人等等重要信息泄露，针对浏览器类软件，则更多的是 cookie信息泄露。</li>
+</ol>
+<h3 id="网络相关"><a href="#网络相关" class="headerlink" title="网络相关"></a>网络相关</h3><h4 id="https通信安全漏洞"><a href="#https通信安全漏洞" class="headerlink" title="https通信安全漏洞"></a>https通信安全漏洞</h4><p>在Android中使用SSL/TLS协议，通过校验服务器端证书来实现安全通信。（这里指单向SSL校验，与之对应的是双向SSL校验，双向SSL指的是同时校验客户端和服务器端证书。）<br><strong>https证书不校验漏洞</strong>：忽略SSL证书校验、忽略域名校验、证书颁发机构被攻击导致私钥泄露，导致中间人攻击，攻击者可通过中间人攻击，盗取账户密码明文、聊天内容、通讯地址、电话号码以及信用卡支付信息等敏感信息，甚至通过中间人劫持将原有信息替换成恶意链接或恶意代码程序，以达到远程控制、恶意扣费等攻击意图。</p>
+<h5 id="忽略SSL证书校验"><a href="#忽略SSL证书校验" class="headerlink" title="忽略SSL证书校验"></a>忽略SSL证书校验</h5><h6 id="原理-1"><a href="#原理-1" class="headerlink" title="原理"></a>原理</h6><ul>
+<li>在自定义实现X509TrustManager时，checkServerTrusted中没有检查证书是否可信，导致通信过程中可能存在中间人攻击，造成敏感数据劫持危害。</li>
+<li>在重写 WebviewClient的 onReceivedSslError方法时，调用 proceed忽略证书验证错误信息继续加载页面，导致通信过程中可能存在中间人攻击，造成敏感数据劫持危害。</li>
+</ul>
+<h6 id="防护-1"><a href="#防护-1" class="headerlink" title="防护"></a>防护</h6><ol>
+<li>建议自定义实现X509TrustManager时，在 checkServerTrusted中对服务器信息进行严格校验。针对自定义 TrustManager，检查 checkServerTrusted()函数是否为空实现。</li>
+<li>建议不要重写 TrustManager和 HostnameVerifier，使用系统默认的。</li>
+<li>在重写 WebViewClient的。 onReceivedSslError方法时，避兔调用 proceed忽略证书验证错误信息继续加载页面。</li>
+<li>禁止使用proceed()函数忽略证书错误，应该抛给系统进行安全警告。</li>
+</ol>
+<h5 id="忽略域名校验"><a href="#忽略域名校验" class="headerlink" title="忽略域名校验"></a>忽略域名校验</h5><h6 id="原理-2"><a href="#原理-2" class="headerlink" title="原理"></a>原理</h6><ul>
+<li>在自定义实现 HostnameVerifier时，没有在verify中进行严格证书校验，导致通信过程中可能存在中间人攻击，造成敏感数据劫持危害。</li>
+<li>在HostnameVerifier方法中使用<code>ALLOW_ALL_HOSTNAME_VERIFIER</code>，信任所有Hostname，导致通信过程中可能存在中间人攻击，造成敏感数据劫持危害。</li>
+</ul>
+<h6 id="防护-2"><a href="#防护-2" class="headerlink" title="防护"></a>防护</h6><ul>
+<li>在自定义实现 HostnameVerifier时，在verify中对Hostname进行严格校验。</li>
+<li>建议在HostnameVerifier方法中使用<code>STRICT_HOSTNAME_VERIFIER</code>进行严格证书校验，避免使用<code>ALLOW_ALL_HOSTNAME_VERIFIER</code>。</li>
+</ul>
+<h4 id="WebView安全漏洞"><a href="#WebView安全漏洞" class="headerlink" title="WebView安全漏洞"></a>WebView安全漏洞</h4><ol>
+<li>远程代码执行漏洞</li>
+<li>UXSS</li>
+<li>Webview设置方面的安全风险</li>
+<li>Webview忽略证书错误漏洞</li>
+<li>Webview File域同源策略绕过漏洞</li>
+</ol>
+<h5 id="WebView设置方面的安全风险"><a href="#WebView设置方面的安全风险" class="headerlink" title="WebView设置方面的安全风险"></a>WebView设置方面的安全风险</h5><ol>
+<li><code>setJavaScriptEnabled()</code>，默认为false，即不允许执行JS代码。<code>webview.getWebSettings().setavaScriptEnabled(true);</code></li>
+<li><code>setPluginState()</code>，它有三个状态值ON、ON DEMAND、OFF，默认为OFF。</li>
+<li><code>setAllowFileAccess()</code>默认为true，即允许从WebView访问本地文件。</li>
+<li><code>setAllowContentAccess()</code>默认为true，即允许从WebView加载Content URL，读取content provider相关内容。</li>
+<li><code>setAllowFileAccessFromFileURLs()</code>，这个函数的作用是在JS没有禁用的情况下，设置是否允许file协议的URL访问其他file协议的URL的文件内容。API15及以下默认值为true，API16及以上默认为false。</li>
+<li><code>setAllowUniversalAccessFromFileURLs()</code>，这个函数的作用是在JS没有禁用的情况下，设置是否允许file协议的URL访问其他任意来源的内容。</li>
+<li><code>setSavePassword()</code>默认值为true，这个函数的作用是设置是否允许WebView自动保存密码。</li>
+</ol>
+<h5 id="Webview-File域同源策略绕过漏洞"><a href="#Webview-File域同源策略绕过漏洞" class="headerlink" title="Webview File域同源策略绕过漏洞"></a>Webview File域同源策略绕过漏洞</h5><h6 id="原理-3"><a href="#原理-3" class="headerlink" title="原理"></a>原理</h6><p>浏览器有一个很重要的概念——同源策略(Same-Origin Policy)。所谓同源是指，域名，协议，端口相同。不同源的客户端脚本(JavaScript、 ActionScript)在没明确授权的情况下，不能读写对方的资源。简单的来说，浏览器允许包含在页面A的脚本访问第二个页面B的数据资源，这一切是建立在A和B页面是同源的基础上。同源策略是由 Netscape提出的一个著名的安全策略，现在所有支持 JavaScript的浏览器都会使用这个策略。<br>在Android系统中，APP访问网页一般是使用浏览器或者是使用了 Android系统内置的 webview组件。如果 Webview没有禁止使用file域并且Webview打开了对 JavaScript的支持。通过 Webview对 javascript<br>的延时执行和将当前Html文件删除掉并软连接指向其他文件就可以读取到被符号链接所指的文件，然后通过 JavaScript再次读取HTML文件，即可获取到被符号链接所指的文件。</p>
+<h6 id="防护-3"><a href="#防护-3" class="headerlink" title="防护"></a>防护</h6><ol>
+<li><p>将不必要导出的组件设置为不导出。</p>
+</li>
+<li><p>如果应用的需要导出包含 Webview的组件，禁止使用File域协议。</p>
+<p><code>myWebView.getSettings.setAllowFileAccess(false);</code></p>
+</li>
+<li><p>如果需要使用File协议，禁止File协议调用 JavaScript。</p>
+<p><code>myWebView.getSettings.setavaScriptEnabled(false)</code></p>
+</li>
+</ol>
+<h5 id="WebView安全防护"><a href="#WebView安全防护" class="headerlink" title="WebView安全防护"></a>WebView安全防护</h5><ol>
+<li>手机厂商把手机内置的WebView与google保持更新一致。</li>
+<li>手机厂商把手机内置的浏览器漏洞修补程度要与Google官方保持一致，并且检测个性化自定义的暴露的API接口。</li>
+<li>手机浏览器厂商浏览器漏洞修补程度要与 Google官方保持一致，并且检测个性化自定义的暴露的API接口。</li>
+<li>APP开发人员注意 webview的各项默认设置。</li>
+<li>用户随时把手机的内置 webview以及使用的浏览器更新到最新版本。</li>
+</ol>
+<h4 id="白名单绕过漏洞"><a href="#白名单绕过漏洞" class="headerlink" title="白名单绕过漏洞"></a>白名单绕过漏洞</h4><h5 id="签名白名单绕过"><a href="#签名白名单绕过" class="headerlink" title="签名白名单绕过"></a><a target="_blank" rel="noopener" href="https://www.cnblogs.com/rebeyond/p/10916076.html">签名白名单绕过</a></h5><h6 id="关于Android签名"><a href="#关于Android签名" class="headerlink" title="关于Android签名"></a><a target="_blank" rel="noopener" href="https://blog.csdn.net/qian1127/article/details/103531761">关于Android签名</a></h6><p>Android签名apk之后，会有一个META-INF文件夹，这里有三个文件:</p>
+<ol>
+<li><p><a target="_blank" rel="noopener" href="https://www.cnblogs.com/Gandy/p/7290069.html">MANIFEST.MF</a></p>
+<p>存储的是每一个文件对应的SHA1(或者SHA256)消息摘要算法提取出该文件的摘要然后进行BASE64编码。</p>
+</li>
+<li><p>CERT.SF</p>
+<p>计算这个MANIFEST.MF文件的整体SHA1值，再经过BASE64编码后，记录在CERT.SF主属性块(在文件头上)的<code>SHA1-Digest-Manifest</code>属性值值下。<br>逐条计算MANIFEST.MF文件中每一个块的SHA1，并经过BASE64编码后，记录在CERT.SF中的同名 块中，属性的名字是<code>SHA1-Digest</code>。</p>
+</li>
+<li><p>CERT.RSA</p>
+<p>会把之前生成的 CERT.SF文件，用私钥计算出签名,然后将签名以及包含公钥信息的数字证书一同写入CERTRSA 中保存。CERTRSA是一个满足PKCS7格式的文件。</p>
+</li>
+</ol>
+<p>除了RSA格式的文件还有 CERT.DSA/EC两种格式，Android支持DSA、RSA、EC三种加密算法进行签名，都是用来保存用私钥计算出 CERT.SF文件的数字签名、证书发布机构、有效期、公钥、所有者、签名算法等信息。<br>正常情况下，一个APK中只会生成一个 CERT.RSA/DSA/EC签名文件。但若在APK压缩包中加入其他的签名文件，即可同时存在两个或两个以上的签名文件。</p>
+<h6 id="URL白名单绕过漏洞"><a href="#URL白名单绕过漏洞" class="headerlink" title="URL白名单绕过漏洞"></a>URL白名单绕过漏洞</h6><p>手机应用在特定环境下需要打开外部传入的URL，或者使用外部传入的URL去下载。为了对打开或下载的URL做控制，就需要对域名进行校验。<br>对URL的域名进行校验，一般习惯使用系统API，<code>getHost</code>来获取域名进行字符串比较，但是由于<code>getHost</code>这个系统API的设计缺陷，使其可以被绕过。</p>
+<p><code>[http://192.168.0.11\.163.com/2.html](http://192.168.0.11\.163.com/2.html) </code>这个URL使用getHost得到的域名是<code>192.168.0.11\.163.com</code>，这样在判断是很容易判断为正常域名可以进行访问，但是在实际打开这个URL时，android的webview会将URL解析为<code>[http://192.168.0.1/.163.com/2.html](http://192.168.0.1/.163.com/2.html) </code>来访问，这样.163.com就变为了192.168.0.1这个IP地址下的一个path。这样webview就可能被打开一些不受控制的网页。但是在使用HttpClient等API进行访问时会解析为<code>[http://192.168.0.1.163.com/2.html](http://192.168.0.1.163.com/2.html)</code> 所以此时并不能正常访问。但是由于开发习惯，一般这个对域名进行校验的方法会作为一个公共方法使用，所以建议使用其他方法来判断。<br>对于使用getHost方式获取url进行白名单判断的方式，还有另外一种绕过方式就是url跳转，类似如下的URL跳转都是基于主站的跳转，即便是对于上面提到的这种白名单绕过方式进行了有效限制，但是还是可以进行绕过，由于很多公司对url跳转漏洞都不是很重视，所以结合url跳转漏洞进行的攻击在有的时候也可以达到令人惊奇的程度，危害还是非常严重的，比如说静默下载安装<code>[http://mbs.hao.163.cn/?c=redirect&amp;ur=http://tu.623.cn/7vNo](http://mbs.hao.163.cn/?c=redirect&amp;ur=http://tu.623.cn/7vNo.)</code></p>
+<h4 id="Socket远程连接漏洞"><a href="#Socket远程连接漏洞" class="headerlink" title="Socket远程连接漏洞"></a>Socket远程连接漏洞</h4><p>如果手机开放端口，但是缺少对发送者的身份验证或者是存在权限控制缺陷，导致黑客拿下这个端口的权限，便可以获得手机此端口开放的所有功能。此漏洞只与App有关，不受系统版本影响。</p>
+<h4 id="APK升级漏洞"><a href="#APK升级漏洞" class="headerlink" title="APK升级漏洞"></a>APK升级漏洞</h4><table>
+<thead>
+<tr>
+<th align="center">APP 升级流程</th>
+<th align="center">隐患</th>
+<th align="center">漏洞危害</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">升级API</td>
+<td align="center">升级API未加密</td>
+<td align="center">返回恶意下载地址，可下载恶意APK</td>
+</tr>
+<tr>
+<td align="center">下载API</td>
+<td align="center">下载API未加密</td>
+<td align="center">下载路径被篡改，可下载恶意APK</td>
+</tr>
+<tr>
+<td align="center">程序安装API</td>
+<td align="center">APK本地路径篡改</td>
+<td align="center">安装错误的APK</td>
+</tr>
+</tbody></table>
+<h4 id="其他"><a href="#其他" class="headerlink" title="其他"></a>其他</h4><h5 id="加密算法是否存在安全缺陷"><a href="#加密算法是否存在安全缺陷" class="headerlink" title="加密算法是否存在安全缺陷"></a>加密算法是否存在安全缺陷</h5><p>客户端与服务器通信或数据存储往往采用一些加密算法来保障数据的安全，但是这些算法本身可能存在缺陷。</p>
+<h6 id="不安全的哈希-加密算法"><a href="#不安全的哈希-加密算法" class="headerlink" title="不安全的哈希/加密算法"></a>不安全的哈希/加密算法</h6><ol>
+<li>MD5哈希算法易遭到已知的哈希冲突攻击。 哈希算法用于确保数据完整性（例如，文件签名或数字证书）时尤其易被攻击。 在这种情况下，攻击者可能会生成两个独立的数据块，以便在不更改哈希值或使相关数字签名无效的情况下，将良性数据替换为恶意数据。</li>
+<li>DES 加密使用的密钥强度较低，可能在一天内被暴力破解。</li>
+<li>RC2 加密容易遭受与密钥相关的攻击，攻击者可以通过这些攻击找出所有密钥值之间的数学关系。</li>
+</ol>
+<h6 id="弱加密算法"><a href="#弱加密算法" class="headerlink" title="弱加密算法"></a>弱加密算法</h6><ol>
+<li>TripleDES 等加密算法和 SHA1 及 RIPEMD160 等哈希算法被视为弱加密算法。</li>
+<li>这些加密算法不能与更现代的对应算法提供同样多的安全保证。</li>
+<li>与更现代的哈希算法相比，加密哈希算法 SHA1 和 RIPEMD160 提供的冲突抗性较低。与更现代的加密算法相比，加密算法 TripleDES 提供的安全位数更少。</li>
+</ol>
+<h5 id="重放攻击风险"><a href="#重放攻击风险" class="headerlink" title="重放攻击风险"></a>重放攻击风险</h5><h6 id="原理-4"><a href="#原理-4" class="headerlink" title="原理"></a>原理</h6><p>重放攻击，是指攻击者发送一个目的主机已接收过的包，来达到欺骗系统的目的，主要用于身份认证过程，破坏认证的正确性。攻击者利用网络监听或者其他方式盗取认证凭据，之后再把它重新发给认证服务器。</p>
+<h6 id="防护-4"><a href="#防护-4" class="headerlink" title="防护"></a>防护</h6><p>建议在客户端与服务端通信时加上时间戳或判断是否已登录过等条件，防止重放攻击。</p>
+<h5 id="业务接口是否存在任意权限调用"><a href="#业务接口是否存在任意权限调用" class="headerlink" title="业务接口是否存在任意权限调用"></a>业务接口是否存在任意权限调用</h5><h6 id="原理-5"><a href="#原理-5" class="headerlink" title="原理"></a>原理</h6><p>在正常的业务中，敏感功能的接口需要对访问者的身份进行验证，验证通过后才允许调用接口进行操作。接口未做身份验证或身份校验不严，可能导致非授权访问或越权调用。</p>
+<h6 id="防护-5"><a href="#防护-5" class="headerlink" title="防护"></a>防护</h6><ul>
+<li>建议每个用户登陆后使用随机id进行标识，随时更换新id或在通信过程中使用更多参数如时间戳、数字签名等防止用户越权获取到其他用户的订单等信息。采用加密通信如https安全传输也能在一定程度上解决该问题。</li>
+<li>建议在本地做好输入数据的校验，在通信过程中应采用多个参数对某次通信进行标识和记录。保证参数的随机性和机密性，防止攻击者构造出针对系统健壮性进行攻击的请求数据。</li>
+</ul>
+<h3 id="敏感数据泄露"><a href="#敏感数据泄露" class="headerlink" title="敏感数据泄露"></a>敏感数据泄露</h3><ul>
+<li>LogCat输出敏感信息</li>
+<li>敏感数据明文存储于sdcard</li>
+<li>数据库敏感数据明文存储</li>
+<li>Shared preference全局可读写</li>
+<li>敏感信息硬编码</li>
+<li>HTTP敏感信息明文传输</li>
+</ul>
+<h3 id="ZIP解压缩漏洞"><a href="#ZIP解压缩漏洞" class="headerlink" title="ZIP解压缩漏洞"></a>ZIP解压缩漏洞</h3><p>ZIP压缩包文件中允许存在<code>../</code>的字符串，攻击者可通过精心构造ZIP文件，利用多个<code>../</code>从而改变ZIP包中某个文件的存放位置，覆盖替换掉应用原有的文件。如果被覆盖掉的文件是so文件、dex文件或者odex文件，轻则产生本地拒绝服务漏洞，影响应用的可用性，重则可能造成任意代码执行漏洞，危害应用用户的设备安全和信息安全。比如“寄生兽”漏洞，海豚浏览器远程命令执行漏洞，三星默认输入法远程代码执行等。</p>
+<h2 id="Android-APP审计系统"><a href="#Android-APP审计系统" class="headerlink" title="Android APP审计系统"></a>Android APP审计系统</h2><p><img src="https://p.sda1.dev/16/781c2f05c295078a25bb5d48f20c93e2/1.jpg" srcset="/img/loading.gif" lazyload></p>
+<h2 id="参考文章"><a href="#参考文章" class="headerlink" title="参考文章"></a>参考文章</h2><p><a target="_blank" rel="noopener" href="https://blog.csdn.net/Kelaker/article/details/80569232">https://blog.csdn.net/Kelaker/article/details/80569232</a><br><a target="_blank" rel="noopener" href="https://blog.csdn.net/javazejian/article/details/52709857">https://blog.csdn.net/javazejian/article/details/52709857</a><br><a target="_blank" rel="noopener" href="https://www.jianshu.com/p/5459c653b34a">https://www.jianshu.com/p/5459c653b34a</a><br><a target="_blank" rel="noopener" href="https://www.jianshu.com/p/ea8bc4aaf057">https://www.jianshu.com/p/ea8bc4aaf057</a><br><a target="_blank" rel="noopener" href="https://www.jianshu.com/p/32938446e4e0">https://www.jianshu.com/p/32938446e4e0</a><br><a target="_blank" rel="noopener" href="https://www.jianshu.com/p/ca3d87a4cdf3">https://www.jianshu.com/p/ca3d87a4cdf3</a><br><a target="_blank" rel="noopener" href="https://www.jianshu.com/p/d963c55c3ab9">https://www.jianshu.com/p/d963c55c3ab9</a><br><a target="_blank" rel="noopener" href="https://blog.csdn.net/qian1127/article/details/103531761">https://blog.csdn.net/qian1127/article/details/103531761</a><br><a target="_blank" rel="noopener" href="https://www.cnblogs.com/Gandy/p/7290069.html">https://www.cnblogs.com/Gandy/p/7290069.html</a><br><a target="_blank" rel="noopener" href="https://www.cnblogs.com/rebeyond/p/10916076.html">https://www.cnblogs.com/rebeyond/p/10916076.html</a><br><a target="_blank" rel="noopener" href="https://blog.csdn.net/whnyao1314/article/details/83007498">https://blog.csdn.net/whnyao1314/article/details/83007498</a></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Android/" class="category-chain-item">Android</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/IoV/" class="print-no-link">#IoV</a>
+      
+        <a href="/tags/Android/" class="print-no-link">#Android</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Android APP常见安全漏洞</div>
+      <div>https://g1at.github.io/2024/02/18/Android-App-Security-Vulnerabilities/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>g0at</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2024年2月18日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2024/01/27/Drozer/" title="Drozer指北">
+                        <span class="hidden-mobile">Drozer指北</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+  
+  
+    <article id="comments" lazyload>
+      
+  <div id="valine"></div>
+  <script type="text/javascript">
+    Fluid.utils.loadComments('#valine', function() {
+      Fluid.utils.createScript('https://lib.baomitu.com/valine/1.5.1/Valine.min.js', function() {
+        var options = Object.assign(
+          {"appId":"rF6DPbqXmz9oaKXSwioOtyuv-gzGzoHsz","appKey":"7WylA7nweHQ3Z3Y3lnez5NTm","path":"window.location.pathname","placeholder":"来唠嗑","avatar":"retro","meta":["nick","mail","link"],"requiredFields":[],"pageSize":10,"lang":"zh-CN","highlight":false,"recordIP":false,"serverURLs":"","emojiCDN":null,"emojiMaps":null,"enableQQ":false},
+          {
+            el: "#valine",
+            path: window.location.pathname
+          }
+        )
+        new Valine(options);
+        Fluid.utils.waitElementVisible('#valine .vcontent', () => {
+          var imgSelector = '#valine .vcontent img:not(.vemoji)';
+          Fluid.plugins.imageCaption(imgSelector);
+          Fluid.plugins.fancyBox(imgSelector);
+        })
+      });
+    });
+  </script>
+  <noscript>Please enable JavaScript to view the comments</noscript>
+
+
+    </article>
+  
+
+
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       Hor1zon <i class="iconfont icon-love"></i> g0at 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="leancloud-site-pv-container" style="display: none">
+        访问量 
+        <span id="leancloud-site-pv"></span>
+         次
+      </span>
+    
+    
+      <span id="leancloud-site-uv-container" style="display: none">
+        访客数 
+        <span id="leancloud-site-uv"></span>
+         人
+      </span>
+    
+    
+
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.0/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.18.2/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script defer src="/js/leancloud.js" ></script>
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
