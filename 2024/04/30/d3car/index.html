@@ -1,0 +1,775 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/ggg.png">
+  <link rel="icon" href="/img/ggg.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="g0at">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="「D^3CTF 2024」D3_car车联网安全赛题不完全解题思路">
+<meta property="og:type" content="article">
+<meta property="og:title" content="D3_car不完全解题思路">
+<meta property="og:url" content="https://g1at.github.io/2024/04/30/d3car/index.html">
+<meta property="og:site_name" content="g0at&#39;s Blog">
+<meta property="og:description" content="「D^3CTF 2024」D3_car车联网安全赛题不完全解题思路">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://g1at.github.io/mdimg/d3car/d3car.png">
+<meta property="article:published_time" content="2024-04-30T04:00:00.000Z">
+<meta property="article:modified_time" content="2024-05-01T16:40:37.593Z">
+<meta property="article:author" content="g0at">
+<meta property="article:tag" content="IoV">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://g1at.github.io/mdimg/d3car/d3car.png">
+  
+  
+  
+  <title>D3_car不完全解题思路 - g0at&#39;s Blog</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+  
+<link rel="stylesheet" href="/css/mac.css">
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"g1at.github.io","root":"/","version":"1.9.5","typing":{"enable":true,"typeSpeed":80,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":true,"baidu":null,"google":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":"rF6DPbqXmz9oaKXSwioOtyuv-gzGzoHsz","app_key":"7WylA7nweHQ3Z3Y3lnez5NTm","server_url":"https://rf6dpbqx.lc-cn-n1-shared.com","path":"window.location.pathname","ignore_local":false},"gtag":null},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    
+  
+
+
+
+  
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>g0at&#39;s Blog</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/links/">
+                <i class="iconfont icon-link-fill"></i>
+                <span>友链</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/wp.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="D3_car不完全解题思路"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-author" aria-hidden="true"></i>
+        g0at
+      </span>
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2024-04-30 12:00" pubdate>
+          2024年4月30日 中午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          11k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          95 分钟
+        
+      </span>
+    
+
+    
+    
+      
+        <span id="leancloud-page-views-container" class="post-meta" style="display: none">
+          <i class="iconfont icon-eye" aria-hidden="true"></i>
+          <span id="leancloud-page-views"></span> 次
+        </span>
+        
+      
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">D3_car不完全解题思路</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>也可移步Hor1zon公众号</p>
+<p><a target="_blank" rel="noopener" href="https://mp.weixin.qq.com/s/aXr3E1THtLmYbAFnYnuCPA">https://mp.weixin.qq.com/s/aXr3E1THtLmYbAFnYnuCPA</a></p>
+<h3 id="D3-car-flag1"><a href="#D3-car-flag1" class="headerlink" title="D3_car_flag1"></a>D3_car_flag1</h3><p>题目环境太垃圾了，安卓环境一直断😅<br>其实很简单，一开始有点懵，想加个监看进去看看，日过车的都知道scrcpy是个好工具😋<br><a target="_blank" rel="noopener" href="https://github.com/Genymobile/scrcpy">https://github.com/Genymobile/scrcpy</a><br><img src="/mdimg/d3car/1.png" srcset="/img/loading.gif" lazyload><br>可是这个环境真的太卡了，上了scrcpy之后那是一点就断；背景这几个字暗示了要找到车的GPS数据，但是这个导航怎么点都点不开，还老是断服务，后边发现根本没装车载导航(地图)服务；<br>所以还是接着命令行操作，先来看一下应用列表 哎 您猜怎么着？<br>一眼就看到了一个非常可疑的APP<br><code>package:com.d3car.factory</code></p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br></pre></td><td class="code"><pre><code class="hljs shell">generic_x86_64:/ $ pm list packages<br>package:com.android.cts.priv.ctsshim<br>package:com.android.car.messenger<br>package:com.android.providers.telephony<br>package:com.google.android.car.kitchensink<br>package:com.android.providers.calendar<br>package:com.android.providers.media<br>package:com.android.wallpapercropper<br>package:com.android.car.media<br>package:com.android.car.radio<br>package:com.android.car.trust<br>package:com.android.documentsui<br>package:com.android.externalstorage<br>package:com.android.htmlviewer<br>package:com.android.companiondevicemanager<br>package:com.android.quicksearchbox<br>package:com.android.mms.service<br>package:com.android.providers.downloads<br>package:com.android.car.overview<br>package:android.car.cluster.loggingrenderer<br>package:com.android.defcontainer<br>package:com.android.car.mapsplaceholder<br>package:com.android.providers.downloads.ui<br>package:com.android.pacprocessor<br>package:com.android.certinstaller<br>package:com.android.carrierconfig<br>package:android<br>package:com.android.contacts<br>package:com.android.camera2<br>package:com.android.car.systemupdater<br>package:com.android.car<br>package:com.android.egg<br>package:com.android.mtp<br>package:com.android.nfc<br>package:com.android.backupconfirm<br>package:com.android.provision<br>package:com.android.statementservice<br>package:com.android.calendar<br>package:com.android.systemui.theme.dark<br>package:com.android.car.hvac<br>package:com.android.providers.settings<br>package:com.android.sharedstoragebackup<br>package:com.android.printspooler<br>package:com.android.dreams.basic<br>package:com.android.car.dialer<br>package:com.android.webview<br>package:com.android.inputdevices<br>package:com.android.support.car.lenspicker<br>package:com.android.bips<br>package:com.android.musicfx<br>package:com.android.cellbroadcastreceiver<br>package:android.ext.shared<br>package:com.android.onetimeinitializer<br>package:com.android.server.telecom<br>package:com.android.keychain<br>package:com.android.printservice.recommendation<br>package:com.android.gallery3d<br>package:android.ext.services<br>package:com.android.calllogbackup<br>package:com.android.packageinstaller<br>package:com.android.carrierdefaultapp<br>package:com.svox.pico<br>package:com.android.car.media.localmediaplayer<br>package:com.android.proxyhandler<br>package:com.android.inputmethod.latin<br>package:org.chromium.webview_shell<br>package:com.d3car.factory<br>package:android.car.usb.handler<br>package:com.android.managedprovisioning<br>package:com.android.dreams.phototable<br>package:com.android.smspush<br>package:android.car.cluster.sample<br>package:com.android.wallpaper.livepicker<br>package:com.android.storagemanager<br>package:jp.co.omronsoft.openwnn<br>package:com.android.bookmarkprovider<br>package:com.android.settings<br>package:com.android.calculator2<br>package:com.android.cts.ctsshim<br>package:com.android.vpndialogs<br>package:com.android.email<br>package:com.android.music<br>package:com.android.phone<br>package:com.android.shell<br>package:com.android.wallpaperbackup<br>package:com.android.providers.blockednumber<br>package:com.android.providers.userdictionary<br>package:com.android.emergency<br>package:com.android.location.fused<br>package:com.android.deskclock<br>package:com.android.systemui<br>package:com.android.bluetoothmidiservice<br>package:com.android.bluetooth<br>package:com.android.providers.contacts<br>package:com.android.captiveportallogin<br>generic_x86_64:/ $<br>generic_x86_64:/ $<br>generic_x86_64:/ $<br>generic_x86_64:/ $ pm path com.d3car.factory<br>package:/system/priv-app/D3Factory/D3Factory.apk<br>generic_x86_64:/ $<br><br>PS G:\&gt; adb pull /system/priv-app/D3Factory/D3Factory.apk<br>/system/priv-app/D3Factory/D3Factory.apk: 1 file pulled, 0 skipped. 0.1 MB/s (38128 bytes in 0.354s)<br></code></pre></td></tr></table></figure>
+
+<p>简单逆向就可以找到flag了）</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-meta">&lt;?xml version=<span class="hljs-string">&quot;1.0&quot;</span> encoding=<span class="hljs-string">&quot;utf-8&quot;</span>?&gt;</span><br><span class="hljs-tag">&lt;<span class="hljs-name">LinearLayout</span> <span class="hljs-attr">xmlns:android</span>=<span class="hljs-string">&quot;http://schemas.android.com/apk/res/android&quot;</span> <span class="hljs-attr">xmlns:app</span>=<span class="hljs-string">&quot;http://schemas.android.com/apk/res-auto&quot;</span> <span class="hljs-attr">android:gravity</span>=<span class="hljs-string">&quot;center&quot;</span> <span class="hljs-attr">android:orientation</span>=<span class="hljs-string">&quot;vertical&quot;</span> <span class="hljs-attr">android:layout_width</span>=<span class="hljs-string">&quot;match_parent&quot;</span> <span class="hljs-attr">android:layout_height</span>=<span class="hljs-string">&quot;match_parent&quot;</span>&gt;</span><br>  <span class="hljs-tag">&lt;<span class="hljs-name">TextView</span> <span class="hljs-attr">android:textSize</span>=<span class="hljs-string">&quot;@dimen/common_textsize_24&quot;</span> <span class="hljs-attr">android:id</span>=<span class="hljs-string">&quot;@+id/flag1&quot;</span> <span class="hljs-attr">android:layout_width</span>=<span class="hljs-string">&quot;wrap_content&quot;</span> <span class="hljs-attr">android:layout_height</span>=<span class="hljs-string">&quot;wrap_content&quot;</span> <span class="hljs-attr">android:layout_marginBottom</span>=<span class="hljs-string">&quot;20dp&quot;</span> <span class="hljs-attr">android:text</span>=<span class="hljs-string">&quot;d3ctf&#123;yes_you_f1nd_b4ckdo0r&#125;&quot;</span>/&gt;</span><br>  <span class="hljs-tag">&lt;<span class="hljs-name">Button</span> <span class="hljs-attr">android:id</span>=<span class="hljs-string">&quot;@+id/tcpdump&quot;</span> <span class="hljs-attr">android:layout_width</span>=<span class="hljs-string">&quot;wrap_content&quot;</span> <span class="hljs-attr">android:layout_height</span>=<span class="hljs-string">&quot;wrap_content&quot;</span> <span class="hljs-attr">android:text</span>=<span class="hljs-string">&quot;open/close tcpdump&quot;</span>/&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">LinearLayout</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>也可以用另一种方法，直接拉起应用的Activity</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs bash">generic_x86_64:/ $ dumpsys package com.d3car.factory | grep -i activity<br>Activity Resolver Table:<br>        4d5331e com.d3car.factory/.FactoryActivity filter 1beb95a<br>        b8e17ff com.d3car.factory/.PwdAuthActivity filter ee66505<br>        b8e17ff com.d3car.factory/.PwdAuthActivity filter ee66505<br>      android.permission.USER_ACTIVITY: granted=<span class="hljs-literal">true</span><br>      android.permission.MANAGE_ACTIVITY_STACKS: granted=<span class="hljs-literal">true</span><br>      android.permission.USER_ACTIVITY: granted=<span class="hljs-literal">true</span><br>      android.permission.MANAGE_ACTIVITY_STACKS: granted=<span class="hljs-literal">true</span><br>generic_x86_64:/ $<br>generic_x86_64:/ $<br>generic_x86_64:/ $<br>generic_x86_64:/ $ am start -n com.d3car.factory/.FactoryActivity<br>Starting: Intent &#123; cmp=com.d3car.factory/.FactoryActivity &#125;<br>generic_x86_64:/ $<br>generic_x86_64:/ $<br>generic_x86_64:/ $<br></code></pre></td></tr></table></figure>
+
+<p><img src="/mdimg/d3car/2.png" srcset="/img/loading.gif" lazyload></p>
+<h3 id="D3-car-flag2"><a href="#D3-car-flag2" class="headerlink" title="D3_car_flag2"></a>D3_car_flag2</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java">PS G:\&gt; adb pull /system/priv-app/   #我甚至把所有的app都拖了下来）<br>PS G:\&gt; adb pull /system/priv-app/D3Factory/oat/x86_64<br></code></pre></td></tr></table></figure>
+
+<p><img src="/mdimg/d3car/3.png" srcset="/img/loading.gif" lazyload><br>这里一开始是先去把odex转成dex<br>利用了baksmali-2.5.2.jar和smali-2.5.2.jar，转成的dex发现只还原了方法名，里面的核心的代码根本看不到，再试试把vdex转成dex，windows环境及其不友好，最后在ubuntu虚拟机完成了还原<br>所需要的工具为：<a target="_blank" rel="noopener" href="https://github.com/anestisb/vdexExtractor">https://github.com/anestisb/vdexExtractor</a><br>🤗项目下载下来后直接./make.sh gcc编译就行，然后会在bin目录下生成vdexExtractor文件😚<br>执行命令：<code>./vdexExtractor -i xxx.vdex -o ./ </code><br>最后jadx打开该dex，即可看到核心代码</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">package</span> com.d3car.factory;<br><br><span class="hljs-keyword">import</span> android.app.Activity;<br><span class="hljs-keyword">import</span> android.content.Context;<br><span class="hljs-keyword">import</span> android.content.Intent;<br><span class="hljs-keyword">import</span> android.os.Bundle;<br><span class="hljs-keyword">import</span> android.util.Log;<br><span class="hljs-keyword">import</span> android.view.View;<br><span class="hljs-keyword">import</span> android.widget.Button;<br><span class="hljs-keyword">import</span> android.widget.EditText;<br><span class="hljs-keyword">import</span> android.widget.TextView;<br><span class="hljs-keyword">import</span> android.widget.Toast;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">PwdAuthActivity</span> <span class="hljs-keyword">extends</span> <span class="hljs-title class_">Activity</span> &#123;<br>    <span class="hljs-keyword">private</span> Context mContext;<br>    <span class="hljs-keyword">private</span> Button mEnterBtn;<br>    <span class="hljs-keyword">private</span> TextView mKeyText;<br>    <span class="hljs-keyword">private</span> EditText mPwdText;<br><br>    <span class="hljs-meta">@Override</span> <span class="hljs-comment">// android.app.Activity</span><br>    <span class="hljs-keyword">protected</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">onCreate</span><span class="hljs-params">(Bundle savedInstanceState)</span> &#123;<br>        <span class="hljs-built_in">super</span>.onCreate(savedInstanceState);<br>        setContentView(<span class="hljs-number">2130837504</span>);<br>        <span class="hljs-built_in">this</span>.mPwdText = (EditText) findViewById(<span class="hljs-number">2131165185</span>);<br>        <span class="hljs-built_in">this</span>.mEnterBtn = (Button) findViewById(<span class="hljs-number">2131165186</span>);<br>        <span class="hljs-built_in">this</span>.mKeyText = (TextView) findViewById(<span class="hljs-number">2131165184</span>);<br>        <span class="hljs-built_in">this</span>.mContext = getApplicationContext();<br>        Log.d(<span class="hljs-string">&quot;D3CTF&quot;</span>, <span class="hljs-string">&quot;onCreate: &quot;</span>);<br>        <span class="hljs-built_in">this</span>.mEnterBtn.setOnClickListener(<span class="hljs-keyword">new</span> <span class="hljs-title class_">View</span>.OnClickListener() &#123; <span class="hljs-comment">// from class: com.d3car.factory.PwdAuthActivity.1</span><br>            <span class="hljs-meta">@Override</span> <span class="hljs-comment">// android.view.View.OnClickListener</span><br>            <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">onClick</span><span class="hljs-params">(View v)</span> &#123;<br>                PwdAuthActivity.<span class="hljs-built_in">this</span>.verifyPWD(PwdAuthActivity.<span class="hljs-built_in">this</span>.mPwdText.getText().toString(), PwdAuthActivity.<span class="hljs-built_in">this</span>.mKeyText.getText().toString());<br>            &#125;<br>        &#125;);<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">verifyPWD</span><span class="hljs-params">(String pwd, String key)</span> &#123;<br>        <span class="hljs-keyword">if</span> (pwd.length() == <span class="hljs-number">0</span>) &#123;<br>            Toast.makeText(<span class="hljs-built_in">this</span>, getString(<span class="hljs-number">2131099707</span>), <span class="hljs-number">0</span>).show();<br>        &#125; <span class="hljs-keyword">else</span> <span class="hljs-keyword">if</span> (verifyPassWord(pwd, key)) &#123;<br>            Log.d(<span class="hljs-string">&quot;D3CTF&quot;</span>, <span class="hljs-string">&quot;verifyPWD: the password is right!&quot;</span>);<br>            startActivity(<span class="hljs-keyword">new</span> <span class="hljs-title class_">Intent</span>(<span class="hljs-built_in">this</span>, FactoryActivity.class));<br>        &#125; <span class="hljs-keyword">else</span> &#123;<br>            Toast.makeText(<span class="hljs-built_in">this</span>, getString(<span class="hljs-number">2131099706</span>), <span class="hljs-number">0</span>).show();<br>        &#125;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">verifyPassWord</span><span class="hljs-params">(String password, String key)</span> &#123;<br>        <span class="hljs-keyword">if</span> (key == <span class="hljs-literal">null</span> || key.isEmpty()) &#123;<br>            <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;20240419&quot;</span>.equals(password);<br>        &#125;<br>        <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;uVQPRRYTrpvqvCv6&quot;</span>.equals(encryptPwdByKey(password, key)); <span class="hljs-comment">//加密后结果进行比较</span><br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> String <span class="hljs-title function_">encryptPwdByKey</span><span class="hljs-params">(String pwd, String key)</span> &#123;<br>        <span class="hljs-type">char</span>[] pwd_arr = pwd.toCharArray();<br>        <span class="hljs-type">char</span>[] key_arr = key.toCharArray();<br>        <span class="hljs-type">char</span>[] result = <span class="hljs-keyword">new</span> <span class="hljs-title class_">char</span>[pwd.length()];<br>        <span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> <span class="hljs-variable">i</span> <span class="hljs-operator">=</span> <span class="hljs-number">0</span>; i &lt; pwd.length(); i++) &#123;<br>            result[i] = (<span class="hljs-type">char</span>) (pwd_arr[i] ^ key_arr[i % pwd.length()]);<br>        &#125;<br>        <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">String</span>(result);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p> <img src="/mdimg/d3car/4.png" srcset="/img/loading.gif" lazyload><br>验证代码的核心在这里，其实逆向逻辑还是很简单，就是一个异或，但是这里的数据真是诱导了我，看这里的逻辑是传入了key和密码。因为即使要逆向，这两个数据你得有一个才行，一开始我以为这个20240419是key，然后逆向出密码，发现不对，这就不得不开始看一下代码的整体逻辑<br><img src="/mdimg/d3car/5.png" srcset="/img/loading.gif" lazyload><br>这个TextView？再来看看登录页面<br><img src="/mdimg/d3car/6.png" srcset="/img/loading.gif" lazyload><br><img src="/mdimg/d3car/7.png" srcset="/img/loading.gif" lazyload><br>key就是屏幕上的字符串😂，然后直接梭脚本就行</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs python">data=<span class="hljs-string">&quot;uVQPRRYTrpvqvCv6&quot;</span><br>key=<span class="hljs-string">&quot;D2036445ADCGF12W7&quot;</span><br>pwd=<span class="hljs-string">&quot;&quot;</span><br><span class="hljs-keyword">for</span> i <span class="hljs-keyword">in</span> <span class="hljs-built_in">range</span>(<span class="hljs-built_in">len</span>(data)):<br>    pwd+=<span class="hljs-built_in">chr</span>(<span class="hljs-built_in">ord</span>(data[i])^<span class="hljs-built_in">ord</span>(key[i]))<br><span class="hljs-built_in">print</span>(pwd)<br><br><span class="hljs-comment">#1dacdfma34560rDa</span><br><span class="hljs-comment">#在我输入密码验证的时候环境多次掉线！但是最后发现这个和题目没什么关系  面子工程.jpg</span><br></code></pre></td></tr></table></figure>
+
+<p><img src="/mdimg/d3car/8.png" srcset="/img/loading.gif" lazyload></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">package</span> com.d3car.factory;<br><br><span class="hljs-keyword">import</span> android.app.Activity;<br><span class="hljs-keyword">import</span> android.os.Bundle;<br><span class="hljs-keyword">import</span> android.os.SystemProperties;<br><span class="hljs-keyword">import</span> android.widget.CheckBox;<br><span class="hljs-keyword">import</span> android.widget.CompoundButton;<br><span class="hljs-keyword">import</span> java.io.IOException;<br><br>    <span class="hljs-keyword">private</span> CheckBox mTcpDump;<br><br>    <span class="hljs-meta">@Override</span> <span class="hljs-comment">// android.app.Activity</span><br>    <span class="hljs-keyword">protected</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">onCreate</span><span class="hljs-params">(Bundle savedInstanceState)</span> &#123;<br>        <span class="hljs-built_in">super</span>.onCreate(savedInstanceState);<br>        setContentView(<span class="hljs-number">2130837506</span>);<br>        <span class="hljs-built_in">this</span>.mTcpDump = (CheckBox) findViewById(<span class="hljs-number">2131165189</span>);<br>        <span class="hljs-keyword">if</span> (SystemProperties.getInt(<span class="hljs-string">&quot;sys.tcpdump&quot;</span>, <span class="hljs-number">0</span>) == <span class="hljs-number">1</span>) &#123;<br>            <span class="hljs-built_in">this</span>.mTcpDump.setChecked(<span class="hljs-literal">true</span>);<br>        &#125; <span class="hljs-keyword">else</span> &#123;<br>            <span class="hljs-built_in">this</span>.mTcpDump.setChecked(<span class="hljs-literal">false</span>);<br>        &#125;<br>        <span class="hljs-built_in">this</span>.mTcpDump.setOnCheckedChangeListener(<span class="hljs-keyword">new</span> <span class="hljs-title class_">CompoundButton</span>.OnCheckedChangeListener() &#123; <span class="hljs-comment">// from class: com.d3car.factory.TcpdumpActivity.1</span><br>            <span class="hljs-meta">@Override</span> <span class="hljs-comment">// android.widget.CompoundButton.OnCheckedChangeListener</span><br>            <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">onCheckedChanged</span><span class="hljs-params">(CompoundButton buttonView, <span class="hljs-type">boolean</span> isChecked)</span> &#123;<br>                <span class="hljs-keyword">if</span> (isChecked) &#123;<br>                    SystemProperties.set(<span class="hljs-string">&quot;sys.tcpdump&quot;</span>, <span class="hljs-string">&quot;1&quot;</span>);<br>                    <span class="hljs-keyword">try</span> &#123;<br>                        Runtime.getRuntime().exec(<span class="hljs-string">&quot;/system/xbin/tcpdump -i any -s 0 -w /sdcard/tcpdumplog.pcap -W 1&quot;</span>);<br>                    &#125; <span class="hljs-keyword">catch</span> (IOException e) &#123;<br>                        e.printStackTrace();<br>                    &#125;<br>                &#125; <span class="hljs-keyword">else</span> &#123;<br>                    SystemProperties.set(<span class="hljs-string">&quot;sys.tcpdump&quot;</span>, <span class="hljs-string">&quot;0&quot;</span>);<br>                    <span class="hljs-keyword">try</span> &#123;<br>                        Runtime.getRuntime().exec(<span class="hljs-string">&quot;pkill tcpdump&quot;</span>);<br>                    &#125; <span class="hljs-keyword">catch</span> (IOException e2) &#123;<br>                        e2.printStackTrace();<br>                    &#125;<br>                &#125;<br>            &#125;<br>        &#125;);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>在adb直接使用tcpdump显示被ban了，可以看到程序后门是一个tcpdump服务<br><img src="/mdimg/d3car/9.png" srcset="/img/loading.gif" lazyload><br>用自带的APP后门去抓包，可以看到存在mqtt服务再循环往复的发送同样的包。<br><img src="/mdimg/d3car/10.png" srcset="/img/loading.gif" lazyload><br>抓到MQTT服务的主题&amp;账号&amp;密码（断的太快了 没机会传扫描工具到IVI里面扫😭扫一下应该就能扫到其他ECU了</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash">Client ID Length: 11<br>Client ID: Gojo_Satoru<br>User Name Length: 11<br>User Name: abmaM_kcalb<br>Password Length: 14<br>Password: Ya5_1_n4C_tahW<br><br></code></pre></td></tr></table></figure>
+
+<p>以及两条MQTT的报文，这里的mqtt是在做can的转发，在环境中实现uds的功能</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java">Topic: can/<span class="hljs-number">514</span>/write<br>Message: 022701ffffffffff   #看到<span class="hljs-number">2701</span> 血脉觉醒 是UDS服务 这里给了did为<span class="hljs-number">514</span>的ecu的pincode<br><br>Topic: can/<span class="hljs-number">514</span>/write<br>Message: 0527022dcf28ffff<br></code></pre></td></tr></table></figure>
+
+<p><img src="/mdimg/d3car/11.png" srcset="/img/loading.gif" lazyload><br>环境中应该不存在模拟的CAN总线(向出题人求证了这一点)，ivi这里应该是通过mqtt与其他ECU通信，所以可以先用22服务去读其他ecu信息，然后要过掉27服务，进入QNX拿flag，也向出题人求证了这一点，flag果然在QNX里面。这里难点在于确定qnx的did，然后就通过mqtt执行<code>can/ecu id/write</code>来执行诊断命令；还有就是要把环境代理到本地来发mqtt广播包；<br><img src="/mdimg/d3car/12.png" srcset="/img/loading.gif" lazyload><br>现在没有环境也没法再具体分析操作，看了官方和W&amp;M师傅的wp，感觉总体思路上和我的想法差不多，可以用fscan扫到一些seed2key.dll，也就是27服务密钥算法，逆向得到key，而且qnx还存在31服务，后边的过程参考W&amp;M师傅的wp，写的很细🫡<br><a target="_blank" rel="noopener" href="https://blog.wm-team.cn/index.php/archives/75/#D3+car+2">https://blog.wm-team.cn/index.php/archives/75/#D3+car+2</a></p>
+<h3 id="D3-car-flag3"><a href="#D3-car-flag3" class="headerlink" title="D3_car_flag3"></a>D3_car_flag3</h3><p>无地图服务的背景提示联想到flag应该和GPS有关<br><img src="/mdimg/d3car/1.png" srcset="/img/loading.gif" lazyload><br>前面查看应用包发现有一个<code>com.android.location.fused</code>的APP，这里我的思路有点偏了)我跑过去研究这个APP，考虑从这个app中拿到gps定位，但我再也没连上过靶机😭也无法验证是否可行。<br>和前面一样，把odex转成dex，可以看到车机是由GPS服务的，只是需要一个APP去调用GPS权限即可拿到定位信息，下一步想法就是搞一个地图/定位APP adb install上去来获取经纬度信息。</p>
+<p>从车机安全性考虑，一般都会采用私有证书签名，在<code>/system/etc/security</code>找到了车机的证书信息，通过伪造签名证书就可以让APP安装到车机上面了。<br><img src="/mdimg/d3car/13.png" srcset="/img/loading.gif" lazyload><br>看了W&amp;M师傅的wp真的给跪了，通过相机调用GPS信息再来拿到经纬度信息的想法真的太绝了Orzzzzzz<br>我倒是也打开过车机设置APP但他真的太卡了🥲基本上点两下就会断线，我就得再次启动安卓服务，然后他再次断线😭<br><img src="/mdimg/d3car/14.png" srcset="/img/loading.gif" lazyload><br>由于环境无了，这里引用凌武出题人师傅的截图，装好定位APP就可以拿到经纬度了。<br><img src="/mdimg/d3car/15.png" srcset="/img/loading.gif" lazyload><br>因为目前国内的车载地图服务商除了特斯拉基本都是高德，所以直接去高德搜索经纬度<br><img src="/mdimg/d3car/16.png" srcset="/img/loading.gif" lazyload><br>然后再保利·江语海东南门这里看到出题人的用户评价，进个人主页就可以拿到flag了。<br><img src="/mdimg/d3car/17.png" srcset="/img/loading.gif" lazyload></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/IoV/" class="category-chain-item">IoV</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/IoV/" class="print-no-link">#IoV</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>D3_car不完全解题思路</div>
+      <div>https://g1at.github.io/2024/04/30/d3car/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>g0at</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2024年4月30日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2024/04/14/shuxinbei2024/" title="第二届数据安全大赛">
+                        <span class="hidden-mobile">第二届数据安全大赛</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+  
+  
+    <article id="comments" lazyload>
+      
+  <div id="valine"></div>
+  <script type="text/javascript">
+    Fluid.utils.loadComments('#valine', function() {
+      Fluid.utils.createScript('https://lib.baomitu.com/valine/1.5.1/Valine.min.js', function() {
+        var options = Object.assign(
+          {"appId":"rF6DPbqXmz9oaKXSwioOtyuv-gzGzoHsz","appKey":"7WylA7nweHQ3Z3Y3lnez5NTm","path":"window.location.pathname","placeholder":"来唠嗑","avatar":"retro","meta":["nick","mail","link"],"requiredFields":[],"pageSize":10,"lang":"zh-CN","highlight":false,"recordIP":false,"serverURLs":"","emojiCDN":null,"emojiMaps":null,"enableQQ":false},
+          {
+            el: "#valine",
+            path: window.location.pathname
+          }
+        )
+        new Valine(options);
+        Fluid.utils.waitElementVisible('#valine .vcontent', () => {
+          var imgSelector = '#valine .vcontent img:not(.vemoji)';
+          Fluid.plugins.imageCaption(imgSelector);
+          Fluid.plugins.fancyBox(imgSelector);
+        })
+      });
+    });
+  </script>
+  <noscript>Please enable JavaScript to view the comments</noscript>
+
+
+    </article>
+  
+
+
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       Hor1zon <i class="iconfont icon-love"></i> g0at 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="leancloud-site-pv-container" style="display: none">
+        访问量 
+        <span id="leancloud-site-pv"></span>
+         次
+      </span>
+    
+    
+      <span id="leancloud-site-uv-container" style="display: none">
+        访客数 
+        <span id="leancloud-site-uv"></span>
+         人
+      </span>
+    
+    
+
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.0/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.18.2/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script defer src="/js/leancloud.js" ></script>
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
