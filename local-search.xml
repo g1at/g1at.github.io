@@ -370,6 +370,31 @@
   
   
   <entry>
+    <title>UART通信基础知识</title>
+    <link href="/2023/09/10/UART/"/>
+    <url>/2023/09/10/UART/</url>
+    
+    <content type="html"><![CDATA[<h3 id="UART简介"><a href="#UART简介" class="headerlink" title="UART简介"></a>UART简介</h3><p>UART：Universal Asynchronous Receiver/Transmitter，通用异步接收器/发送器，是一种常见的通用通信协议，UART是各种计算设备之间通信的常用通信手段，平时所说的串口一般就是指的UART。如下图所示，计算设备1经由UART1发送数据给计算设备2的UART2。<br><img src="/mdimg/UART/1.png"><br>在UART通信中，两个UART相互通信。发送UART将计算设备的并行数据转换为串行形式，以串行方式将其发送到接收UART。只需要两根线就可以在两个UART之间传输数据，数据从发送UART的Tx引脚流到接收UART的Rx引脚。<br>UART属于异步通信，没有时钟信号，取而代之的是在数据包中添加了起始位和停止位。这些位定义了数据包的开始和结束，因此接收UART知道何时读取这些数据。<br>当接收UART检测到起始位时，它将以预设波特率的频率读取数据。两个UART必须以相似的波特率工作，发送和接收UART之间的波特率相差最多不能超过10%。</p><h3 id="UART通信工作原理"><a href="#UART通信工作原理" class="headerlink" title="UART通信工作原理"></a>UART通信工作原理</h3><h4 id="UART数据包"><a href="#UART数据包" class="headerlink" title="UART数据包"></a>UART数据包</h4><p>发送UART从数据总线获取并行数据后，它会添加一个起始位，一个奇偶校验位（可选）和一个停止位（1位或2位）来组成数据包并从Tx引脚逐位串行输出，接收UART在其Rx引脚上逐位读取数据包。<br><img src="/mdimg/UART/2.png"><br>UART数据包含有1个起始位，5至9个数据位（取决于UART设置），一个可选的奇偶校验位以及1个或2个停止位。<br><img src="/mdimg/UART/3.png"><br><strong>1.起始位</strong><br>UART数据传输线通常在不传输数据时保持在高电压电平。开始传输时发送UART在一个时钟周期内将传输线从高电平拉低到低电平，当接收UART检测到高电压到低电压转换时，它开始以预设波特率的频率读取数据帧中的位。<br><strong>2.数据帧</strong><br>数据帧内包含正在传输的实际数据。如果使用奇偶校验位，则数据帧可以是5至8位。如果不使用奇偶校验位，则数据帧可以是5至9位。<br><strong>3.校验位</strong><br>奇偶校验位是接收UART判断传输期间是否有任何数据更改的方式。接收UART读取数据帧后，它将对值为1的位数进行计数，并检查总数是偶数还是奇数，是否与数据相匹配。<br><strong>4.停止位</strong><br>为了向数据包的结尾发出信号，发送UART将数据传输线从低电压驱动到高电压至少持续两位时间。</p><h4 id="UART通信数据传输步骤"><a href="#UART通信数据传输步骤" class="headerlink" title="UART通信数据传输步骤"></a>UART通信数据传输步骤</h4><ol><li>发送端UART从数据总线并行接收数据。</li></ol><p><img src="/mdimg/UART/4.png"></p><ol start="2"><li>发送 UART 将起始位、奇偶校验位和停止位添加到数据帧。</li></ol><p><img src="/mdimg/UART/5.png"></p><ol start="3"><li> 整个数据包从发送 UART 串行发送到接收 UART；接收 UART 以预先配置的波特率对数据线进行采样</li></ol><p><img src="/mdimg/UART/6.png"></p><ol start="4"><li>接收UART丢失数据中的起始位、奇偶校验位和停止位。</li></ol><p><img src="/mdimg/UART/7.png"></p><ol start="5"><li>接收UART将串行数据转换为并行数据，并将其传输到接收端的数据总线。</li></ol><p><img src="/mdimg/UART/8.png"></p><h3 id="UART的优缺点"><a href="#UART的优缺点" class="headerlink" title="UART的优缺点"></a>UART的优缺点</h3><h4 id="UART的优点"><a href="#UART的优点" class="headerlink" title="UART的优点"></a>UART的优点</h4><ul><li>UART仅使用两根线，无需时钟信号。</li><li>具有奇偶校验位以允许进行错误检查。</li><li>UART使用广泛，参考资料丰富。</li></ul><h4 id="UART的缺点"><a href="#UART的缺点" class="headerlink" title="UART的缺点"></a>UART的缺点</h4><ul><li>UART数据帧的大小最大为9位，需要传输9位以上数据时比较繁琐。</li><li>不支持多个从属系统或多个主系统，有多个通信节点时组网比较麻烦。</li></ul><h3 id="UART的典型应用"><a href="#UART的典型应用" class="headerlink" title="UART的典型应用"></a>UART的典型应用</h3><ul><li>传感器，比如一些UART接口的压力传感器、温度传感器、加速度传感器等。</li><li>执行器，比如一些UART接口的步进电机、直流电机等。</li><li>计算设备之间通信，计算机与单片机之间可以通过UART通信，计算机与计算机之间也可以通过UART通信，单片机与单片机也可以通过UART通信。</li></ul><h3 id="参考文献"><a href="#参考文献" class="headerlink" title="参考文献"></a>参考文献</h3><p><a href="https://www.circuitbasics.com/basics-uart-communication/">https://www.circuitbasics.com/basics-uart-communication/</a><br><a href="https://docs.murexrobotics.com/prog/components/uart">https://docs.murexrobotics.com/prog/components/uart</a></p>]]></content>
+    
+    
+    <categories>
+      
+      <category>IoT</category>
+      
+    </categories>
+    
+    
+    <tags>
+      
+      <tag>IoT</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
     <title>第七届蓝帽杯半决赛</title>
     <link href="/2023/08/31/2023%E8%93%9D%E5%B8%BD%E6%9D%AF%E5%8D%8A%E5%86%B3%E8%B5%9B/"/>
     <url>/2023/08/31/2023%E8%93%9D%E5%B8%BD%E6%9D%AF%E5%8D%8A%E5%86%B3%E8%B5%9B/</url>
