@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TabCtrl Privacy Policy</title>
+  <style>
+    :root { color-scheme: light; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #172033;
+      background: #f6f8fb;
+      line-height: 1.65;
+    }
+    main {
+      box-sizing: border-box;
+      width: min(100% - 32px, 920px);
+      margin: 0 auto;
+      padding: 48px 0 72px;
+    }
+    article {
+      padding: 36px;
+      border: 1px solid #e4e9f2;
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: 0 18px 50px rgba(23, 32, 51, 0.08);
+    }
+    h1, h2, h3 { line-height: 1.25; }
+    h1 { margin: 0 0 18px; font-size: 34px; }
+    h2 { margin: 34px 0 12px; font-size: 22px; }
+    h3 { margin: 24px 0 10px; font-size: 18px; }
+    p { margin: 0 0 14px; }
+    ul { margin: 0 0 18px 22px; padding: 0; }
+    li { margin: 4px 0; }
+    table { width: 100%; margin: 18px 0 24px; border-collapse: collapse; font-size: 14px; }
+    th, td { padding: 10px 12px; border: 1px solid #dce3ee; text-align: left; vertical-align: top; }
+    th { background: #f0f4f9; }
+    code { padding: 0.12em 0.32em; border-radius: 5px; background: #eef3f8; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.92em; }
+    hr { margin: 32px 0; border: 0; border-top: 1px solid #e1e7f0; }
+    blockquote { margin: 0 0 20px; padding-left: 14px; border-left: 4px solid #8fb4ff; color: #5f6d80; }
+    .loading, .error { color: #5f6d80; }
+    @media (max-width: 640px) {
+      main { width: min(100% - 20px, 920px); padding: 24px 0 48px; }
+      article { padding: 22px; border-radius: 12px; }
+      h1 { font-size: 28px; }
+      table { display: block; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <article id="policy" class="loading">Loading privacy policy...</article>
+  </main>
+  <noscript>
+    <main><article>Please open <a href="/PRIVACY.md">/PRIVACY.md</a> to read the TabCtrl Privacy Policy.</article></main>
+  </noscript>
+  <script>
+    const policy = document.getElementById('policy');
+    const escapeHtml = (text) => text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    const inline = (text) => escapeHtml(text)
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    function render(md) {
+      const lines = md.replace(/^---[\s\S]*?---\s*/, '').split(/\r?\n/);
+      const out = [];
+      let paragraph = [];
+      let list = [];
+      const flushParagraph = () => {
+        if (!paragraph.length) return;
+        out.push('<p>' + inline(paragraph.join(' ')) + '</p>');
+        paragraph = [];
+      };
+      const flushList = () => {
+        if (!list.length) return;
+        out.push('<ul>' + list.map((item) => '<li>' + inline(item) + '</li>').join('') + '</ul>');
+        list = [];
+      };
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line.trim()) { flushParagraph(); flushList(); continue; }
+        if (/^---+$/.test(line.trim())) { flushParagraph(); flushList(); out.push('<hr>'); continue; }
+        if (line.startsWith('|') && lines[i + 1] && /^\|\s*-/.test(lines[i + 1])) {
+          flushParagraph(); flushList();
+          const headers = line.split('|').slice(1, -1).map((cell) => cell.trim());
+          i += 2;
+          const rows = [];
+          while (i < lines.length && lines[i].startsWith('|')) {
+            rows.push(lines[i].split('|').slice(1, -1).map((cell) => cell.trim()));
+            i++;
+          }
+          i--;
+          out.push('<table><thead><tr>' + headers.map((h) => '<th>' + inline(h) + '</th>').join('') + '</tr></thead><tbody>' + rows.map((row) => '<tr>' + row.map((cell) => '<td>' + inline(cell) + '</td>').join('') + '</tr>').join('') + '</tbody></table>');
+          continue;
+        }
+        const heading = /^(#{1,3})\s+(.+)$/.exec(line);
+        if (heading) {
+          flushParagraph(); flushList();
+          out.push('<h' + heading[1].length + '>' + inline(heading[2]) + '</h' + heading[1].length + '>');
+          continue;
+        }
+        const bullet = /^-\s+(.+)$/.exec(line);
+        if (bullet) { flushParagraph(); list.push(bullet[1]); continue; }
+        const quote = /^>\s+(.+)$/.exec(line);
+        if (quote) { flushParagraph(); flushList(); out.push('<blockquote>' + inline(quote[1]) + '</blockquote>'); continue; }
+        paragraph.push(line.trim());
+      }
+      flushParagraph();
+      flushList();
+      return out.join('\n');
+    }
+    fetch('/PRIVACY.md', { cache: 'no-cache' })
+      .then((response) => {
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        return response.text();
+      })
+      .then((text) => {
+        policy.className = '';
+        policy.innerHTML = render(text);
+      })
+      .catch(() => {
+        policy.className = 'error';
+        policy.innerHTML = 'Privacy policy is available at <a href="/PRIVACY.md">/PRIVACY.md</a>.';
+      });
+  </script>
+</body>
+</html>
