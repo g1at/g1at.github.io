@@ -16,16 +16,16 @@
   <meta name="author" content="g0at">
   <meta name="keywords" content="">
   
-    <meta name="description" content="NNG协议入门">
+    <meta name="description" content="从协议、传输与端点角色入手，理解 NNG 的消息所有权、同步调用和异步生命周期。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="NNG协议">
 <meta property="og:url" content="https://g1at.github.io/2023/08/10/NNG/index.html">
 <meta property="og:site_name" content="g0at&#39;s Blog">
-<meta property="og:description" content="NNG协议入门">
+<meta property="og:description" content="从协议、传输与端点角色入手，理解 NNG 的消息所有权、同步调用和异步生命周期。">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="https://g1at.github.io/mdimg/mqtt1/3.png">
 <meta property="article:published_time" content="2023-08-10T07:13:45.000Z">
-<meta property="article:modified_time" content="2024-01-31T03:20:46.465Z">
+<meta property="article:modified_time" content="2026-09-22T09:38:47.000Z">
 <meta property="article:author" content="g0at">
 <meta property="article:tag" content="IoT">
 <meta name="twitter:card" content="summary_large_image">
@@ -258,7 +258,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          3.1k 字
+          3.4k 字
         
       </span>
     
@@ -269,7 +269,7 @@
         
         
         
-          26 分钟
+          28 分钟
         
       </span>
     
@@ -319,87 +319,120 @@
             
               <div class="markdown-body">
                 
-                <h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p><a target="_blank" rel="noopener" href="https://github.com/nanomsg/nng">NNG</a> 是 nanomsg 的继任版本，而 nanomsg 则是流行的 ZMQ （一个简单好用的传输层，像框架一样的一个 socket library）的 C 重写版。</p>
-<p>NNG 将通信使用的协议和传输分离，同一个协议可以工作在不同的传输层上，类似与 TCP/IP 的应用层和传输层的分层，同时接口上屏蔽了底层细节，统一用字符串 URL 来描述传输模式。这样当使用场景修改时，可以通过简单修改 URL 来实现适应，极具灵活性。</p>
-<p>同时如 NNG 描述所言 “light-weight brokerless messaging”，NNG 中的通信各方是不需要第三方程序介入的，这与 MQTT/Redis 通信需要服务器不同。这样很适合作为通信库来使用而没有其他依赖。</p>
-<p>以下是一些 nng 的主要特点：</p>
+                <p>NNG 适合把线程、进程或不同机器上的模块用消息连接起来。真正写程序时，需要把协议语义、传输方式、连接角色、消息归属和异步操作的生命周期分开。</p>
+<p>本文的 C 示例已在 <strong>Ubuntu 24.04、NNG 1.7.2</strong> 上编译并运行。NNG 是通信库，提供多种协议语义与 transport；正文讨论的是这套库的使用模型。可执行例子的环境是 1.7.2，消息所有权和 AIO 的链接采用当前 1.10 手册；复现其他版本时应再核对随安装包提供的头文件和手册。</p>
+<h2 id="概述：三个问题分开想"><a href="#概述：三个问题分开想" class="headerlink" title="概述：三个问题分开想"></a>概述：三个问题分开想</h2><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>对应概念</th>
+<th>例子</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>消息怎样分发、收发顺序是什么</td>
+<td>protocol</td>
+<td>REQ/REP、PUB/SUB、PUSH/PULL</td>
+</tr>
+<tr>
+<td>字节从哪条通道过去</td>
+<td>transport</td>
+<td><code>inproc://</code>、<code>ipc://</code>、<code>tcp://</code></td>
+</tr>
+<tr>
+<td>谁主动建立连接</td>
+<td>endpoint</td>
+<td>dialer、listener</td>
+</tr>
+</tbody></table>
+<p>NNG 的 brokerless 表示它不强制依赖独立 Broker，不表示项目不能自行增加转发节点。它与 MQTT 的主题会话服务器也不是同一种抽象，不能把“都能发布订阅”理解为它们具有相同的持久化、主题路由和投递保证。</p>
+<h2 id="通信协议"><a href="#通信协议" class="headerlink" title="通信协议"></a>通信协议</h2><table>
+<thead>
+<tr>
+<th>模式</th>
+<th>消息行为</th>
+<th>使用时要注意</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>PAIR</td>
+<td>成对双向通信</td>
+<td>具体连接数量与 pair 版本/选项有关</td>
+</tr>
+<tr>
+<td>PUSH/PULL</td>
+<td>一个 PUSH 将工作分发给可用 PULL 中的一方</td>
+<td>适合任务分配，不是向所有工作者广播</td>
+</tr>
+<tr>
+<td>PUB/SUB</td>
+<td>向匹配的订阅方发送消息</td>
+<td>慢订阅者、连接建立时机可能造成丢消息</td>
+</tr>
+<tr>
+<td>REQ/REP</td>
+<td>请求后等待回复</td>
+<td>请求可能重发，有副作用时要处理幂等</td>
+</tr>
+<tr>
+<td>BUS</td>
+<td>向直接连接的其他节点发送</td>
+<td>不等于自动构建任意多跳可靠广播网</td>
+</tr>
+<tr>
+<td>SURVEY</td>
+<td>一次询问收集多方回答</td>
+<td>要定义响应窗口，不能无限等待所有节点</td>
+</tr>
+</tbody></table>
+<p>协议的状态限制也属于接口契约。以 cooked REQ 为例，尚未发送请求就接收会产生状态错误。要实现多个并发请求，可以使用协议支持的 <code>nng_ctx</code>，让每个上下文维护独立请求状态；原笔记中“没有 context”的说法不适用于这个层面。<a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.7.2/nng_req.7.html">REQ 文档</a>同时说明了重发与 context 行为。</p>
+<h3 id="重发不等于业务只执行一次"><a href="#重发不等于业务只执行一次" class="headerlink" title="重发不等于业务只执行一次"></a>重发不等于业务只执行一次</h3><p>例如 REQ 发出 <code>charge(order=42)</code>，REP 已扣款，但回复丢失。协议重发请求之后，服务端如果再次扣款，就产生了业务重复。解决办法需要落到业务层：使用稳定的请求 ID，记录已处理结果，再对重复请求返回相同结果。</p>
+<p>超时也不能证明远端没有执行。调用方只知道在自己的等待期限内没有收到最终回复，因此不能简单将一次超时等价为“安全重试”。</p>
+<h2 id="传输模式与连接角色"><a href="#传输模式与连接角色" class="headerlink" title="传输模式与连接角色"></a>传输模式与连接角色</h2><p><code>inproc://</code> 用于同一个进程中的 socket；<code>ipc://</code> 用于本机进程间通信；<code>tcp://</code> 用于 TCP 网络连接。换 URL 可以复用大量应用逻辑，但不是完全没有差异：不同 transport 的命名、权限、地址可达性和性能特征仍需考虑。</p>
+<p>PUSH 不一定是 dialer，PULL 不一定是 listener；REQ/REP 同理。下面故意让 REQ 监听，由 REP 主动连接：</p>
+<p><img src="/mdimg/notes-2026/nng-roles.svg" srcset="/img/loading.gif" lazyload alt="REQ 监听、REP 拨号：连接建立方向与请求方向相反"></p>
+<p><em>连接由 REP 发起，请求消息仍由 REQ 发出。两条箭头分别描述连接建立和协议消息。</em></p>
+<h3 id="一个能跑的反向连接实验"><a href="#一个能跑的反向连接实验" class="headerlink" title="一个能跑的反向连接实验"></a>一个能跑的反向连接实验</h3><p>下载 <a href="/downloads/notes-2026/nng_roles.c">nng_roles.c</a>。安装对应发行版的 NNG 开发包后编译：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">gcc -Wall -Wextra -Werror nng_roles.c -lnng -o nng_roles<br></code></pre></td></tr></table></figure>
+
+<p>先在终端 A 运行，随后在五秒内启动终端 B：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">./nng_roles req<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">./nng_roles rep<br></code></pre></td></tr></table></figure>
+
+<p>终端 A 收到 <code>pong</code> 后，在终端 B 按回车退出。示例特意没有在 REP <code>send()</code> 返回后立刻关闭 socket，因为“消息进入发送路径”和“对端应用已经收到了回复”是不同事件。</p>
+<p>本地结果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text"># 终端 A<br>NNG 1.7.2<br>REQ listens on 127.0.0.1:18885<br>REQ received 4 bytes: pong<br><br># 终端 B<br>NNG 1.7.2<br>REP dials 127.0.0.1:18885<br>REP received 4 bytes: ping<br></code></pre></td></tr></table></figure>
+
+<p>关键代码很短：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-comment">/* REQ */</span><br>nng_req0_open(&amp;sock);<br>nng_listen(sock, <span class="hljs-string">&quot;tcp://127.0.0.1:18885&quot;</span>, <span class="hljs-literal">NULL</span>, <span class="hljs-number">0</span>);<br><br><span class="hljs-comment">/* REP */</span><br>nng_rep0_open(&amp;sock);<br>nng_dial(sock, <span class="hljs-string">&quot;tcp://127.0.0.1:18885&quot;</span>, <span class="hljs-literal">NULL</span>, <span class="hljs-number">0</span>);<br></code></pre></td></tr></table></figure>
+
+<p>这段只是摘出角色设置，完整附件检查了返回值、设置收发超时并释放接收缓冲区。<code>NNG_FLAG_ALLOC</code> 接收的是指定长度的消息，不保证末尾有 NUL，所以示例按实际长度打印，并使用 <code>nng_free</code> 配对释放。</p>
+<h2 id="组合-PIPELINE-与-PUB-SUB"><a href="#组合-PIPELINE-与-PUB-SUB" class="headerlink" title="组合 PIPELINE 与 PUB/SUB"></a>组合 PIPELINE 与 PUB/SUB</h2><p>原笔记里的 PULL → PUB 转发方案仍然有用：多个生产者向一个汇聚节点 PUSH，汇聚节点用 PULL 接收后，再从 PUB 发给订阅者。</p>
+<p>这里新增的是一个应用级转发节点，需要自己决定队列上限、慢消费者处理、重连后状态恢复以及关闭时如何收尾。它不会自动获得 MQTT 的 retained message 或持久 session。</p>
+<p>NNG SUB 通常按消息开头的字节前缀过滤，也不是 MQTT 的 <code>/</code> 层级和 <code>+/#</code> 规则。例如自定义消息以 <code>temperature/</code> 开头时，双方必须约定这个编码；如果把长度、类型或二进制头放在前面，过滤位置也随之改变。</p>
+<h2 id="数据传输：先把消息归属画清楚"><a href="#数据传输：先把消息归属画清楚" class="headerlink" title="数据传输：先把消息归属画清楚"></a>数据传输：先把消息归属画清楚</h2><p>使用 <code>nng_sendmsg</code> 时，最容易出错的是调用成功之后又去释放或修改同一条消息。</p>
+<p><img src="/mdimg/notes-2026/nng-ownership.svg" srcset="/img/loading.gif" lazyload alt="NNG 消息所有权从应用到库的转移，以及失败路径的清理"></p>
+<p>同步 <code>nng_sendmsg</code> 成功后，消息由库接管；失败则仍由调用者处理。对于接收得到的消息，应用最终应释放它，或者通过一次成功的消息发送把它交给库。<a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.10.0/nng_sendmsg.3.html">nng_sendmsg 接口文档</a>是核对这些规则的依据。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-type">int</span> rv = nng_sendmsg(sock, msg, <span class="hljs-number">0</span>);<br><span class="hljs-keyword">if</span> (rv != <span class="hljs-number">0</span>) &#123;<br>    nng_msg_free(msg);  <span class="hljs-comment">/* 失败，调用者仍负责它 */</span><br>    msg = <span class="hljs-literal">NULL</span>;<br>    <span class="hljs-comment">/* 记录错误或构造新的重试消息 */</span><br>&#125; <span class="hljs-keyword">else</span> &#123;<br>    msg = <span class="hljs-literal">NULL</span>;        <span class="hljs-comment">/* 成功，不能再访问原消息 */</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这里释放失败消息只是一个选择；如果准备重试，可以保留它，但必须避免其他线程同时修改。真正危险的是把同步与异步接口的成功时刻混用。</p>
+<h2 id="AIO：提交、完成、停止是三个阶段"><a href="#AIO：提交、完成、停止是三个阶段" class="headerlink" title="AIO：提交、完成、停止是三个阶段"></a>AIO：提交、完成、停止是三个阶段</h2><p>异步 API 提交之后，结果由完成回调或 <code>nng_aio_wait</code> 等等待方式取得。此时不能把“提交函数已经返回”当作 I/O 已完成，也不能立即重用还在进行中的 <code>nng_aio</code>。</p>
+<p>原笔记列出的 <code>INIT_RECV</code>、<code>RECV_RET_SEND</code> 等枚举，更适合被理解为应用自己定义的工作状态。它们不能替代库的完成结果。</p>
+<p>一个 REP 工作者可以按下面的状态组织：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">提交 receive<br>  -&gt; 完成：检查 nng_aio_result<br>  -&gt; 取出消息，解析并生成响应<br>  -&gt; 提交 send<br>  -&gt; 完成：检查结果，处理成功/失败时的消息归属<br>  -&gt; 再提交 receive<br></code></pre></td></tr></table></figure>
+
+<p>错误路径至少要分清：超时、取消、socket 关闭、消息过大和协议状态不匹配。关闭对象时，应先协调停止新的提交，再等待相关异步操作和回调结束，最后释放 AIO 与工作状态；不要在回调可能继续访问对象时先释放它。具体生命周期可对照 <a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.10.0/nng_aio_stop.3.html">nng_aio_stop</a> 与 <a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.10.0/nng_aio_free.3.html">nng_aio_free</a>。</p>
+<h2 id="回头读源码时看哪些地方"><a href="#回头读源码时看哪些地方" class="headerlink" title="回头读源码时看哪些地方"></a>回头读源码时看哪些地方</h2><p>原来直接记函数调用链，换版本后很容易失效。更稳妥的阅读顺序是：</p>
 <ol>
-<li>协议独立性： nng 提供了多种通信模式（协议），如请求-回复、发布-订阅、推送-拉取等。每种模式都有相应的协议，使开发人员能够根据应用程序的需求选择适当的通信方式。</li>
-<li>轻量级： nng 的设计着重于保持轻量级和高性能。它专注于提供基本的通信机制，避免过多的复杂性。</li>
-<li>可扩展性： nng 允许开发人员在需要的时候添加新的传输协议，以适应不同的通信需求。这使得 nng 在不同的场景中都能够发挥作用。</li>
-<li>错误处理和可靠性： nng 设计了更好的错误处理机制，以便在通信出现问题时更好地报告和处理错误。它还提供了一些协议，如 REQ/REP，以实现可靠的请求和回复模式。</li>
-<li>异步通信： nng 支持异步通信模式，使开发人员能够实现高效的并发操作。</li>
-<li>跨平台： nng 可在多个操作系统上运行，包括 Linux、Windows 和 macOS。</li>
+<li>从公开头文件确定参数、返回值和所有权约定。</li>
+<li>找对应协议的 socket/context 状态，确认允许的操作顺序。</li>
+<li>跟进发送、接收队列，观察什么时候排队、取消、完成。</li>
+<li>再看 transport 如何建立 pipe，以及断开连接怎样反馈。</li>
 </ol>
-<h2 id="通信协议"><a href="#通信协议" class="headerlink" title="通信协议"></a>通信协议</h2><ul>
-<li>PAIR 一对一双向通信。</li>
-<li>PIPELINE(PUSH/PULL) 单向通信，类似与生产者消费者模型的消息队列。</li>
-<li>PUB/SUB 单向广播。</li>
-<li>REQ/REP 请求-应答模式，类似与 RPC 模式。</li>
-<li>BUS 网状连接通信，每个加入节点都可以发送/接受广播消息。</li>
-<li>SURVEY 用于多节点表决或者服务发现。</li>
-</ul>
-<h2 id="传输模式"><a href="#传输模式" class="headerlink" title="传输模式"></a>传输模式</h2><ul>
-<li>inproc 进程内线程间传输</li>
-<li>ipc 主机内进程间传输</li>
-<li>tcp 网络内主机间传输</li>
-</ul>
-<h2 id="通讯模式"><a href="#通讯模式" class="headerlink" title="通讯模式"></a>通讯模式</h2><ol>
-<li>不同机器进程间：<br>TCP - network transport via TCP<br>WS - websockets over TCP<br>服务端：”tcp://*:5555”<br>客户端：”tcp://localhost:5555”</li>
-<li>同台机器进程间：<br>IPC - transport between processes on a single machine<br>ipc:///tmp/reqrep.ipc</li>
-</ol>
-<p>​     INPROC - transport within a process (between threads, modules etc.)</p>
-<ol>
-<li>同进程的线程，模块间通信：<br>“inproc://rot13”</li>
-</ol>
-<p>通信协议里除了 PAIR 之外，基本都是一对多的通信模式，这点需要注意。</p>
-<p>以 PIPELINE 和 PUB/SUB 为例：</p>
-<ul>
-<li>PIPELINE 的 PUSH 端是 client，一个 PUSH 可以连接多个 PULL 端，发送数据时会选择其中一个可用的发送；PULL 端是 server，一个 PULL 可以接收多个 PUSH 连接和数据。</li>
-<li>PUB/SUB 的 SUB 端是 client，一个 SUB 可以连接多个不同的 PUB 端，接收多个 PUB 端广播的数据；PUB 端是 server，一个 PUB 可以接收多个 SUB 连接并广播数据。</li>
-</ul>
-<p>基于以上，多个程序是没办法共用一个 PUB/SUB 通道来广播数据的，这与 ROS 里的 topic 和 LCM 中的 channel 模式不同。如果要实现类似功能，则可以使用 PIPELINE + PUB/SUB 来处理：</p>
-<ul>
-<li>独立一个话题发布的程序，拥有一个 PULL 和 PUB。</li>
-<li>PULL 约定一个 URL，所有需要发布该话题的程序都 PUSH 数据到该 URL 上。</li>
-<li>PUB 约定一个 URL，所有需要获取该话题的程序都 SUB 到该 URL 上。</li>
-<li>程序内部循环将 PULL 读取的数据发送到 PUB 上。</li>
-<li>以上则可以模拟出 ROS topic 数据合并 或者 LCM 中 channel 的类似功能。</li>
-</ul>
-<p>整体上看，NNG 的 API 很简约，主要是 4 个，open/recv/send/close，open 根据协议不同使用的函数会不同。配置则是 setopt/getopt，与 UNIX API 类似。API 中没有上下文环境（context-less）依赖，只需要一个 nng_socket，这种设计和实现方法值得去学习一下（初步揣测应该是使用指针值作为handle，如果要强制编译器做类型检测，则会套上一层 struct，如 <code>typedef struct &#123; _nng_xxx_socket * p &#125; nng_socket;</code></p>
-<p>NNG 协议基本上囊括了常见的通信需求，一些特殊的需求，也可以通过组合协议来实现，比如上面的模拟 ROS topic 或者 LCM channel 的方法。这样一来，如果在程序中使用 NNG，不管是多进程，还是多线程，通过设计，可以进一步增强模块化，同时不乏灵活性。如果环境变化，程序不管是由多进程改成多线程，还是由多线程改成多主机，都很容易实现。</p>
-<p>常见模块/进程/线程间通信，可以依据具体需求来使用 PIPELINE（消息队列） 还是 REQ/REP（过程调用），而不是锁+全局变量，每个模块单元只需要做单一相关的具体事务，无需知晓全局状态。</p>
-<h2 id="代码结构"><a href="#代码结构" class="headerlink" title="代码结构"></a>代码结构</h2><figure class="highlight avrasm"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs avrasm"><span class="hljs-symbol">nng.h:</span><br></code></pre></td></tr></table></figure>
-
-<p>nng对外暴露的 api 接口</p>
-<figure class="highlight avrasm"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs avrasm"><span class="hljs-symbol">transport.h:</span><br></code></pre></td></tr></table></figure>
-
-<p>通信层定义，主要是为了暴露给用户以实现扩展，但目前包含了utils下的相关头文件，其中<code>inproc.h/ipc.h/tcp.h</code>是对应的transport</p>
-<figure class="highlight avrasm"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs avrasm"><span class="hljs-symbol">protocol.h:</span><br></code></pre></td></tr></table></figure>
-
-<p>协议层定义，也是为了暴露给用户以实现扩展，其中<code>reqrep.h/pubsub.h/bus.h/pair.h/pipeline.h/survey.h</code>是对应的protocol</p>
-<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs makefile"><span class="hljs-section">utils/:</span><br></code></pre></td></tr></table></figure>
-
-<p>实用工具包，包含基本数据结构(<code>list/queue/hash</code>)、互斥及原子操作(<code>mutex/atomic</code>)等</p>
-<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs makefile"><span class="hljs-section">transports/:</span><br></code></pre></td></tr></table></figure>
-
-<p>通信层实现，包括(inproc:进程内通信；ipc:进程间通信；tcp：tcp通信)</p>
-<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs makefile"><span class="hljs-section">protocols/:</span><br></code></pre></td></tr></table></figure>
-
-<p>协议层实现，包括(REQREP:请求响应；PUBSUB:订阅发布等)</p>
-<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs makefile"><span class="hljs-section">core/:</span><br></code></pre></td></tr></table></figure>
-
-<p>通用代码</p>
-<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs makefile"><span class="hljs-section">aio/:</span><br></code></pre></td></tr></table></figure>
-
-<p>线程池模拟的异步操作，带状态机的事件驱动等</p>
-<h2 id="数据传输"><a href="#数据传输" class="headerlink" title="数据传输"></a>数据传输</h2><h3 id="发送数据"><a href="#发送数据" class="headerlink" title="发送数据"></a>发送数据</h3><figure class="highlight jboss-cli"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs jboss-cli">nng_sendmsg<br><br>nng_aio_<span class="hljs-keyword">set</span>_timeout<br><br>nng_aio_<span class="hljs-keyword">set</span>_msg<br><br>nng_send_aio<br><br>nni_aio_get_msg<br><br>nni_sock_find<br><br>nni_sock_send --&gt; sock_send<br><br>nni_sock_rele<br><br>nng_aio_wait<br><br>nng_aio_result<br></code></pre></td></tr></table></figure>
-
-<h3 id="接收数据"><a href="#接收数据" class="headerlink" title="接收数据"></a>接收数据</h3><figure class="highlight xl"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs xl">nng_recvmsg<br><br>nng_aio_set_timeout<br><br>nng_recv_aio<br><br>nni_sock_find<br><br><span class="hljs-function"><span class="hljs-title">nni_sock_recv</span> --&gt;</span> sock_recv<br><br>nni_sock_rele<br><br>nng_aio_wait<br><br>nng_aio_result<br><br>nng_aio_free<br></code></pre></td></tr></table></figure>
-
-<h2 id="AIO"><a href="#AIO" class="headerlink" title="AIO"></a>AIO</h2><h3 id="AIO状态"><a href="#AIO状态" class="headerlink" title="AIO状态"></a>AIO状态</h3><p>AIO 结构可以携带最多 4 个不同的输入值，最多 4 个不同的输出值，以及最多 4 个不同的“私有状态”值。 输入和输出的含义由被调用的 I/O 函数决定。</p>
-<figure class="highlight elm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs elm">typedef enum &#123;<br><br><span class="hljs-type">NNG_INIT_RECV</span> = 0,<br><br><span class="hljs-type">NNG_RECV_RET_SEND</span>,<br><br><span class="hljs-type">NNG_SEND_RET_RECV</span>,<br><br><span class="hljs-type">NNG_RECV_RET_RECV</span>,<br><br>&#125; nng_aio_state_t;<br></code></pre></td></tr></table></figure>
-
+<p>公开的 <code>nng_socket</code> 是 opaque handle，不应靠猜测其内部是一个指针来设计自己的代码。阅读内部 <code>nni_*</code> 实现时也要固定版本；它们不是应用应依赖的稳定 API。</p>
+<h2 id="调试时留下哪些证据"><a href="#调试时留下哪些证据" class="headerlink" title="调试时留下哪些证据"></a>调试时留下哪些证据</h2><p>收发日志至少记录业务请求 ID、协议角色、endpoint URL、消息长度、返回码与耗时。协议返回“超时”时，继续检查对端是否收到、是否已经处理、回复是否产生，再决定如何重试。</p>
+<p>这能区分几类看起来相同的问题：连错 URL，SUB 前缀不匹配，REQ 状态错误，应用处理太慢，或者在发送完成之前就关闭了连接。单凭一句“NNG 没收到”很难继续排查。</p>
 
                 
               </div>

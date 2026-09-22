@@ -16,16 +16,16 @@
   <meta name="author" content="g0at">
   <meta name="keywords" content="">
   
-    <meta name="description" content="浅谈几种Linux保护机制">
+    <meta name="description" content="从页权限、栈校验、地址随机化到 RELRO 与 FORTIFY，用可复现实验理解 Linux 二进制保护。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Linux保护机制">
 <meta property="og:url" content="https://g1at.github.io/2023/02/04/%E6%B5%85%E8%B0%88%E5%87%A0%E7%A7%8DLinux%E4%BF%9D%E6%8A%A4%E6%9C%BA%E5%88%B6/index.html">
 <meta property="og:site_name" content="g0at&#39;s Blog">
-<meta property="og:description" content="浅谈几种Linux保护机制">
+<meta property="og:description" content="从页权限、栈校验、地址随机化到 RELRO 与 FORTIFY，用可复现实验理解 Linux 二进制保护。">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="https://g1at.github.io/img/pwn.jpg">
 <meta property="article:published_time" content="2023-02-03T16:59:00.000Z">
-<meta property="article:modified_time" content="2024-03-13T04:10:43.081Z">
+<meta property="article:modified_time" content="2026-09-22T09:38:47.000Z">
 <meta property="article:author" content="g0at">
 <meta property="article:tag" content="Linux">
 <meta name="twitter:card" content="summary_large_image">
@@ -258,7 +258,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          1.3k 字
+          4.2k 字
         
       </span>
     
@@ -269,7 +269,7 @@
         
         
         
-          11 分钟
+          36 分钟
         
       </span>
     
@@ -319,36 +319,160 @@
             
               <div class="markdown-body">
                 
-                <h2 id="NX"><a href="#NX" class="headerlink" title="NX"></a>NX</h2><p>数据不可执行。原理是将数据所在内存页标识为不可执行，防止因为程序运行出现溢出而使得攻击者的shellcode可能会在数据区尝试执行的情况。NX在咱屡战屡败的经典栈溢出实验中有接触过，NX是对栈和堆的一种保护机制。实验需要关闭NX和地址随机化，否则执行shellcode时，CPU就会抛出异常，而不是去执行恶意指令。<br>Linux系统叫做NX，Windows系统中类似的机制叫DEP(Data Execute Prevention)。</p>
-<h2 id="Stack-Canary"><a href="#Stack-Canary" class="headerlink" title="Stack Canary"></a>Stack Canary</h2><p>栈保护。栈溢出保护是一种缓冲区溢出攻击缓解手段。启用栈保护后，函数开始执行的时候会先往栈里插入cookie信息，当函数真正返回的时候会验证cookie信息是否合法，如果不合法就停止程序运行。攻击者在覆盖返回地址的时候往往也会将cookie信息给覆盖掉，导致栈保护检查失败而阻止shellcode的执行。在Linux中我们将cookie信息称为canary。<br>简单来说就是通过验证cookie，来判断执行的代码是不是恶意代码。</p>
-<h2 id="PIE-ASLR"><a href="#PIE-ASLR" class="headerlink" title="PIE / ASLR"></a>PIE / ASLR</h2><p>地址随机化。就是保证同一个程序任意两次运行时的堆栈基址是不同的。如果堆栈基址不变会怎样？不变就可能被攻击，因为攻击者能确认程序的内存地址，然后通过覆盖返回地址在等手段执行恶意代码。咱屡战屡败的经典栈溢出实验就是通过覆盖返回地址执行恶意代码。</p>
+                <p>刚接触 Pwn 时，<code>checksec</code> 能告诉我们保护开没开，却不太能解释它们到底卡住了哪一步。比如同样是程序崩溃，可能是跳进不可执行页，也可能是函数返回前发现 Canary 被改了。这两件事的触发位置完全不同。</p>
+<p>下面按 NX、Canary、PIE/ASLR、RELRO、FORTIFY 和动态库搜索路径逐项拆解。实验使用 <strong>x86-64、Ubuntu 24.04、GCC 13.3.0</strong>；其他架构和工具链的指令、默认编译选项可能不同。</p>
+<p><img src="/mdimg/notes-2026/linux-layers.svg" srcset="/img/loading.gif" lazyload alt="Linux 保护机制分别作用于内存权限、返回检查、装载和函数边界检查"></p>
+<p><em>把保护放回程序的运行过程里：它们检查的对象不同，不能用一个“防止溢出”概括。</em></p>
+<h2 id="NX：先看页面有没有执行权限"><a href="#NX：先看页面有没有执行权限" class="headerlink" title="NX：先看页面有没有执行权限"></a>NX：先看页面有没有执行权限</h2><p>NX 阻止 CPU 从没有执行权限的内存页取指。放在栈里的字节仍然可以被读写，但把 RIP 转过去时会触发异常。Windows 上常见的相关术语是 DEP；Linux 分析中通常直接看页权限和 ELF 的装载信息。</p>
+<p>这里有两个容易混淆的地方：</p>
+<ul>
+<li>NX 不会阻止越界写本身。错误的 <code>strcpy</code> 仍可能破坏相邻变量。</li>
+<li>代码复用会使用原本可执行的代码页，所以 NX 不等于禁止 ROP，也不负责随机化地址。</li>
+</ul>
+<p>查看 ELF 对栈的要求：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">readelf -W -l ./canary<br></code></pre></td></tr></table></figure>
+
+<p>关注 <code>GNU_STACK</code> 的 Flags。实验中的结果是 <code>RW</code>，没有 <code>E</code>；<code>LOAD</code> 段则能看到只读、可执行和可写区域的划分。<code>GNU_STACK</code> 只描述栈的相关属性，不能据此宣布进程里所有可写页都不可执行；共享库和运行时的 <code>mmap</code>/<code>mprotect</code> 同样会影响最终权限。</p>
+<p>如果进程正在运行，可以对照 <code>/proc/&lt;pid&gt;/maps</code> 中的 <code>r-xp</code>、<code>rw-p</code> 等字段。ELF 文件中的 section 和运行时的 page 不是同一个粒度，实际执行权限最终落在页上。</p>
+<h2 id="Stack-Canary：在函数退出前发现栈破坏"><a href="#Stack-Canary：在函数退出前发现栈破坏" class="headerlink" title="Stack Canary：在函数退出前发现栈破坏"></a>Stack Canary：在函数退出前发现栈破坏</h2><p>典型的受保护函数会在栈上保存一份 guard，退出时与原值比较。发生连续的栈缓冲区越界写时，若覆盖返回地址的路径经过这份 guard，就可能在返回之前被发现。</p>
+<p><img src="/mdimg/notes-2026/linux-canary.svg" srcset="/img/loading.gif" lazyload alt="示意栈布局：局部缓冲区、Canary、保存的帧指针与返回地址"></p>
+<p><em>图是常见 x86-64 栈布局的示意，不表示所有函数都有相同偏移；优化也会改变布局。</em></p>
+<p>Canary 检查的是值有没有变化，并不判断某段代码是否“恶意”。它也不是所有内存错误的兜底：不经过 guard 的对象破坏、堆上的越界、读取越界，都不必然触发它。</p>
+<p>GCC 的几个选项也有区别：<code>-fstack-protector</code> 只选部分函数；<code>-fstack-protector-strong</code> 扩大覆盖范围；<code>-fstack-protector-all</code> 为所有函数增加保护。看见二进制里导入了 <code>__stack_chk_fail</code>，只能证明存在相关机制，不能直接断言每个函数都受保护。<a target="_blank" rel="noopener" href="https://gcc.gnu.org/onlinedocs/gcc/Instrumentation-Options.html#index-fstack-protector-strong">GCC 的选项说明</a>给出了选择规则。</p>
+<h3 id="对照实验"><a href="#对照实验" class="headerlink" title="对照实验"></a>对照实验</h3><p>下载 <a href="/downloads/notes-2026/hardening.c">hardening.c</a>。核心函数故意保留一个长度检查缺失的复制：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs c">__attribute__((noinline)) <span class="hljs-type">static</span> <span class="hljs-type">void</span> <span class="hljs-title function_">copy_arg</span><span class="hljs-params">(<span class="hljs-type">const</span> <span class="hljs-type">char</span> *s)</span> &#123;<br>    <span class="hljs-type">char</span> buffer[<span class="hljs-number">32</span>];<br>    <span class="hljs-built_in">strcpy</span>(buffer, s);<br>    <span class="hljs-built_in">puts</span>(buffer);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>把同一份源文件编译为三组：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs bash">gcc -g -O0 -fno-stack-protector -fno-pie -no-pie \<br>    -Wl,-z,relro,-z,lazy,-z,noexecstack hardening.c -o baseline<br><br>gcc -g -O0 -fstack-protector-strong -fPIE -pie \<br>    -Wl,-z,relro,-z,now,-z,noexecstack hardening.c -o canary<br><br>gcc -g -O2 -D_FORTIFY_SOURCE=2 -fstack-protector-strong -fPIE -pie \<br>    -Wl,-z,relro,-z,now,-z,noexecstack hardening.c -o fortify<br></code></pre></td></tr></table></figure>
+
+<p>这三组都保持栈不可执行，便于把观察重点放在 Canary 和 FORTIFY。正常输入 <code>hello</code> 都能打印。用 Python 给后两组传入 80 个 <code>A</code>：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs python"><span class="hljs-keyword">import</span> subprocess<br><br><span class="hljs-keyword">for</span> name <span class="hljs-keyword">in</span> (<span class="hljs-string">&quot;canary&quot;</span>, <span class="hljs-string">&quot;fortify&quot;</span>):<br>    result = subprocess.run([<span class="hljs-string">f&quot;./<span class="hljs-subst">&#123;name&#125;</span>&quot;</span>, <span class="hljs-string">&quot;A&quot;</span> * <span class="hljs-number">80</span>], capture_output=<span class="hljs-literal">True</span>, text=<span class="hljs-literal">True</span>)<br>    <span class="hljs-built_in">print</span>(name, result.returncode, result.stderr.strip())<br></code></pre></td></tr></table></figure>
+
+<p>本地结果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">canary -6 *** stack smashing detected ***: terminated<br>fortify -6 *** buffer overflow detected ***: terminated<br></code></pre></td></tr></table></figure>
+
+<p><code>-6</code> 是 Python 在 Linux 上报告进程被 <code>SIGABRT</code> 终止的形式。第一个检测到栈 guard 破坏；第二个在受检查的复制操作处就终止了。仅凭“都崩了”会错过这个差别。未启用保护的样本只用短输入检查运行，长输入属于未定义行为，没有统一的预期结果。</p>
+<p>反汇编可以继续确认：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">objdump -d -M intel ./canary<br>objdump -d -M intel ./fortify<br></code></pre></td></tr></table></figure>
+
+<p>这次构建中，前者能看到 guard 读取、比较及 <code>__stack_chk_fail</code> 路径；后者在复制处出现 <code>__strcpy_chk</code>。具体寄存器、偏移和错误文本以本机编译结果为准。</p>
+<h2 id="PIE-ASLR：一个解决可重定位，一个决定怎么摆放"><a href="#PIE-ASLR：一个解决可重定位，一个决定怎么摆放" class="headerlink" title="PIE / ASLR：一个解决可重定位，一个决定怎么摆放"></a>PIE / ASLR：一个解决可重定位，一个决定怎么摆放</h2><p>PIE 是编译、链接得到的位置无关可执行文件形式；ASLR 是运行时地址布局随机化。启用了 ASLR，普通非 PIE 主程序的代码基址仍可能固定；与此同时，它的栈、堆和共享库地址可以变化。</p>
 <table>
 <thead>
 <tr>
-<th></th>
-<th>随机化段</th>
-<th>设置</th>
+<th>观察对象</th>
+<th>主要影响因素</th>
+<th>常用检查方式</th>
 </tr>
 </thead>
 <tbody><tr>
-<td>ADLR</td>
-<td>堆、栈、mmap（libc库）、VDSO page</td>
-<td>由操作系统设置</td>
+<td>主程序是否可作为 PIE 装载</td>
+<td>编译链接选项</td>
+<td><code>readelf -h</code>、<code>readelf -d</code></td>
+</tr>
+<tr>
+<td>系统地址随机化策略</td>
+<td>内核配置</td>
+<td><code>cat /proc/sys/kernel/randomize_va_space</code></td>
+</tr>
+<tr>
+<td>本次运行的实际地址</td>
+<td>装载器、内核、进程行为</td>
+<td><code>/proc/&lt;pid&gt;/maps</code>、调试器</td>
+</tr>
+</tbody></table>
+<p>下载 <a href="/downloads/notes-2026/addresses.c">addresses.c</a>，它只打印 <code>main</code>、栈变量和一次 <code>malloc</code> 的地址：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs bash">gcc -fno-pie -no-pie addresses.c -o addr-exec<br>gcc -fPIE -pie addresses.c -o addr-pie<br>./addr-exec<br>./addr-exec<br>./addr-pie<br>./addr-pie<br></code></pre></td></tr></table></figure>
+
+<p>这次本地运行的 <code>main</code> 地址如下，栈与堆地址在两种构建中均发生了变化：</p>
+<table>
+<thead>
+<tr>
+<th>构建</th>
+<th>第一次</th>
+<th>第二次</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>非 PIE</td>
+<td><code>0x401196</code></td>
+<td><code>0x401196</code></td>
 </tr>
 <tr>
 <td>PIE</td>
-<td>数据段、代码段</td>
-<td>由编译器设置</td>
+<td><code>0x639079fa21a9</code></td>
+<td><code>0x5af15f12b1a9</code></td>
 </tr>
 </tbody></table>
-<h2 id="Relro"><a href="#Relro" class="headerlink" title="Relro"></a>Relro</h2><p>只读重定位。设置符号重定向表格为只读或在程序启动时就解析并绑定所有动态符号，从而减少对GOT攻击。在Linux中有”Partial RELRO” “Full RELRO”两种模式，默认开启Partical RELRO，开启Partical RELRO时，GOT是可写的，开启 FULL RELRO 时，GOT表是只读的。<br> 主要用来保护重定位表段对应数据区域，默认可写 </p>
-<ol>
-<li>Partial RELRO： got表不可写，got.plt可写 </li>
-<li>Full RELRO： got表，got.plt不可写  </li>
-</ol>
-<p>部分RELRO 易受到攻击，例如攻击者可以<strong>atoi.got为system.plt，进而输入/bin/sh\x00获得shell</strong><br>完全RELRO 使整个 GOT 只读，从而无法被覆盖，但这样会大大增加程序的启动时间，因为程序在启动之前需要解析所有的符号。<br>参考：</p>
-<h2 id="FORTIFY"><a href="#FORTIFY" class="headerlink" title="FORTIFY"></a>FORTIFY</h2><p>在编译的时候检查源码是否存在缓冲区溢出等错误。<br>简单地说，加了这个保护之后,一些敏感函数如read, fgets,memcpy, printf等等可能导致漏洞出现的函数都会被替换成__read_chk,__fgets_chk, __memcpy_chk, __printf_chk等。<br>这些带了chk的函数会检查读取/复制的字节长度是否超过缓冲区长度，通过检查诸如%n之类的字符串位置是否位于可能被用户修改的可写地址，避免了格式化字符串跳过某些参数（如直接%7$x）等方式来避免漏洞出现。</p>
-<h2 id="BRATH"><a href="#BRATH" class="headerlink" title="BRATH"></a>BRATH</h2><p>程序运行时的环境变量，运行时所需要的共享库文件优先从该目录寻找，可以fake lib造成攻击。</p>
+<p>这说明 PIE 和 ASLR 要结合起来看。随机化也不是“任何两次地址必不相同”的数学保证。若调试器关闭随机化、系统策略不同，或者采用其他装载方式，观察结果还会变化。</p>
+<p><code>ET_DYN</code> 也不应孤立解读：共享库同样使用这个类型。识别 PIE 时要结合解释器、动态标志和文件用途，而不是见到 <code>DYN</code> 就下结论。</p>
+<h2 id="RELRO：动态链接完成后，把不该再写的区域收起来"><a href="#RELRO：动态链接完成后，把不该再写的区域收起来" class="headerlink" title="RELRO：动态链接完成后，把不该再写的区域收起来"></a>RELRO：动态链接完成后，把不该再写的区域收起来</h2><p>动态链接时，程序需要把外部符号解析到实际地址。GNU 工具链中的 <code>-z relro</code> 生成 <code>PT_GNU_RELRO</code> 区域，装载器完成相应重定位后将其设为只读；<code>-z now</code> 则要求尽早解析动态符号。</p>
+<p><img src="/mdimg/notes-2026/linux-relro.svg" srcset="/img/loading.gif" lazyload alt="RELRO 时间线：装载、重定位、只读保护与后续运行"></p>
+<table>
+<thead>
+<tr>
+<th>常见构建</th>
+<th>主要特征</th>
+<th>对典型 GOT/PLT 的影响</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Partial RELRO</td>
+<td><code>-z relro</code>，仍可采用 lazy binding</td>
+<td>惰性绑定所需的槽位通常仍需可写</td>
+</tr>
+<tr>
+<td>Full RELRO</td>
+<td><code>-z relro -z now</code></td>
+<td>典型构建中包括 GOT 的相关区域在重定位后只读</td>
+</tr>
+</tbody></table>
+<p>不要只用 section 名称来推断保护；链接脚本和工具链布局可能不同，最终要看段范围和内存权限。用下面两条命令交叉确认 <code>GNU_RELRO</code> 与 <code>BIND_NOW</code>/<code>NOW</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">readelf -W -l ./canary<br>readelf -W -d ./canary<br></code></pre></td></tr></table></figure>
+
+<p>Full RELRO 会改变符号解析发生的时间，启动成本取决于动态符号规模和使用情况，不能直接说“一定大大变慢”。具体选项含义见 <a target="_blank" rel="noopener" href="https://sourceware.org/binutils/docs/ld/Options.html">GNU ld 文档</a>。</p>
+<h2 id="FORTIFY：编译器知道对象大小时，多做一层检查"><a href="#FORTIFY：编译器知道对象大小时，多做一层检查" class="headerlink" title="FORTIFY：编译器知道对象大小时，多做一层检查"></a>FORTIFY：编译器知道对象大小时，多做一层检查</h2><p>glibc 的 <code>_FORTIFY_SOURCE</code> 借助编译器对对象大小等信息的分析，让部分库函数调用获得额外检查。能在编译时证明安全的调用可能保持原样；无法直接证明的调用可能变成带运行时检查的版本。它既有编译期诊断，也有运行时检查。</p>
+<p>上面的 <code>strcpy(buffer, s)</code> 是很直观的例子：目标数组长度已知，输入长度在运行时才知道，因此构建后的 <code>__strcpy_chk</code> 可以在复制前检查边界。优化等级、编译器和 libc 版本会影响最终生成什么代码。</p>
+<p>它不会自动覆盖所有自写循环，也不能修好业务层的权限判断。<code>_FORTIFY_SOURCE=2</code> 的存在更不等于消灭所有格式化字符串问题；相关限制取决于具体函数及输入。<a target="_blank" rel="noopener" href="https://sourceware.org/glibc/manual/latest/html_node/Source-Fortification.html">glibc 的说明</a>列出了检查方式和覆盖的函数。</p>
+<h2 id="RPATH-RUNPATH-LD-LIBRARY-PATH"><a href="#RPATH-RUNPATH-LD-LIBRARY-PATH" class="headerlink" title="RPATH / RUNPATH / LD_LIBRARY_PATH"></a>RPATH / RUNPATH / LD_LIBRARY_PATH</h2><p>动态库搜索路径里有三个经常混用的概念：</p>
+<ul>
+<li><code>DT_RPATH</code>、<code>DT_RUNPATH</code> 是 ELF 动态段里的信息。</li>
+<li><code>LD_LIBRARY_PATH</code> 是环境变量。</li>
+<li><code>$ORIGIN</code> 可以表示相关 ELF 所在目录，常用于随程序部署的库。</li>
+</ul>
+<p>RPATH 和 RUNPATH 在搜索优先级、依赖传播范围等方面有区别；具有安全执行语义的进程还可能忽略相关环境变量。不能把它们统称为“程序运行时的一个环境变量”。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">readelf -W -d ./program<br></code></pre></td></tr></table></figure>
+
+<p>分析时记录 <code>NEEDED</code>、<code>RPATH</code>、<code>RUNPATH</code>，再核对实际装载了哪个文件。如果目录能被低权限用户写入，还要判断它是否真的进入了目标进程的库搜索路径。详细顺序可查 <a target="_blank" rel="noopener" href="https://man7.org/linux/man-pages/man8/ld.so.8.html">动态装载器 ld.so 手册</a>。</p>
+<h2 id="看完-checksec-后还要看什么"><a href="#看完-checksec-后还要看什么" class="headerlink" title="看完 checksec 后还要看什么"></a>看完 checksec 后还要看什么</h2><table>
+<thead>
+<tr>
+<th>检查结果</th>
+<th>下一步要核实的内容</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>NX enabled</td>
+<td>被使用的内存区域实际有没有执行权限</td>
+</tr>
+<tr>
+<td>Canary found</td>
+<td>目标函数是否插桩，相关越界路径是否经过 guard</td>
+</tr>
+<tr>
+<td>PIE enabled</td>
+<td>运行时是否随机化，已知地址属于哪个映射</td>
+</tr>
+<tr>
+<td>Full RELRO</td>
+<td>重定位区域是否只读，程序是否还有其他可写控制数据</td>
+</tr>
+<tr>
+<td>FORTIFY enabled</td>
+<td>当前危险调用有没有被强化，对象大小能否推导</td>
+</tr>
+</tbody></table>
+<p>这些保护增加了错误被发现或利用受阻的机会，但错误的源头仍要回到具体读写操作。对照源代码、反汇编和运行结果，比单记几个开关更可靠。</p>
 
                 
               </div>

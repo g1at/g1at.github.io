@@ -16,16 +16,16 @@
   <meta name="author" content="g0at">
   <meta name="keywords" content="">
   
-    <meta name="description" content="BASICS OF UART COMMUNICATION">
+    <meta name="description" content="从 8N1 波形、采样时钟到误码定位，系统梳理 UART 的电气与协议边界。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="UART通信基础知识">
 <meta property="og:url" content="https://g1at.github.io/2023/09/10/UART/index.html">
 <meta property="og:site_name" content="g0at&#39;s Blog">
-<meta property="og:description" content="BASICS OF UART COMMUNICATION">
+<meta property="og:description" content="从 8N1 波形、采样时钟到误码定位，系统梳理 UART 的电气与协议边界。">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="https://g1at.github.io/mdimg/UART/UART.jpg">
 <meta property="article:published_time" content="2023-09-10T06:56:37.000Z">
-<meta property="article:modified_time" content="2024-07-10T09:37:06.307Z">
+<meta property="article:modified_time" content="2026-09-22T09:38:47.000Z">
 <meta property="article:author" content="g0at">
 <meta property="article:tag" content="IoT">
 <meta name="twitter:card" content="summary_large_image">
@@ -258,7 +258,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          1.4k 字
+          2.7k 字
         
       </span>
     
@@ -269,7 +269,7 @@
         
         
         
-          13 分钟
+          23 分钟
         
       </span>
     
@@ -319,43 +319,115 @@
             
               <div class="markdown-body">
                 
-                <h3 id="UART简介"><a href="#UART简介" class="headerlink" title="UART简介"></a>UART简介</h3><p>UART：Universal Asynchronous Receiver/Transmitter，通用异步接收器/发送器，是一种常见的通用通信协议，UART是各种计算设备之间通信的常用通信手段，平时所说的串口一般就是指的UART。如下图所示，计算设备1经由UART1发送数据给计算设备2的UART2。<br><img src="/mdimg/UART/1.png" srcset="/img/loading.gif" lazyload><br>在UART通信中，两个UART相互通信。发送UART将计算设备的并行数据转换为串行形式，以串行方式将其发送到接收UART。只需要两根线就可以在两个UART之间传输数据，数据从发送UART的Tx引脚流到接收UART的Rx引脚。<br>UART属于异步通信，没有时钟信号，取而代之的是在数据包中添加了起始位和停止位。这些位定义了数据包的开始和结束，因此接收UART知道何时读取这些数据。<br>当接收UART检测到起始位时，它将以预设波特率的频率读取数据。两个UART必须以相似的波特率工作，发送和接收UART之间的波特率相差最多不能超过10%。</p>
-<h3 id="UART通信工作原理"><a href="#UART通信工作原理" class="headerlink" title="UART通信工作原理"></a>UART通信工作原理</h3><h4 id="UART数据包"><a href="#UART数据包" class="headerlink" title="UART数据包"></a>UART数据包</h4><p>发送UART从数据总线获取并行数据后，它会添加一个起始位，一个奇偶校验位（可选）和一个停止位（1位或2位）来组成数据包并从Tx引脚逐位串行输出，接收UART在其Rx引脚上逐位读取数据包。<br><img src="/mdimg/UART/2.png" srcset="/img/loading.gif" lazyload><br>UART数据包含有1个起始位，5至9个数据位（取决于UART设置），一个可选的奇偶校验位以及1个或2个停止位。<br><img src="/mdimg/UART/3.png" srcset="/img/loading.gif" lazyload><br><strong>1.起始位</strong><br>UART数据传输线通常在不传输数据时保持在高电压电平。开始传输时发送UART在一个时钟周期内将传输线从高电平拉低到低电平，当接收UART检测到高电压到低电压转换时，它开始以预设波特率的频率读取数据帧中的位。<br><strong>2.数据帧</strong><br>数据帧内包含正在传输的实际数据。如果使用奇偶校验位，则数据帧可以是5至8位。如果不使用奇偶校验位，则数据帧可以是5至9位。<br><strong>3.校验位</strong><br>奇偶校验位是接收UART判断传输期间是否有任何数据更改的方式。接收UART读取数据帧后，它将对值为1的位数进行计数，并检查总数是偶数还是奇数，是否与数据相匹配。<br><strong>4.停止位</strong><br>为了向数据包的结尾发出信号，发送UART将数据传输线从低电压驱动到高电压至少持续两位时间。</p>
-<h4 id="UART通信数据传输步骤"><a href="#UART通信数据传输步骤" class="headerlink" title="UART通信数据传输步骤"></a>UART通信数据传输步骤</h4><ol>
-<li>发送端UART从数据总线并行接收数据。</li>
+                <p>UART 看起来只有几根线，但遇到乱码时，问题可能在电平、接线、帧格式、时钟，也可能在上层数据编码。把这些层次分开，排查会快很多。</p>
+<p>下面先确认接口，再手工解一个字节，最后解释波特率误差和常见故障。波形图根据明确的比特序列绘制，文末脚本验证位序与帧检查；这些是教学示意，不是实物逻辑分析仪采样。</p>
+<h2 id="UART-简介"><a href="#UART-简介" class="headerlink" title="UART 简介"></a>UART 简介</h2><p>UART 是 Universal Asynchronous Receiver/Transmitter，负责并行数据与异步串行数据之间的转换。异步意味着两端没有共享时钟线；接收端通过起始位重新确定一帧的采样时间，然后按自己的时钟继续取样。</p>
+<p>常见非反相 UART 逻辑信号在空闲时为高，起始位为低，停止位为高。RS-232 等接口还涉及不同的电气层，不能把接插件上的电压直接当作 MCU 的 UART 引脚电平。</p>
+<h3 id="两根信号线之外，还要确认什么"><a href="#两根信号线之外，还要确认什么" class="headerlink" title="两根信号线之外，还要确认什么"></a>两根信号线之外，还要确认什么</h3><p><img src="/mdimg/notes-2026/uart-wiring.svg" srcset="/img/loading.gif" lazyload alt="UART 交叉接线与公共参考地，供电单独处理"></p>
+<p><em>TX 接对方 RX，普通非隔离连接需要公共参考地。VCC 是否连接取决于供电设计，不能按名字直接相连。</em></p>
+<p>“两根线”通常指 TX、RX 两根数据信号线。如果只监听目标输出，可以仅连接目标 TX、接收器 RX 和参考地；RTS/CTS 硬件流控又会增加信号线。</p>
+<p>接之前先确认逻辑电平，例如 1.8 V、3.3 V 或 5 V，以及输入是否容忍对方输出电压。USB 转 TTL UART、USB 转 RS-232、USB 转 RS-485 的线缆不能因为都叫“串口线”就混用。RS-232、RS-485 是相关电气接口体系，UART 关注的起始位、数据位等并不能替代收发器。</p>
+<h2 id="UART-数据帧"><a href="#UART-数据帧" class="headerlink" title="UART 数据帧"></a>UART 数据帧</h2><p><code>115200 8N1</code> 的意思是：115200 baud、8 个数据位、无奇偶校验、1 个停止位。常见 UART 每个符号承载一位，因此这里波特率数值等于比特率；有效字节速率还要扣除帧开销。</p>
+<table>
+<thead>
+<tr>
+<th>部分</th>
+<th>8N1 中的长度</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Start</td>
+<td>1 bit</td>
+<td>从空闲高电平进入低电平，建立采样起点</td>
+</tr>
+<tr>
+<td>Data</td>
+<td>8 bit</td>
+<td>通常低位先发，依次 D0 到 D7</td>
+</tr>
+<tr>
+<td>Parity</td>
+<td>0 bit</td>
+<td>8N1 没有这一位；8E1/8O1 会加入校验</td>
+</tr>
+<tr>
+<td>Stop</td>
+<td>1 bit</td>
+<td>在规定时间保持停止状态</td>
+</tr>
+</tbody></table>
+<p>其他配置是否支持 5～9 位数据、1.5 或 2 个停止位，要看具体外设。停止位并非必须至少两位，也不一定表现为低到高跳变：如果最后一个数据位已经为高，线路可以连续保持高电平。</p>
+<h3 id="手工解码-0x53"><a href="#手工解码-0x53" class="headerlink" title="手工解码 0x53"></a>手工解码 0x53</h3><p><code>0x53</code> 的二进制写法是 <code>01010011</code>，但在线上低位先发，因此 D0～D7 为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">1 1 0 0 1 0 1 0<br></code></pre></td></tr></table></figure>
+
+<p>加上起始位和停止位：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Start | D0 D1 D2 D3 D4 D5 D6 D7 | Stop<br>  0   |  1  1  0  0  1  0  1  0 |  1<br></code></pre></td></tr></table></figure>
+
+<p><img src="/mdimg/notes-2026/uart-wave.svg" srcset="/img/loading.gif" lazyload alt="0x53 在 8N1 下的波形与每一位的采样中心"></p>
+<p>起始边沿后的约半个位时间可以确认起始位；D0 的中心约在 <code>1.5T</code>，D1 在 <code>2.5T</code>，依此类推。真实接收器可能采用过采样、起始位确认和多数表决，具体算法要查芯片手册。</p>
+<p>115200 baud 下，一个 bit 的时间约为 <code>8.6806 μs</code>。8N1 一个字节占 10 bit，因此连续满速发送时，理论有效速率是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">115200 / (1 + 8 + 0 + 1) = 11520 byte/s<br></code></pre></td></tr></table></figure>
+
+<p>上层协议的头部、校验、帧间间隔和流控还会继续降低有效吞吐。数据位宽为 8 或 9，并不限制应用只能传这么多位；长消息通过连续多个 UART 字节传输。</p>
+<h2 id="奇偶校验能发现什么"><a href="#奇偶校验能发现什么" class="headerlink" title="奇偶校验能发现什么"></a>奇偶校验能发现什么</h2><p>偶校验要求数据位和校验位中 <code>1</code> 的总数为偶数，奇校验则要求为奇数。上面的 <code>0x53</code> 有四个 <code>1</code>，偶校验位为 0，奇校验位为 1。</p>
+<p>单个比特翻转会改变奇偶性，两位翻转则可能互相抵消。因此 parity 能发现部分传输错误，不能纠错，也不能替代上层 CRC、帧序号或消息认证。</p>
+<p>接收端会消费起始、校验与停止信息，再把有效数据交给软件；原笔记的“丢失起始位”应理解为协议处理时剥离这些控制位，而不是通信发生了丢包。</p>
+<h2 id="波特率误差为什么会累积"><a href="#波特率误差为什么会累积" class="headerlink" title="波特率误差为什么会累积"></a>波特率误差为什么会累积</h2><p>起始位只在一帧开头提供同步。之后每过一位，发送和接收时钟之间的差异都会积累。如果接收采样点逐渐滑到相邻 bit，即使前几位正确，后面的数据和停止位也可能出错。</p>
+<p><img src="/mdimg/notes-2026/uart-drift.svg" srcset="/img/loading.gif" lazyload alt="时钟误差在同一 UART 帧内逐位累积"></p>
+<p><em>图示意接收端位时间偏长时采样点向右漂移；误差方向相反时向左漂移。</em></p>
+<p>用理想模型粗看，若停止位中心在起始边沿后的 <code>9.5T</code>，累计偏移应小于半个位宽。但真实系统还有起始检测量化、采样策略、上升下降时间和噪声余量，不能把这个粗略界限直接当作器件指标。也不能笼统说“两端允许相差 10%”。<a target="_blank" rel="noopener" href="https://www.analog.com/en/resources/technical-articles/determining-clock-accuracy-requirements-for-uart-communications.html">Analog Devices 的时钟精度分析</a>讨论了这些误差预算。</p>
+<p>如果已知分频器产生的实际波特率，可以先算：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">本端波特率误差 = (实际波特率 - 目标波特率) / 目标波特率<br></code></pre></td></tr></table></figure>
+
+<p>还要把对端时钟误差一起纳入预算。<a target="_blank" rel="noopener" href="https://onlinedocs.microchip.com/oxy/GUID-8FC17F92-806A-426E-8A7C-60D2F975DE7F-en-US-7/GUID-3FD21524-1116-412C-8139-B7FBEA62950A.html">Microchip 的示例器件文档</a>按数据位数和工作模式分别列容差，说明它并不是一个通用常数。</p>
+<h2 id="收发步骤放到外设里看"><a href="#收发步骤放到外设里看" class="headerlink" title="收发步骤放到外设里看"></a>收发步骤放到外设里看</h2><p>发送时，软件把字节写入发送寄存器或 FIFO，硬件加入控制位，再由移位寄存器逐位输出。接收端完成采样和帧检查后，将数据放入接收寄存器或 FIFO，由中断、轮询或 DMA 搬走。</p>
+<p>这也解释了三类不同错误：</p>
+<table>
+<thead>
+<tr>
+<th>错误</th>
+<th>说明</th>
+<th>优先检查</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Framing error</td>
+<td>停止位采样不符合预期</td>
+<td>波特率、位宽、反相、噪声</td>
+</tr>
+<tr>
+<td>Parity error</td>
+<td>奇偶检查失败</td>
+<td>奇偶配置、数据干扰</td>
+</tr>
+<tr>
+<td>Overrun</td>
+<td>接收缓冲来不及被软件读走</td>
+<td>中断延迟、FIFO/DMA、应用处理速度</td>
+</tr>
+</tbody></table>
+<p>Overrun 发生时，线路上的波形可能完全正确。不断换波特率并不能修复软件读取不及时的问题。</p>
+<h2 id="一段离线位序验证"><a href="#一段离线位序验证" class="headerlink" title="一段离线位序验证"></a>一段离线位序验证</h2><p>下载 <a href="/downloads/notes-2026/uart_frame.py">uart_frame.py</a>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">python3 uart_frame.py<br></code></pre></td></tr></table></figure>
+
+<p>本地运行结果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">8N1 cells: [0, 1, 1, 0, 0, 1, 0, 1, 0, 1]<br>decoded: 0x53 (S)<br>115200 baud: 8.6806 us/bit, 11520 bytes/s<br>framing error: stop bit is low<br></code></pre></td></tr></table></figure>
+
+<p>脚本的输入是已经按 bit 划分好的 0/1 序列，只验证位序和停止位检查，不包含真实波形的阈值判断、边沿检测或时钟恢复。如果拿逻辑分析仪数据来分析，需要先根据实际采样率和边沿得到这些采样值。</p>
+<h2 id="乱码排查顺序"><a href="#乱码排查顺序" class="headerlink" title="乱码排查顺序"></a>乱码排查顺序</h2><ol>
+<li>确认供电、参考地和逻辑电平，检查 TX/RX 有没有接反。</li>
+<li>查看空闲状态与边沿，判断是不是 UART、是否反相，而不是立刻穷举所有波特率。</li>
+<li>测量多个短脉冲，推测基础 bit 时间，再用连续多帧验证；一个脉冲可能跨越多个相同 bit。</li>
+<li>核对数据位、parity、停止位和流控。</li>
+<li>保留原始十六进制字节，再判断它是文本编码还是二进制协议。终端显示乱码不一定代表 UART 解码失败。</li>
+<li>若开始正常、持续发送后丢字，继续查看 overrun、缓冲区和应用读取策略。</li>
 </ol>
-<p><img src="/mdimg/UART/4.png" srcset="/img/loading.gif" lazyload></p>
-<ol start="2">
-<li>发送 UART 将起始位、奇偶校验位和停止位添加到数据帧。</li>
-</ol>
-<p><img src="/mdimg/UART/5.png" srcset="/img/loading.gif" lazyload></p>
-<ol start="3">
-<li> 整个数据包从发送 UART 串行发送到接收 UART；接收 UART 以预先配置的波特率对数据线进行采样</li>
-</ol>
-<p><img src="/mdimg/UART/6.png" srcset="/img/loading.gif" lazyload></p>
-<ol start="4">
-<li>接收UART丢失数据中的起始位、奇偶校验位和停止位。</li>
-</ol>
-<p><img src="/mdimg/UART/7.png" srcset="/img/loading.gif" lazyload></p>
-<ol start="5">
-<li>接收UART将串行数据转换为并行数据，并将其传输到接收端的数据总线。</li>
-</ol>
-<p><img src="/mdimg/UART/8.png" srcset="/img/loading.gif" lazyload></p>
-<h3 id="UART的优缺点"><a href="#UART的优缺点" class="headerlink" title="UART的优缺点"></a>UART的优缺点</h3><h4 id="UART的优点"><a href="#UART的优点" class="headerlink" title="UART的优点"></a>UART的优点</h4><ul>
-<li>UART仅使用两根线，无需时钟信号。</li>
-<li>具有奇偶校验位以允许进行错误检查。</li>
-<li>UART使用广泛，参考资料丰富。</li>
+<p>UART 解决字节怎么传，上层协议还要解决消息从哪开始、长度是多少、是否完整、属于哪次请求。分析串口日志时，这两部分最好分别记录。</p>
+<h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://www.analog.com/en/resources/analog-dialogue/articles/uart-a-hardware-communication-protocol.html">Analog Devices：UART 帧与收发过程</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.circuitbasics.com/basics-uart-communication/">原笔记参考：Circuit Basics UART 入门</a></li>
 </ul>
-<h4 id="UART的缺点"><a href="#UART的缺点" class="headerlink" title="UART的缺点"></a>UART的缺点</h4><ul>
-<li>UART数据帧的大小最大为9位，需要传输9位以上数据时比较繁琐。</li>
-<li>不支持多个从属系统或多个主系统，有多个通信节点时组网比较麻烦。</li>
-</ul>
-<h3 id="UART的典型应用"><a href="#UART的典型应用" class="headerlink" title="UART的典型应用"></a>UART的典型应用</h3><ul>
-<li>传感器，比如一些UART接口的压力传感器、温度传感器、加速度传感器等。</li>
-<li>执行器，比如一些UART接口的步进电机、直流电机等。</li>
-<li>计算设备之间通信，计算机与单片机之间可以通过UART通信，计算机与计算机之间也可以通过UART通信，单片机与单片机也可以通过UART通信。</li>
-</ul>
-<h3 id="参考文献"><a href="#参考文献" class="headerlink" title="参考文献"></a>参考文献</h3><p><a target="_blank" rel="noopener" href="https://www.circuitbasics.com/basics-uart-communication/">https://www.circuitbasics.com/basics-uart-communication/</a><br><a target="_blank" rel="noopener" href="https://docs.murexrobotics.com/prog/components/uart">https://docs.murexrobotics.com/prog/components/uart</a></p>
 
                 
               </div>

@@ -16,16 +16,16 @@
   <meta name="author" content="g0at">
   <meta name="keywords" content="">
   
-    <meta name="description" content="「车联网安全」OBD（汽车诊断插头）简单入门">
+    <meta name="description" content="分清 DLC、CAN、ISO-TP 与诊断服务，并以转速 PID 和故障码拆解 OBD-II 报文。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="OBD诊断">
 <meta property="og:url" content="https://g1at.github.io/2024/03/14/OBD/index.html">
 <meta property="og:site_name" content="g0at&#39;s Blog">
-<meta property="og:description" content="「车联网安全」OBD（汽车诊断插头）简单入门">
+<meta property="og:description" content="分清 DLC、CAN、ISO-TP 与诊断服务，并以转速 PID 和故障码拆解 OBD-II 报文。">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="https://g1at.github.io/mdimg/OBD/OBD.jpg">
 <meta property="article:published_time" content="2024-03-13T16:04:34.000Z">
-<meta property="article:modified_time" content="2024-04-17T05:04:13.656Z">
+<meta property="article:modified_time" content="2026-09-22T09:38:47.000Z">
 <meta property="article:author" content="g0at">
 <meta property="article:tag" content="IoV">
 <meta name="twitter:card" content="summary_large_image">
@@ -258,7 +258,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          2.4k 字
+          2.9k 字
         
       </span>
     
@@ -269,7 +269,7 @@
         
         
         
-          21 分钟
+          25 分钟
         
       </span>
     
@@ -319,142 +319,234 @@
             
               <div class="markdown-body">
                 
-                <h2 id="什么是OBD？"><a href="#什么是OBD？" class="headerlink" title="什么是OBD？"></a>什么是OBD？</h2><p><a target="_blank" rel="noopener" href="https://zh.wikipedia.org/zh-cn/%E8%BB%8A%E4%B8%8A%E8%A8%BA%E6%96%B7%E7%B3%BB%E7%B5%B1">OBD代表”诊断接口”（On-Board Diagnostics）</a>，它是一种用于汽车的标准化接口系统，旨在监测和报告车辆的运行状况。主要有两个版本，OBD-I和OBD-II。<br><img src="/mdimg/OBD/1.jpg" srcset="/img/loading.gif" lazyload><br><img src="/mdimg/OBD/2.jpg" srcset="/img/loading.gif" lazyload></p>
-<ol>
-<li>OBD-I： 早期的汽车诊断系统，它的实施并不标准化，各个汽车制造商可能有不同的实现方式。OBD-I 主要用于20世纪80年代和90年代的汽车。</li>
-<li>OBD-II： 在1996年后引入的，并成为几乎所有新型汽车的标准。OBD-II标准化了诊断接口和故障码的格式，使得无论是何种汽车制造商，诊断工具都能够兼容。这使得汽车技师和车主能够更容易地检测和修复车辆问题。</li>
-</ol>
-<p>OBD-II接口通常位于车辆驾驶室下部，可以通过连接OBD-II扫描工具与车辆的电脑系统通信。通过这个接口，可以读取车辆的实时数据，诊断发动机和车辆系统的问题，并检索故障码，这有助于更快地定位和解决车辆故障。<br><img src="/mdimg/OBD/3.jpg" srcset="/img/loading.gif" lazyload></p>
-<h2 id="接口针脚定义图"><a href="#接口针脚定义图" class="headerlink" title="接口针脚定义图"></a>接口针脚定义图</h2><p><img src="/mdimg/OBD/4.jpg" srcset="/img/loading.gif" lazyload><br><img src="/mdimg/OBD/5.png" srcset="/img/loading.gif" lazyload></p>
-<p><img src="/mdimg/OBD/6.png" srcset="/img/loading.gif" lazyload></p>
-<h2 id="对应关系"><a href="#对应关系" class="headerlink" title="对应关系"></a>对应关系</h2><p>具体情况不同厂家可能存在差异</p>
+                <p>OBD 最容易让人混淆的地方，是把那个 16 针插座、CAN 总线、诊断服务和扫描仪界面上的数值当成同一层东西。真到抓包时，只知道“插 OBD 读故障码”还不够，需要知道一个请求怎样变成总线上的字节，又怎样还原成转速、车速或故障信息。</p>
+<p>下面用一组 <strong>经典 CAN、11 位标识符、正常寻址</strong> 下的离线报文串起接口与工作流程。字节是为说明字段人工构造的，不是某辆实车的抓包。</p>
+<h2 id="什么是-OBD？"><a href="#什么是-OBD？" class="headerlink" title="什么是 OBD？"></a>什么是 OBD？</h2><p>OBD 是 On-Board Diagnostics，车载诊断系统。OBD-II/EOBD 的通用诊断围绕规定的监测与排放相关信息展开；常见的 16 针诊断连接器叫 DLC。厂商诊断工具能通过它执行更多功能，不意味着所有这些功能都属于通用 OBD 服务。</p>
+<p>1996 年并不是全球统一的 OBD-II 起点；法规时间线会随地区、车型与动力类型变化，不能把某个市场的要求推广到全部车辆。</p>
+<p><img src="/mdimg/notes-2026/obd-layers.svg" srcset="/img/loading.gif" lazyload alt="从 DLC 连接器到 CAN、ISO-TP，再到 OBD 服务和物理量"></p>
+<p><em>DBC 可以描述某些 CAN 信号编码，但诊断报文还涉及服务、参数和多帧重组，不能一概用“套 DBC”替代。</em></p>
 <table>
 <thead>
 <tr>
-<th align="center">针脚</th>
-<th align="center">对应关系</th>
+<th>名称</th>
+<th>解决的问题</th>
 </tr>
 </thead>
 <tbody><tr>
-<td align="center">1针脚</td>
-<td align="center">开电门12V（可打开功率试灯），关电门0V。</td>
+<td>DLC / SAE J1962 连接器</td>
+<td>工具从哪里接入、电气接点在哪里</td>
 </tr>
 <tr>
-<td align="center">4/5针脚</td>
-<td align="center">长地线，找个正极接起来（4/5）可以点亮功率试灯。</td>
+<td>CAN 等底层通信</td>
+<td>帧如何在网络上传输</td>
 </tr>
 <tr>
-<td align="center">6针脚</td>
-<td align="center">CAN高 通讯线</td>
+<td>ISO-TP</td>
+<td>一条较长诊断消息如何拆成多帧并重组</td>
 </tr>
 <tr>
-<td align="center">7针脚</td>
-<td align="center">诊断K线，单独和变速箱，电脑板之间通讯，比电瓶电压低1V（11V左右）</td>
+<td>OBD 诊断服务与 PID</td>
+<td>请求哪类数据、数据如何解释</td>
 </tr>
 <tr>
-<td align="center">14针脚</td>
-<td align="center">CAN低 通讯线</td>
-</tr>
-<tr>
-<td align="center">15针脚</td>
-<td align="center">L线，汽车电脑板连接（电压一般是电瓶的一半，6V左右）</td>
-</tr>
-<tr>
-<td align="center">16针脚</td>
-<td align="center">30长电源，在任何情况下，必须可以点亮功率试灯</td>
-</tr>
-<tr>
-<td align="center">3针脚</td>
-<td align="center">CAN高</td>
-</tr>
-<tr>
-<td align="center">11针脚</td>
-<td align="center">CAN低</td>
+<td>UDS</td>
+<td>另一套诊断服务体系，可用于更广的 ECU 诊断功能</td>
 </tr>
 </tbody></table>
-<h2 id="OBD-如何工作？"><a href="#OBD-如何工作？" class="headerlink" title="OBD 如何工作？"></a>OBD 如何工作？</h2><p>基本的 OBD 系统由中央系统、传感器网络、连接点和指示器组成，创建具有标准化访问和可读性的完整监控系统。 OBD系统由以下部分组成：</p>
-<ul>
-<li>ECU： OBD 系统的核心部分是电子控制单元（ECU）。 ECU 收集来自车辆各个传感器的输入。然后，ECU 使用这些数据来控制车辆的部件（例如喷油器）或监控问题。</li>
-<li>传感器：车辆各处都有传感器，覆盖从发动机和底盘到电子系统本身的每个区域。这些系统中的每一个都会向 ECU 发送代码，指定信号源和信号参数。然后 ECU“读取”并解释该信号。</li>
-<li>DTC：如果传感器向 ECU 发送的信息超出正常范围，ECU 会将信息保存为称为诊断故障代码 (DTC) 的代码。 DTC 代码本质上是字母和数字的列表，表明问题的根源和性质。 DTC 代码通常是标准化的，但也可能是制造商特定的。保存 DTC 后，ECU 会向指示灯发送信号，表明已发现问题。还可以通过将传感器连接到 OBD 系统的连接器来提取 DTC。</li>
-<li>MIL：当ECU收集到DTC代码时，它会向车辆仪表板发送信号以打开相应的指示灯。这些灯的正式名称为故障指示灯或 MIL，为车辆故障提供早期预警系统。一般来说，如果灯亮起并保持亮起状态，则问题较小。如果指示灯闪烁，则表明问题很紧急。</li>
-<li>DLC： ECU 收集的所有数据和 DTC 代码都可以通过诊断链路连接器或 DLC 访问。 DLC 端口是带有 OBD 系统的车辆的接入点，通常位于车辆驾驶员侧仪表板下方，但也可能位于商用车的其他位置。当前的车辆采用标准 OBDII 系统制造，因此任何带有2 型电缆的扫描工具都可以连接到 2 型连接器。</li>
-</ul>
-<h2 id="OBD-II数据包"><a href="#OBD-II数据包" class="headerlink" title="OBD-II数据包"></a>OBD-II数据包</h2><ul>
-<li>标识符：标识符是标准的11位，用于区分请求消息和响应消息。 OBD-II请求消息为7DF，响应标识范围为7E8～7EF。<br>长度：数据包中剩余数据的字节数。</li>
-<li>模式：SAE J1979 OBD2 标准中描述的 10 种模式。模式1显示当前数据和实时数据，模式为1，其他模式用于显示或清除存储的DTC。</li>
-</ul>
+<p>同一个插座可能接入不同协议，网关也可能限制可达范围。插上 DLC 不等于能直接看到整车所有内部网络。</p>
+<h2 id="接口针脚定义"><a href="#接口针脚定义" class="headerlink" title="接口针脚定义"></a>接口针脚定义</h2><p><img src="/mdimg/notes-2026/obd-pinout.svg" srcset="/img/loading.gif" lazyload alt="DLC 正面示意，标出常见 CAN、地与电源针脚"></p>
+<p><em>图按车辆侧连接器正面、宽边朝上绘制。对着线束背面看时方向会反过来，实际接线仍以车型资料和连接器编号为准。</em></p>
 <table>
 <thead>
 <tr>
-<th align="center">模式</th>
-<th align="center">描述</th>
+<th>针脚</th>
+<th>常见标准用途</th>
+<th>备注</th>
 </tr>
 </thead>
 <tbody><tr>
-<td align="center">01</td>
-<td align="center">当前数据</td>
+<td>4</td>
+<td>Chassis ground</td>
+<td>车身地</td>
 </tr>
 <tr>
-<td align="center">02</td>
-<td align="center">用于当前冻结帧数据</td>
+<td>5</td>
+<td>Signal ground</td>
+<td>信号地</td>
 </tr>
 <tr>
-<td align="center">03</td>
-<td align="center">存储诊断故障代码</td>
+<td>6 / 14</td>
+<td>CAN High / CAN Low</td>
+<td>使用相应 CAN 诊断协议时</td>
 </tr>
 <tr>
-<td align="center">04</td>
-<td align="center">清除任何存储的值或 DTC</td>
+<td>7 / 15</td>
+<td>K line / L line</td>
+<td>对应相关旧诊断协议，L line 并非总会使用</td>
 </tr>
 <tr>
-<td align="center">05</td>
-<td align="center">显示非 CAN O2 传感器的结果</td>
+<td>2 / 10</td>
+<td>SAE J1850 Bus+ / Bus−</td>
+<td>取决于实际支持的协议</td>
 </tr>
 <tr>
-<td align="center">06</td>
-<td align="center">显示系统监控的测试结果</td>
+<td>16</td>
+<td>车辆电源</td>
+<td>不应当作 MCU 的 3.3 V/5 V 信号电源</td>
 </tr>
 <tr>
-<td align="center">07</td>
-<td align="center">待处理的 DTC</td>
-</tr>
-<tr>
-<td align="center">08</td>
-<td align="center">用于机载系统控制操作</td>
-</tr>
-<tr>
-<td align="center">09</td>
-<td align="center">获取 VIN 码</td>
-</tr>
-<tr>
-<td align="center">10</td>
-<td align="center">永久性 DTC</td>
+<td>其余位置</td>
+<td>厂商用途等</td>
+<td>不能从另一车型的接法直接照搬</td>
 </tr>
 </tbody></table>
-<h2 id="安全测试"><a href="#安全测试" class="headerlink" title="安全测试"></a>安全测试</h2><p>OBD接口可能存在多种安全风险，我们可以使用安全测试工具对如下风险进行测试</p>
-<ul>
-<li>物理访问：OBD接口通常用于诊断端口进行访问，该端口通常位于汽车易于访问的区域，如仪表板下方，这使攻击者很容易物理访问端口并进行恶意连接。</li>
-<li>身份校验：许多OBD端口不需要身份验证，这使得攻击者不需要密码或凭证即可直接访问汽车上的计算机。</li>
-<li>安全控制：OBD系统旨在促进诊断和维修工作，通常没有考虑安全性，因此它们可能存在缺少加密、访问控制和入侵检测等安全控制，从而容易受到攻击。</li>
-</ul>
-<p>最常见的OBD工具是OBD诊断仪，车辆在维修机构开始维修汽车前，通常使用OBD诊断仪来读取车内的故障码，以帮助维修人员快速定位故障。</p>
-<ol>
-<li>找到OBD-II接口： 通常位于车辆驾驶座下方，在仪表板附近或驾驶座的脚踏板下。连接OBD诊断仪时，确保车辆处于关键位置，以便OBD-II接口处于活动状态。</li>
-<li>插入OBD诊断仪： 将OBD诊断仪的插头插入车辆的OBD-II接口，确保插头正确对准并完全插入。</li>
-<li>启动车辆引擎： 有些OBD诊断仪要求车辆引擎运行，以便能够读取实时数据。在连接后，启动车辆引擎。</li>
-<li>选择功能： 使用OBD诊断仪的控制面板或连接的移动设备选择所需的功能。这可能包括读取实时数据、检索故障码、执行特定测试等。</li>
-<li>读取实时数据： 如果您希望监视车辆的实时性能数据，选择相应的功能并查看屏幕上的数据。这可以包括引擎转速、车速、冷却液温度等信息。</li>
-<li>检索故障码： 如果车辆发生故障，您可以使用诊断仪读取存储在车辆电脑系统中的故障码。这些故障码提供有关车辆问题的信息，有助于定位和解决故障。</li>
-<li>执行测试和操作： 一些高级的OBD诊断仪具有执行特定测试或操作的功能。根据需要，执行相应的操作，例如发动机测试或清除故障码。</li>
-<li>断开连接： 在完成使用后，安全地断开OBD诊断仪与车辆的连接。这通常涉及从OBD-II接口中拔出插头。</li>
-</ol>
-<h2 id="使用OBD访问车内ECU和通信数据"><a href="#使用OBD访问车内ECU和通信数据" class="headerlink" title="使用OBD访问车内ECU和通信数据"></a>使用OBD访问车内ECU和通信数据</h2><ol>
-<li>将CAN工具连接到OBD接口，例如，可以使用CANoe，将CAN设备的CANH和CANL通过电线连接到OBD接口的CANH和CANL上。</li>
-<li>使用该工具，可以通过CAN发送“请求帧”。</li>
-<li>相关ECU通过CAN发送“响应帧”。</li>
-<li>读取相关通信报文，并使用DBC文件进行解码。</li>
-</ol>
+<p>1、3、11 针可能被厂商用于特定车型，但不能把这些用法当作通用映射。也不建议用“能点亮功率试灯”判断通信针脚：诊断时先确认原理图和测量方式，避免给信号线额外加载。标准连接器与 CAN OBD 的关系可参考 <a target="_blank" rel="noopener" href="https://www.csselectronics.com/pages/obd2-explained-simple-intro">CSS Electronics 的 OBD2 说明</a>。</p>
+<h2 id="OBD-如何工作？"><a href="#OBD-如何工作？" class="headerlink" title="OBD 如何工作？"></a>OBD 如何工作？</h2><p>ECU 根据传感器输入、内部状态和诊断监测逻辑生成数据。诊断工具请求后，ECU 返回对应信息。DTC 是诊断故障码，MIL 是故障指示灯；并不是任何一个 DTC 一出现，MIL 就立即按同一种方式点亮。</p>
+<p>故障码通常描述监测到的异常类别或条件。看到某个传感器相关 DTC，不能直接得出“传感器坏了”：供电、线路、连接器、其他输入和监测前提都可能影响结果。</p>
+<h3 id="常见服务编号"><a href="#常见服务编号" class="headerlink" title="常见服务编号"></a>常见服务编号</h3><p>下表统一使用十六进制。特别注意永久性故障码对应 <code>0x0A</code>，不要与 UDS 的 <code>0x10</code> 会话控制混淆。</p>
+<table>
+<thead>
+<tr>
+<th>服务</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>01</code></td>
+<td>当前动力系统数据</td>
+</tr>
+<tr>
+<td><code>02</code></td>
+<td>冻结帧数据</td>
+</tr>
+<tr>
+<td><code>03</code></td>
+<td>已存储的相关 DTC</td>
+</tr>
+<tr>
+<td><code>04</code></td>
+<td>清除相关诊断信息</td>
+</tr>
+<tr>
+<td><code>05</code></td>
+<td>特定旧协议的氧传感器监测结果</td>
+</tr>
+<tr>
+<td><code>06</code></td>
+<td>车载监测测试结果</td>
+</tr>
+<tr>
+<td><code>07</code></td>
+<td>当前或上一驾驶循环检测到的相关 DTC</td>
+</tr>
+<tr>
+<td><code>08</code></td>
+<td>特定系统或组件控制</td>
+</tr>
+<tr>
+<td><code>09</code></td>
+<td>车辆信息</td>
+</tr>
+<tr>
+<td><code>0A</code></td>
+<td>具有永久状态的相关 DTC</td>
+</tr>
+</tbody></table>
+<p>服务可用性取决于车辆及对应标准要求。读取故障和清除故障是不同操作：清除会改变诊断状态，不能把它当作测试通信是否正常的探针。</p>
+<h2 id="OBD-II-数据包：先拆开-CAN-与诊断负载"><a href="#OBD-II-数据包：先拆开-CAN-与诊断负载" class="headerlink" title="OBD-II 数据包：先拆开 CAN 与诊断负载"></a>OBD-II 数据包：先拆开 CAN 与诊断负载</h2><p>本节限定 11 位 CAN 示例。功能请求常使用 <code>0x7DF</code>，相关 ECU 响应通常位于 <code>0x7E8</code>～<code>0x7EF</code>；还存在 29 位 CAN 等其他配置，不能把这组 ID 当作所有诊断通信的固定地址。</p>
+<p>读取发动机转速，服务 <code>01</code>、PID <code>0C</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">请求 CAN ID 7DF：02 01 0C 00 00 00 00 00<br>响应 CAN ID 7E8：04 41 0C 1A F8 00 00 00<br></code></pre></td></tr></table></figure>
+
+<p><img src="/mdimg/notes-2026/obd-rpm.svg" srcset="/img/loading.gif" lazyload alt="OBD 转速响应逐字节解析与计算公式"></p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>请求</th>
+<th>响应</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ISO-TP 单帧长度</td>
+<td><code>02</code>，后面有 2 字节诊断数据</td>
+<td><code>04</code>，后面有 4 字节诊断数据</td>
+</tr>
+<tr>
+<td>服务</td>
+<td><code>01</code></td>
+<td><code>41</code>，本例的肯定响应</td>
+</tr>
+<tr>
+<td>PID</td>
+<td><code>0C</code></td>
+<td><code>0C</code></td>
+</tr>
+<tr>
+<td>参数数据</td>
+<td>无</td>
+<td><code>1A F8</code></td>
+</tr>
+<tr>
+<td>剩余字节</td>
+<td>填充</td>
+<td>填充</td>
+</tr>
+</tbody></table>
+<p>PID <code>0C</code> 的两个数据字节按大端组合，并乘以 0.25：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">raw = 0x1A × 256 + 0xF8 = 6904<br>rpm = raw / 4 = 1726<br></code></pre></td></tr></table></figure>
+
+<p>这是该 PID 的编码公式，不能直接套到车速、温度或者厂商自定义信号上。<a target="_blank" rel="noopener" href="https://www.csselectronics.com/pages/obd2-pid-table-on-board-diagnostics-j1979">PID 表与单位说明</a>可以用于逐项核对。</p>
+<h3 id="先确认是否支持这个-PID"><a href="#先确认是否支持这个-PID" class="headerlink" title="先确认是否支持这个 PID"></a>先确认是否支持这个 PID</h3><p><code>01 00</code> 用于读取相应 PID 支持位图。得到 <code>41 00 A B C D</code> 后，四字节位图最高位对应 PID <code>01</code>，最低位对应 PID <code>20</code>。PID <code>0C</code> 对应 bit 20，而不是简单拿十六进制 <code>0C</code> 当数组下标去取一个 bit。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs python">bitmap = <span class="hljs-built_in">int</span>.from_bytes(<span class="hljs-built_in">bytes</span>.fromhex(<span class="hljs-string">&quot;00 10 00 00&quot;</span>), <span class="hljs-string">&quot;big&quot;</span>)<br>pid = <span class="hljs-number">0x0C</span><br>supported = <span class="hljs-built_in">bool</span>(bitmap &amp; (<span class="hljs-number">1</span> &lt;&lt; (<span class="hljs-number">32</span> - pid)))<br><span class="hljs-built_in">print</span>(supported)  <span class="hljs-comment"># True</span><br></code></pre></td></tr></table></figure>
+
+<p>这个人工位图只用来展示位序。实际车辆可能支持一批 PID，并通过范围边界位表示后续还有其他支持位图。没有响应时，还要区分未支持、寻址或协议不对、网关不可达、时序问题，不能只凭超时给出结论。</p>
+<h3 id="DTC-字节与显示文本"><a href="#DTC-字节与显示文本" class="headerlink" title="DTC 字节与显示文本"></a>DTC 字节与显示文本</h3><p>常见 OBD DTC 用两个字节表示。以 <code>01 33</code> 为例，高两位选择系统类别，其余位展开后得到 <code>P0133</code>。显示出来的五字符代码不是报文里直接保存的五个 ASCII 字符。</p>
+<p>同样要区分已存储、pending、permanent 等状态。一个普通读取结果也不能代替维修手册中的故障判定条件和排查流程。</p>
+<h2 id="一段可以复算的离线解析"><a href="#一段可以复算的离线解析" class="headerlink" title="一段可以复算的离线解析"></a>一段可以复算的离线解析</h2><p>下载 <a href="/downloads/notes-2026/can_decode.py">can_decode.py</a>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">python3 can_decode.py<br></code></pre></td></tr></table></figure>
+
+<p>其中转速例子的本地输出是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">OBD: 41 0c 1a f8 -&gt; 1726 rpm<br></code></pre></td></tr></table></figure>
+
+<p>解析先使用 ISO-TP 的长度得到 <code>41 0C 1A F8</code>，再检查服务和 PID，最后计算物理量。不能先把所有 <code>00</code> 删掉再解析：零可能是合法数据，也可能是字段的一部分。</p>
+<p>附件还包含 UDS 多帧重组例子。它只接受已经按连接与方向筛选好的经典 CAN 正常寻址数据，不负责从混合流量里识别会话，也不是可以直接发往车辆的诊断栈。</p>
+<h2 id="使用-OBD-分析通信数据"><a href="#使用-OBD-分析通信数据" class="headerlink" title="使用 OBD 分析通信数据"></a>使用 OBD 分析通信数据</h2><p>原来的“接工具、发请求、收响应、解码”还需要补几项记录：</p>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>应留下的信息</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>接入</td>
+<td>连接器视角、协议、总线速率、工具型号与配置</td>
+</tr>
+<tr>
+<td>请求</td>
+<td>CAN ID、是否功能寻址、原始数据、发送时间</td>
+</tr>
+<tr>
+<td>接收</td>
+<td>每个响应 ECU 的 ID、方向、响应时间</td>
+</tr>
+<tr>
+<td>重组</td>
+<td>SF/FF/CF/FC、总长度、连续帧序号</td>
+</tr>
+<tr>
+<td>解码</td>
+<td>服务、PID/DID、大小端、比例与单位</td>
+</tr>
+<tr>
+<td>结论</td>
+<td>能确认的数值、未支持与超时等不确定项</td>
+</tr>
+</tbody></table>
+<p>若功能寻址触发多个 ECU 回复，不能把不同响应 ID 的连续帧拼到一起。抓到的“第一条回复”也不一定就是想分析的目标 ECU。</p>
+<h2 id="安全测试该看什么"><a href="#安全测试该看什么" class="headerlink" title="安全测试该看什么"></a>安全测试该看什么</h2><p>测试重点应是诊断网关和服务的实际访问控制：入口能到哪些 ECU，默认状态能读取什么，敏感服务需要什么会话和认证条件，以及断线后状态怎样恢复。通用只读诊断可用，不代表写入或控制服务也应该开放。</p>
+<p>对于适配器或车机转发服务，还要检查来自 USB、蓝牙、Wi-Fi 的请求是如何被映射到车辆网络的。把这些入口统一转成 CAN 消息之后，原始调用者身份是否仍被保留，是一个值得追的数据流。</p>
+<p>更深入的会话、SecurityAccess 和服务响应结构，放在 <a href="/2024/06/10/UDS/">UDS诊断</a> 中继续分析。</p>
 
                 
               </div>

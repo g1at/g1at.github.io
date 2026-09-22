@@ -16,16 +16,16 @@
   <meta name="author" content="g0at">
   <meta name="keywords" content="">
   
-    <meta name="description" content="MQTT 协议的入门">
+    <meta name="description" content="从报文格式、QoS 状态机到会话与权限模型，用原始字节实验理解 MQTT。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="MQTT协议">
 <meta property="og:url" content="https://g1at.github.io/2023/08/09/MQTT/index.html">
 <meta property="og:site_name" content="g0at&#39;s Blog">
-<meta property="og:description" content="MQTT 协议的入门">
+<meta property="og:description" content="从报文格式、QoS 状态机到会话与权限模型，用原始字节实验理解 MQTT。">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="https://g1at.github.io/mdimg/mqtt1/1.png">
 <meta property="article:published_time" content="2023-08-09T12:57:56.000Z">
-<meta property="article:modified_time" content="2024-05-08T11:08:48.742Z">
+<meta property="article:modified_time" content="2026-09-22T09:38:47.000Z">
 <meta property="article:author" content="g0at">
 <meta property="article:tag" content="IoT">
 <meta name="twitter:card" content="summary_large_image">
@@ -258,7 +258,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          1.8k 字
+          3.6k 字
         
       </span>
     
@@ -269,7 +269,7 @@
         
         
         
-          15 分钟
+          31 分钟
         
       </span>
     
@@ -319,51 +319,157 @@
             
               <div class="markdown-body">
                 
-                <h2 id="什么是-MQTT？"><a href="#什么是-MQTT？" class="headerlink" title="什么是 MQTT？"></a>什么是 MQTT？</h2><p>MQTT（Message Queuing Telemetry Transport）是一种轻量级、基于发布-订阅模式的消息传输协议，适用于资源受限的设备和低带宽、高延迟或不稳定的网络环境。它在物联网应用中广受欢迎，能够实现传感器、执行器和其它设备之间的高效通信。</p>
-<h2 id="MQTT-与其他协议对比"><a href="#MQTT-与其他协议对比" class="headerlink" title="MQTT 与其他协议对比"></a>MQTT 与其他协议对比</h2><h3 id="MQTT-vs-HTTP"><a href="#MQTT-vs-HTTP" class="headerlink" title="MQTT vs HTTP"></a>MQTT vs HTTP</h3><ul>
-<li>MQTT 的最小报文仅为 2 个字节，比 HTTP 占用更少的网络开销。</li>
-<li>MQTT 与 HTTP 都能使用 TCP 连接，并实现稳定、可靠的网络连接。</li>
-<li>MQTT 基于发布订阅模型，HTTP 基于请求响应，因此 MQTT 支持双工通信。</li>
-<li>MQTT 可实时推送消息，但 HTTP 需要通过轮询获取数据更新。</li>
-<li>MQTT 是有状态的，但是 HTTP 是无状态的。</li>
-<li>MQTT 可从连接异常断开中恢复，HTTP 无法实现此目标。</li>
-</ul>
-<h3 id="MQTT-vs-XMPP"><a href="#MQTT-vs-XMPP" class="headerlink" title="MQTT vs XMPP"></a>MQTT vs XMPP</h3><p>MQTT 协议设计简单轻量、路由灵活，将在移动互联网、物联网消息领域，全面取代 PC 时代的 XMPP 协议。</p>
-<ul>
-<li>MQTT 报文体积小且编解码容易，XMPP 基于繁重的 XML，报文体积大且交互繁琐。</li>
-<li>MQTT 基于发布订阅模式，相比 XMPP 基于 JID 的点对点消息路由更为灵活。</li>
-<li>MQTT 支持 JSON、二进制等不同类型报文。XMPP 采用 XML 承载报文，二进制必须 Base64 编码等处理。</li>
-<li>MQTT 通过 QoS 保证消息可靠传输，XMPP 主协议并未定义类似机制。</li>
-</ul>
-<h2 id="MQTT-的工作原理"><a href="#MQTT-的工作原理" class="headerlink" title="MQTT 的工作原理"></a>MQTT 的工作原理</h2><h3 id="MQTT-客户端"><a href="#MQTT-客户端" class="headerlink" title="MQTT 客户端"></a>MQTT 客户端</h3><p>任何运行 <a target="_blank" rel="noopener" href="https://www.emqx.com/zh/mqtt-client-sdk">MQTT 客户端库</a>的应用或设备都是 MQTT 客户端。例如，使用 MQTT 的即时通讯应用是客户端，使用 MQTT 上报数据的各种传感器是客户端，各种 <a target="_blank" rel="noopener" href="https://www.emqx.com/zh/blog/mqtt-client-tools">MQTT 测试工具</a>也是客户端。</p>
-<h3 id="MQTT-Broker"><a href="#MQTT-Broker" class="headerlink" title="MQTT Broker"></a>MQTT Broker</h3><p>MQTT Broker 是负责处理客户端请求的关键组件，包括建立连接、断开连接、订阅和取消订阅等操作，同时还负责消息的转发。一个高效强大的 MQTT Broker 能够轻松应对海量连接和百万级消息吞吐量，从而帮助物联网服务提供商专注于业务发展，快速构建可靠的 MQTT 应用。</p>
-<p>关于 MQTT Broker 的更多详情，请参阅文章 <a target="_blank" rel="noopener" href="https://www.emqx.com/en/blog/the-ultimate-guide-to-mqtt-broker-comparison">2023 年最全面的 MQTT Broker 比较指南</a>。</p>
-<h3 id="发布-订阅模式"><a href="#发布-订阅模式" class="headerlink" title="发布-订阅模式"></a>发布-订阅模式</h3><p>发布-订阅模式与客户端-服务器模式的不同之处在于，它将发送消息的客户端（发布者）和接收消息的客户端（订阅者）进行了解耦。发布者和订阅者之间无需建立直接连接，而是通过 MQTT Broker 来负责消息的路由和分发。</p>
-<p>下图展示了 MQTT 发布/订阅过程。温度传感器作为客户端连接到 MQTT Broker，并通过发布操作将温度数据发布到一个特定主题（例如 Temperature）。MQTT Broker 接收到该消息后会负责将其转发给订阅了相应主题（Temperature）的订阅者客户端。</p>
-<p><img src="/mdimg/mqtt1/2.png" srcset="/img/loading.gif" lazyload></p>
-<h3 id="主题"><a href="#主题" class="headerlink" title="主题"></a>主题</h3><p>MQTT 协议根据主题来转发消息。主题通过 / 来区分层级，类似于 URL 路径，例如：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">chat/room/1<br><br>sensor/10/temperature<br><br>sensor/+/temperature<br></code></pre></td></tr></table></figure>
+                <p>分析 IoT、车机流量时，MQTT 很常见。端口连上以后能收到 JSON，并不代表已经看懂了协议：同一条消息为什么又来了，设备重连后为什么还能收到离线数据，刚订阅为什么立刻弹出一条旧状态，都要回到 MQTT 的会话与投递规则。</p>
+<p>下面从客户端、Broker、Topic 和 QoS 讲到逐字节解析与本地实验。<strong>字节示例与实验均采用 MQTT 3.1.1，Broker 使用 Mosquitto 2.0.18</strong>；MQTT 5.0 的差异单独说明。</p>
+<h2 id="什么是-MQTT？"><a href="#什么是-MQTT？" class="headerlink" title="什么是 MQTT？"></a>什么是 MQTT？</h2><p>MQTT 是基于发布订阅模型的应用层消息协议。客户端可以既发布又订阅，Broker 负责接收连接、保存订阅并按主题转发消息。它通常建立在 TCP 上，使用 TLS 时提供传输加密和相应认证能力。</p>
+<p><img src="/mdimg/notes-2026/mqtt-topology.svg" srcset="/img/loading.gif" lazyload alt="传感器、Broker、应用之间的发布订阅关系"></p>
+<p><em>发布者与订阅者可以相互不知道地址，但两者都要与 Broker 建立连接。</em></p>
+<h3 id="MQTT-与-HTTP、XMPP-怎么比较"><a href="#MQTT-与-HTTP、XMPP-怎么比较" class="headerlink" title="MQTT 与 HTTP、XMPP 怎么比较"></a>MQTT 与 HTTP、XMPP 怎么比较</h3><p>对持续上报遥测、下发控制消息的场景，MQTT 的主题路由和会话规则很方便。HTTP 则围绕请求、响应与资源语义展开，也能通过流式响应、SSE 等方式推送数据；重试和恢复同样可以在其上实现。选型时应比较应用需要维护的状态和交互模型，不能归纳成“HTTP 只能轮询”。</p>
+<p>“MQTT 最小报文 2 字节”说的是 PINGREQ 等控制报文的协议长度，不包含 TCP/IP、TLS 和链路层开销。一个带主题、Packet Identifier 和 payload 的 PUBLISH 自然更长。它也不意味着 MQTT 会取代所有 XMPP 或 HTTP 应用。</p>
+<h2 id="MQTT-的工作原理"><a href="#MQTT-的工作原理" class="headerlink" title="MQTT 的工作原理"></a>MQTT 的工作原理</h2><h3 id="客户端与-Broker"><a href="#客户端与-Broker" class="headerlink" title="客户端与 Broker"></a>客户端与 Broker</h3><p>一个简化的连接过程是：TCP 建连，客户端发 CONNECT，Broker 回 CONNACK，客户端再订阅或发布。认证结果、订阅是否成功、发布的投递确认分别处在不同步骤。</p>
+<p><strong>Client ID 是会话标识，不应被当作已经验证过的身份。</strong> 当另一个连接使用相同 Client ID 时，原连接会受到影响；认证与授权仍应由 Broker 的策略决定。分析“设备掉线”时也要排查 Client ID 冲突。</p>
+<h3 id="Topic-Name-与-Topic-Filter"><a href="#Topic-Name-与-Topic-Filter" class="headerlink" title="Topic Name 与 Topic Filter"></a>Topic Name 与 Topic Filter</h3><p>发布使用 Topic Name；订阅使用 Topic Filter。两者大小写敏感，<code>/</code> 划分层级，通配符只能出现在订阅过滤器里。</p>
+<table>
+<thead>
+<tr>
+<th>订阅过滤器</th>
+<th>匹配例子</th>
+<th>不匹配例子</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>sensor/+/temperature</code></td>
+<td><code>sensor/10/temperature</code></td>
+<td><code>sensor/10/room/temperature</code></td>
+</tr>
+<tr>
+<td><code>sensor/#</code></td>
+<td><code>sensor</code>、<code>sensor/10/temperature</code></td>
+<td><code>sensors/10</code></td>
+</tr>
+<tr>
+<td><code>+/status</code></td>
+<td><code>car/status</code></td>
+<td><code>car/1/status</code></td>
+</tr>
+</tbody></table>
+<p><code>+</code> 占一个完整层级；<code>#</code> 占剩余层级且必须位于末尾。空层级也有意义，例如 <code>a//b</code> 不能随手规范化成 <code>a/b</code>。此外，以 <code>$</code> 开头的主题有特殊匹配规则，订阅 <code>#</code> 并不自动覆盖 <code>$SYS/...</code>。规则可对照 <a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718106">MQTT 3.1.1 的 Topic Names and Topic Filters</a>。</p>
+<h3 id="QoS-保证到了哪一段"><a href="#QoS-保证到了哪一段" class="headerlink" title="QoS 保证到了哪一段"></a>QoS 保证到了哪一段</h3><table>
+<thead>
+<tr>
+<th>QoS</th>
+<th>交换过程</th>
+<th>接收端需要考虑什么</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0</td>
+<td>PUBLISH</td>
+<td>没有协议级确认，消息可能丢失</td>
+</tr>
+<tr>
+<td>1</td>
+<td>PUBLISH → PUBACK</td>
+<td>可能重复交付，需要考虑幂等</td>
+</tr>
+<tr>
+<td>2</td>
+<td>PUBLISH → PUBREC → PUBREL → PUBCOMP</td>
+<td>协议在相应发送方与接收方之间处理一次交付语义</td>
+</tr>
+</tbody></table>
+<p><img src="/mdimg/notes-2026/mqtt-qos.svg" srcset="/img/loading.gif" lazyload alt="QoS 1 和 QoS 2 的确认时序"></p>
+<p><em>发布者到 Broker、Broker 到订阅者是两段独立投递。图中的箭头描述一段协议交换。</em></p>
+<p>QoS 2 不是整个业务流程的“只执行一次事务”。设备收到命令后执行动作、写数据库、回结果，依然可能在应用崩溃或自身重试时遇到重复操作。带副作用的业务消息通常还需要 <code>request_id</code>、去重记录以及明确的过期策略。</p>
+<p>订阅者实际收到的 QoS 还受原始发布等级和 Broker 授予的订阅等级约束。Packet Identifier 也有作用域和复用规则，不适合直接充当永久业务流水号。</p>
+<h2 id="一条-PUBLISH-到底长什么样"><a href="#一条-PUBLISH-到底长什么样" class="headerlink" title="一条 PUBLISH 到底长什么样"></a>一条 PUBLISH 到底长什么样</h2><p>实验把 <code>23.5</code> 发布到 <code>lab/temp</code>，使用 QoS 1 并设置 RETAIN：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">33 10 00 08 6c 61 62 2f 74 65 6d 70 00 01 32 33 2e 35<br></code></pre></td></tr></table></figure>
 
-<p>MQTT 主题支持以下两种通配符：<code>+</code> 和 <code>#</code>。</p>
-<ul>
-<li><code>+</code>：表示单层通配符，例如 <code>a/+</code> 匹配 <code>a/x</code>或 <code>a/y</code>。</li>
-<li><code>#</code>：表示多层通配符，例如 <code>a/#</code> 匹配 <code>a/x</code>、<code>a/b/c/d</code>。</li>
+<p><img src="/mdimg/notes-2026/mqtt-packet.svg" srcset="/img/loading.gif" lazyload alt="MQTT PUBLISH 的固定头、主题、Packet Identifier 与负载"></p>
+<table>
+<thead>
+<tr>
+<th>字节</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>33</code></td>
+<td>高四位 <code>3</code> 是 PUBLISH；DUP=0、QoS=1、RETAIN=1</td>
+</tr>
+<tr>
+<td><code>10</code></td>
+<td>Remaining Length=16，覆盖后面的可变头与 payload</td>
+</tr>
+<tr>
+<td><code>00 08</code></td>
+<td>主题的 UTF-8 编码占 8 字节</td>
+</tr>
+<tr>
+<td><code>6c ... 70</code></td>
+<td><code>lab/temp</code></td>
+</tr>
+<tr>
+<td><code>00 01</code></td>
+<td>本次 QoS 1 发布的 Packet Identifier=1</td>
+</tr>
+<tr>
+<td><code>32 33 2e 35</code></td>
+<td>应用负载 <code>23.5</code></td>
+</tr>
+</tbody></table>
+<p>这里 MQTT 只把负载视为字节；它不会因为长得像数字就自动转换，也不会验证某个 JSON 字段是否有权执行。</p>
+<p>Remaining Length 使用 base-128 变长编码，最多四个字节。它不是固定的一个字节：每字节低 7 位贡献数值，最高位表示是否还有后续字节。解析器既要限制长度字段本身，也要限制接受的消息大小，不能按对端声明无限分配内存。</p>
+<h2 id="Retained-Message、Session-和-Will"><a href="#Retained-Message、Session-和-Will" class="headerlink" title="Retained Message、Session 和 Will"></a>Retained Message、Session 和 Will</h2><p>这三个概念最容易被混到一起：</p>
+<table>
+<thead>
+<tr>
+<th>机制</th>
+<th>保存/表达的是什么</th>
+<th>典型用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Retained Message</td>
+<td>某个主题最后保存的保留消息</td>
+<td>新订阅者立即得到当前状态</td>
+</tr>
+<tr>
+<td>Persistent Session</td>
+<td>与 Client ID 关联的订阅及协议规定的待交付状态</td>
+<td>断线后恢复会话</td>
+</tr>
+<tr>
+<td>Will Message</td>
+<td>非正常断开等条件下由 Broker 发布的遗嘱消息</td>
+<td>标记设备离线</td>
+</tr>
+</tbody></table>
+<p>保留消息不是历史消息列表。MQTT 3.1.1 中，向主题发布 <strong>RETAIN=1 且零长度 payload</strong> 的消息可清除该主题的保留消息；新订阅者随后不会再因这条已清除的记录收到旧值。</p>
+<p>持久会话需要使用相同 Client ID，并设置 <code>Clean Session=0</code>。重连 CONNACK 中的 Session Present 帮助判断服务器是否恢复了已有会话。它与 Broker 是否把状态写入磁盘也不同：内存中的会话能支持连接重建，但 Broker 重启后能否恢复，还要看持久化配置。</p>
+<p>MQTT 5.0 把这部分拆成 Clean Start 与 Session Expiry Interval，并提供 Message Expiry Interval 等属性。分析时先确认协议版本，再解释字段。参见 <a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html">MQTT 5.0 标准</a>。</p>
+<h2 id="本地实验：新订阅与离线恢复"><a href="#本地实验：新订阅与离线恢复" class="headerlink" title="本地实验：新订阅与离线恢复"></a>本地实验：新订阅与离线恢复</h2><p>实验只用本机回环地址。创建 <code>mosquitto-lab.conf</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">listener 18884 127.0.0.1<br>allow_anonymous true<br>persistence false<br></code></pre></td></tr></table></figure>
+
+<p>启动 Broker，然后在另一个终端运行 <a href="/downloads/notes-2026/mqtt_wire.py">mqtt_wire.py</a>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mosquitto -c mosquitto-lab.conf -v<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">python3 mqtt_wire.py<br></code></pre></td></tr></table></figure>
+
+<p>脚本只依赖 Python 标准库，直接构造 MQTT 3.1.1 报文，分别验证两件事：先发布保留消息，再创建订阅；先建立持久订阅并断开，再发布消息并恢复会话。本地输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">retained PUBLISH: 33 10 00 08 6c 61 62 2f 74 65 6d 70 00 01 32 33 2e 35<br>new subscriber: (&#x27;lab/temp&#x27;, b&#x27;23.5&#x27;, True)<br>resumed session: 1 (&#x27;lab/temp&#x27;, b&#x27;offline&#x27;, False)<br></code></pre></td></tr></table></figure>
+
+<p>新订阅拿到的 <code>23.5</code> 是 retained 数据；重连时的 <code>offline</code> 来自离线期间的持久订阅，Session Present 为 1。正常完成时，脚本会清理其建立的保留消息和会话；若中途因断言或网络错误退出，重启这个 <code>persistence false</code> 的隔离 Broker 即可清空实验状态。实验期间不要让其他客户端共用这些 Client ID，以免相互踢线。</p>
+<p>抓包时可使用 <code>mqtt</code> 显示过滤器；端口不在解析器默认识别范围内时，需要 Decode As MQTT。对照 CONNECT 的 Clean Session、CONNACK 的 Session Present、PUBLISH 的 RETAIN/QoS 和确认报文，便能把上面的输出对应回网络流量。</p>
+<h2 id="从安全测试角度怎么读这些字段"><a href="#从安全测试角度怎么读这些字段" class="headerlink" title="从安全测试角度怎么读这些字段"></a>从安全测试角度怎么读这些字段</h2><p>在测试环境中，先建立两个权限不同的客户端账户，分别验证“能连接”“能订阅”“能收到”“能发布”“能引发操作”。成功 CONNECT 只能说明连接认证通过。</p>
+<p>一个设备账户可以只读 <code>devices/42/cmd</code>、只写 <code>devices/42/status</code>。检查时既要试具体主题，也要试通配符、其他设备编号、保留消息读取以及持久会话恢复。ACL 的行为应以所用 Broker 版本与插件为准；Mosquitto 的主题访问规则见 <a target="_blank" rel="noopener" href="https://mosquitto.org/man/mosquitto-conf-5.html">配置手册</a>。</p>
+<p>应用端再核对命令是否绑定已认证身份，而不是相信 payload 里的 <code>device_id</code>。控制类主题尤其要考虑：旧 retained 命令会不会在设备上线时被再次执行？离线队列里的命令是否已经过期？收到重复 QoS 1 消息时是否重复开锁或重复写配置？这些问题要沿着实际业务流程验证，单看 TLS 和用户名密码还不够。</p>
+<h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html">MQTT 3.1.1 标准</a></li>
+<li><a target="_blank" rel="noopener" href="https://mosquitto.org/man/mosquitto_pub-1.html">Mosquitto 发布客户端参数</a></li>
+<li><a target="_blank" rel="noopener" href="https://mosquitto.org/man/mosquitto_sub-1.html">Mosquitto 订阅客户端参数</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.emqx.com/zh/blog/advanced-features-of-mqtt-topics">最初笔记使用的 EMQX 主题说明</a></li>
 </ul>
-<p>***注意***<em>：通配符主题只能用于订阅，不能用于发布。</em></p>
-<p>关于 MQTT 主题的更多详情，请参阅文章<a target="_blank" rel="noopener" href="https://www.emqx.com/zh/blog/advanced-features-of-mqtt-topics">通过案例理解 MQTT 主题与通配符</a>。</p>
-<h3 id="QoS"><a href="#QoS" class="headerlink" title="QoS"></a>QoS</h3><p>MQTT 提供了三种服务质量（QoS），在不同网络环境下保证消息的可靠性。</p>
-<ul>
-<li>QoS 0：消息最多传送一次。如果当前客户端不可用，它将丢失这条消息。</li>
-<li>QoS 1：消息至少传送一次。</li>
-<li>QoS 2：消息只传送一次。</li>
-</ul>
-<p>关于 MQTT QoS 的更多详情，请参阅文章 <a target="_blank" rel="noopener" href="https://www.emqx.com/zh/blog/introduction-to-mqtt-qos">MQTT QoS 0, 1, 2 介绍</a>。</p>
-<h2 id="MQTT-的工作流程"><a href="#MQTT-的工作流程" class="headerlink" title="MQTT 的工作流程"></a>MQTT 的工作流程</h2><p>在了解了 MQTT 的基本组件之后，让我们来看看它的一般工作流程：</p>
-<ol>
-<li><strong>客户端使用 TCP/IP 协议与 Broker 建立连接</strong>，可以选择使用 TLS/SSL 加密来实现安全通信。客户端提供认证信息，并指定会话类型（Clean Session 或 Persistent Session）。</li>
-<li><strong>客户端既可以向特定主题发布消息，也可以订阅主题以接收消息</strong>。当客户端发布消息时，它会将消息发送给 MQTT Broker；而当客户端订阅消息时，它会接收与订阅主题相关的消息。</li>
-<li><strong>MQTT Broker 接收发布的消息</strong>，并将这些消息转发给订阅了对应主题的客户端。它根据 QoS 等级确保消息可靠传递，并根据会话类型为断开连接的客户端存储消息。</li>
-</ol>
 
                 
               </div>
