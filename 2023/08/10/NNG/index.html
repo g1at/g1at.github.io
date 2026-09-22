@@ -25,7 +25,7 @@
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="https://g1at.github.io/mdimg/mqtt1/3.png">
 <meta property="article:published_time" content="2023-08-10T07:13:45.000Z">
-<meta property="article:modified_time" content="2026-09-22T09:38:47.000Z">
+<meta property="article:modified_time" content="2026-09-22T10:20:33.000Z">
 <meta property="article:author" content="g0at">
 <meta property="article:tag" content="IoT">
 <meta name="twitter:card" content="summary_large_image">
@@ -258,7 +258,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          3.4k 字
+          13k 字
         
       </span>
     
@@ -269,7 +269,7 @@
         
         
         
-          28 分钟
+          110 分钟
         
       </span>
     
@@ -319,120 +319,267 @@
             
               <div class="markdown-body">
                 
-                <p>NNG 适合把线程、进程或不同机器上的模块用消息连接起来。真正写程序时，需要把协议语义、传输方式、连接角色、消息归属和异步操作的生命周期分开。</p>
-<p>本文的 C 示例已在 <strong>Ubuntu 24.04、NNG 1.7.2</strong> 上编译并运行。NNG 是通信库，提供多种协议语义与 transport；正文讨论的是这套库的使用模型。可执行例子的环境是 1.7.2，消息所有权和 AIO 的链接采用当前 1.10 手册；复现其他版本时应再核对随安装包提供的头文件和手册。</p>
-<h2 id="概述：三个问题分开想"><a href="#概述：三个问题分开想" class="headerlink" title="概述：三个问题分开想"></a>概述：三个问题分开想</h2><table>
+                <p>NNG 最吸引人的地方，是几行 C 就能把线程、进程或机器连起来。</p>
+<p>本文固定在 <strong>NNG 1.7.2</strong> 讨论，源码对应 tag <code>v1.7.2</code>、commit <code>daa55213d1bc7367f9eff29b010b563c71fb42cf</code>。文中的程序在 Ubuntu 24.04、GCC 13.3.0 上实际编译运行，使用 <code>-Wall -Wextra -Werror</code>，没有拿新版本手册去解释旧版本二进制。</p>
+<p>附件放在文末，也可以直接下载：</p>
+<ul>
+<li><a href="/downloads/protocol-labs/nng_aio_context_lab.c">完整多 context REP/AIO 实验</a></li>
+<li><a href="/downloads/protocol-labs/nng_flow_lab.c">PUSH 背压与 PUB/SUB 前缀实验</a></li>
+<li><a href="/downloads/protocol-labs/nng_roles.c">REQ 监听、REP 拨号实验</a></li>
+<li><a href="/downloads/protocol-labs/run_nng_labs.sh">一键编译运行脚本</a></li>
+</ul>
+<h2 id="先分清六个名词"><a href="#先分清六个名词" class="headerlink" title="先分清六个名词"></a>先分清六个名词</h2><p>我现在看 NNG 程序，会先问六个问题。</p>
+<table>
 <thead>
 <tr>
-<th>问题</th>
-<th>对应概念</th>
+<th>对象</th>
+<th>它回答的问题</th>
 <th>例子</th>
 </tr>
 </thead>
 <tbody><tr>
-<td>消息怎样分发、收发顺序是什么</td>
 <td>protocol</td>
+<td>消息按什么规则流动</td>
 <td>REQ/REP、PUB/SUB、PUSH/PULL</td>
 </tr>
 <tr>
-<td>字节从哪条通道过去</td>
 <td>transport</td>
+<td>字节借什么通道移动</td>
 <td><code>inproc://</code>、<code>ipc://</code>、<code>tcp://</code></td>
 </tr>
 <tr>
-<td>谁主动建立连接</td>
-<td>endpoint</td>
-<td>dialer、listener</td>
+<td>socket</td>
+<td>哪个协议实例共享端点与连接</td>
+<td>一个 cooked REQ socket</td>
+</tr>
+<tr>
+<td>dialer/listener</td>
+<td>谁发起、谁接受连接</td>
+<td>dial / listen</td>
+</tr>
+<tr>
+<td>pipe</td>
+<td>当前已经建立的哪一条连接</td>
+<td>某个 TCP 会话对应的 pipe</td>
+</tr>
+<tr>
+<td>context</td>
+<td>哪一份独立协议状态</td>
+<td>某个 REQ 的 request ID、重发计时器</td>
 </tr>
 </tbody></table>
-<p>NNG 的 brokerless 表示它不强制依赖独立 Broker，不表示项目不能自行增加转发节点。它与 MQTT 的主题会话服务器也不是同一种抽象，不能把“都能发布订阅”理解为它们具有相同的持久化、主题路由和投递保证。</p>
-<h2 id="通信协议"><a href="#通信协议" class="headerlink" title="通信协议"></a>通信协议</h2><table>
+<p>NNG 的 <a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.7.2/nng.7.html">协议与 transport 索引</a>把前两层分得很清楚：协议定义通信模式，transport 负责搬运消息。</p>
+<p>一个 socket 在创建时就固定一个协议，却可以同时拥有多个 dialer、listener 和 pipe。<code>nng_ctx</code> 不会再建 TCP 连接，它共享 socket 的端点和 pipe，只另外保存协议状态。<a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.7.2/nng_ctx.5.html"><code>nng_ctx(5)</code></a>列出的典型状态正是 REQ 的 request ID 与 retry timer。</p>
+<p><img src="/mdimg/protocol-depth/nng-object-model.svg" srcset="/img/loading.gif" lazyload alt="NNG socket、endpoint、pipe 与 context 的边界"></p>
+<p><code>context != thread</code>：context 是协议状态容器，线程、事件循环或 AIO callback 才是应用的执行方式。<code>pipe != socket</code>：pipe 对应 socket 上的一条已建立连接；断线后旧 pipe 消失，重连会产生新 pipe。<a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.7.2/nng_pipe.5.html"><code>nng_pipe(5)</code></a>给出了对象定义。</p>
+<h2 id="dial-listen-与-REQ-REP-没有主从绑定"><a href="#dial-listen-与-REQ-REP-没有主从绑定" class="headerlink" title="dial/listen 与 REQ/REP 没有主从绑定"></a>dial/listen 与 REQ/REP 没有主从绑定</h2><p>REQ 常被写成 dialer，REP 常被写成 listener，只是部署习惯。</p>
+<p>连接方向与协议方向是两套关系。REP 完全可以主动连接正在监听的 REQ；连接建好后，仍然必须由 REQ 先发请求，REP 收到后才能回复。<a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.7.2/nng_dialer.5.html"><code>nng_dialer(5)</code></a>也明确说 endpoint 的 client/server 关系与协议角色正交。</p>
+<p><img src="/mdimg/protocol-depth/nng-roles.svg" srcset="/img/loading.gif" lazyload alt="REQ 监听而 REP 主动拨号"></p>
+<p>附件 <code>nng_roles.c</code> 故意反着部署：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-comment">/* REQ: listen */</span><br>nng_req0_open(&amp;socket);<br>nng_listen(socket, <span class="hljs-string">&quot;tcp://127.0.0.1:18891&quot;</span>, <span class="hljs-literal">NULL</span>, <span class="hljs-number">0</span>);<br>nng_send(socket, <span class="hljs-string">&quot;ping&quot;</span>, <span class="hljs-number">4</span>, <span class="hljs-number">0</span>);<br>nng_recv(socket, &amp;reply, &amp;size, NNG_FLAG_ALLOC);<br><br><span class="hljs-comment">/* REP: dial */</span><br>nng_rep0_open(&amp;socket);<br>nng_dial(socket, <span class="hljs-string">&quot;tcp://127.0.0.1:18891&quot;</span>, <span class="hljs-literal">NULL</span>, <span class="hljs-number">0</span>);<br>nng_recv(socket, &amp;request, &amp;size, NNG_FLAG_ALLOC);<br>nng_send(socket, <span class="hljs-string">&quot;pong&quot;</span>, <span class="hljs-number">4</span>, <span class="hljs-number">0</span>);<br></code></pre></td></tr></table></figure>
+
+<p>编译后可以开两个终端，也可以用<a href="/downloads/protocol-labs/nng-run-roles.sh">附件脚本</a>自动跑：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">gcc -std=c11 -Wall -Wextra -Werror -O2 nng_roles.c -lnng -o nng_roles<br>bash nng-run-roles.sh ./nng_roles<br></code></pre></td></tr></table></figure>
+
+<p>我的实际输出如下：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">[REQ]<br>NNG 1.7.2<br>REQ listens on 127.0.0.1:18891<br>REQ received 4 bytes: pong<br>[REP]<br>NNG 1.7.2<br>REP dials 127.0.0.1:18891<br>REP received 4 bytes: ping<br></code></pre></td></tr></table></figure>
+
+<p><code>NNG_FLAG_ALLOC</code> 返回的是指定长度的二进制消息，不承诺末尾带 <code>NUL</code>。所以例子用 <code>%.*s</code> 按长度打印，并用 <code>nng_free(ptr, size)</code> 配对释放。</p>
+<h2 id="cooked-REQ-REP-到底替应用做了什么"><a href="#cooked-REQ-REP-到底替应用做了什么" class="headerlink" title="cooked REQ/REP 到底替应用做了什么"></a>cooked REQ/REP 到底替应用做了什么</h2><p><code>nng_req0_open()</code> 与 <code>nng_rep0_open()</code> 默认打开 cooked socket。</p>
+<p>cooked 模式不只是给消息加一个类型。它维护一套有限状态机：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">REQ context:  SEND request -&gt; WAIT reply -&gt; SEND next request<br>REP context:  RECV request -&gt; SEND reply -&gt; RECV next request<br></code></pre></td></tr></table></figure>
+
+<p>REQ 在没有 outstanding request 时接收，会得到 <code>NNG_ESTATE</code>。REP 在没有先接到请求时发送，也会得到 <code>NNG_ESTATE</code>。同一个 context 也不能同时挂两次接收。<a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.7.2/nng_req.7.html">REQ 手册</a>与 <a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.7.2/nng_rep.7.html">REP 手册</a>把这些顺序当成协议契约。</p>
+<p>发送第二个 REQ 会取消第一个请求在本地的等待状态，旧回复随后会被丢弃。已经到达远端的旧请求不会因此停止执行。</p>
+<p>这条边界很重要：协议能取消“我还等不等”，不能撤销“对方已经做了什么”。</p>
+<p>raw socket 则把路由头与状态责任交给应用，适合写 device/forwarder。raw 模式不支持 context；为了绕开 <code>NNG_ESTATE</code> 就改 raw，通常只会把匹配、重试、TTL 与坏帧处理一起揽到自己身上。</p>
+<h2 id="request-ID-与-backtrace"><a href="#request-ID-与-backtrace" class="headerlink" title="request ID 与 backtrace"></a>request ID 与 backtrace</h2><p>REQ/REP v0 的协议头是一组 32 位大端整数。</p>
+<p>最后一项是 request ID，最高位必须为 1。它前面可以有若干 peer ID，最高位为 0。raw forwarder 收到请求时把入站 peer ID 压到前面，回复回来再弹出，以此选择下一跳。</p>
+<p><img src="/mdimg/protocol-depth/nng-req-backtrace.svg" srcset="/img/loading.gif" lazyload alt="REQ/REP backtrace、request ID 与重复执行窗口"></p>
+<p>例如下面只是一个便于阅读的示意值：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">REQ 创建:             [80 00 00 2A] [payload]<br>forwarder 压入 peer:  [00 00 00 07] [80 00 00 2A] [payload]<br>REP 回复:             [00 00 00 07] [80 00 00 2A] [reply]<br>forwarder 弹出 peer:  [80 00 00 2A] [reply]<br>REQ 以 0x8000002A 找到等待它的 context<br></code></pre></td></tr></table></figure>
+
+<p>应用在 cooked REP 收到的 body 里看不到这些字节。库把 backtrace 留在内部 context，发送回复时再补回去。<a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.7.2/nng_req.7.html#_protocol_headers">REQ 协议头说明</a>给出了同样的栈模型。</p>
+<p>它解决的是“回复属于哪个请求、沿哪条路返回”，不是业务去重 ID。</p>
+<p>request ID 在一次运行中用于协议匹配；订单号、扣款流水号这类幂等键必须由应用放进 payload，并在服务端保存处理结果。</p>
+<h2 id="重发带来的语义：至少可能执行一次"><a href="#重发带来的语义：至少可能执行一次" class="headerlink" title="重发带来的语义：至少可能执行一次"></a>重发带来的语义：至少可能执行一次</h2><p>REQ 默认会保留请求副本，直到收到匹配回复、被新请求替换、超时/取消，或 context 关闭。</p>
+<p><code>NNG_OPT_REQ_RESENDTIME</code> 到期会再次发送请求；peer 断开或等待期间出现可用 peer，也可能触发再次发送。<code>NNG_OPT_REQ_RESENDTICK</code> 是 socket 共享的扫描粒度，而 resend time 可以按 context 配置。<a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.7.2/nng_req.7.html#_protocol_options">REQ 手册的 options 部分</a>对此有完整说明。</p>
+<p>考虑这条时间线：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">t0  REQ 发送 charge(order=42, op=9f...)<br>t1  REP 已经扣款并提交数据库<br>t2  reply 在返回途中丢失<br>t3  REQ 重发同一个逻辑请求<br>t4  另一 REP 或同一 REP 再次收到它<br></code></pre></td></tr></table></figure>
+
+<p>如果服务端只看 <code>order=42</code> 然后直接扣款，协议重试就可能变成重复副作用。</p>
+<p>比较稳妥的处理是给操作分配稳定的 <code>op_id</code>，在同一个事务中记录 <code>op_id -&gt; result</code>。重复请求命中记录时，返回原结果，不再执行副作用。</p>
+<p>接收超时也不能证明远端没有执行。它只证明本地在截止时间前没有拿到匹配回复。</p>
+<h2 id="context-才是-cooked-REQ-REP-的并发单位"><a href="#context-才是-cooked-REQ-REP-的并发单位" class="headerlink" title="context 才是 cooked REQ/REP 的并发单位"></a>context 才是 cooked REQ/REP 的并发单位</h2><p>socket 自带一个默认 context，所以直接对 REQ socket 调 <code>nng_sendmsg/nng_recvmsg</code> 时，一次只能有一个 outstanding request。</p>
+<p>要并发，不需要为每个请求重新建 socket 和 TCP 连接。可以在同一个 socket 上开多个 context：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs c">nng_socket req;<br>nng_ctx ctx[CLIENT_COUNT];<br><br>check(nng_req0_open(&amp;req));<br>check(nng_dial(req, url, <span class="hljs-literal">NULL</span>, <span class="hljs-number">0</span>));<br><br><span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> i = <span class="hljs-number">0</span>; i &lt; CLIENT_COUNT; i++) &#123;<br>    check(nng_ctx_open(&amp;ctx[i], req));<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>每个 REQ context 独立保存 request ID、待收 reply 和 resend time；它们共享 socket 的 pipe 池。每个 context 内仍然是一问一答，context 之间可以并行。</p>
+<p>REP 同理。一个 REP context 在收到请求后保存 backtrace 与入站 pipe，之后的 <code>send</code> 才知道回复该回到哪里。开多个 REP context，才能同时持有并处理多个请求。</p>
+<p>我的实验使用六个 REQ context、三个 REP context。每个服务端 context 绑定一个 AIO worker；不同请求延迟 10–180 ms，实际观察到三个服务任务同时处于处理阶段。</p>
+<h2 id="固定-1-7-2-读一遍源码"><a href="#固定-1-7-2-读一遍源码" class="headerlink" title="固定 1.7.2 读一遍源码"></a>固定 1.7.2 读一遍源码</h2><p>下面不是猜调用链，而是对 <code>v1.7.2</code> 的定点走读。内部 <code>nni_*</code> 不是应用 ABI，升级版本后应重新核对。</p>
+<h3 id="REQ-的-context-与-socket-各保存什么"><a href="#REQ-的-context-与-socket-各保存什么" class="headerlink" title="REQ 的 context 与 socket 各保存什么"></a>REQ 的 context 与 socket 各保存什么</h3><p><a target="_blank" rel="noopener" href="https://github.com/nanomsg/nng/blob/v1.7.2/src/sp/protocol/reqrep0/req.c#L32-L67"><code>req.c:32-67</code></a>里，<code>req0_ctx</code> 有这些关键字段：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-type">uint32_t</span>     request_id;<br>nni_aio     *recv_aio;<br>nni_aio     *send_aio;<br>nng_msg     *req_msg;<br>nng_msg     *rep_msg;<br>nni_duration retry;<br>nni_time     retry_time;<br></code></pre></td></tr></table></figure>
+
+<p>socket 侧则有 <code>ready_pipes</code>、<code>busy_pipes</code>、<code>send_queue</code>、<code>retry_queue</code> 和 <code>requests</code> ID map。也就是说，context 保存每笔请求的状态，socket 负责在共享 pipe 间调度。</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/nanomsg/nng/blob/v1.7.2/src/sp/protocol/reqrep0/req.c#L85-L119"><code>req0_sock_init</code></a>把 ID map 范围初始化为 <code>0x80000000..0xffffffff</code>，随机选择起点；同时把默认 retry 设为 60 秒、retry tick 设为 1 秒。</p>
+<p>这也能从代码层确认 request ID 的最高位为 1。</p>
+<h3 id="一次-cooked-send-如何进入队列"><a href="#一次-cooked-send-如何进入队列" class="headerlink" title="一次 cooked send 如何进入队列"></a>一次 cooked send 如何进入队列</h3><p><a target="_blank" rel="noopener" href="https://github.com/nanomsg/nng/blob/v1.7.2/src/sp/protocol/reqrep0/req.c#L684-L756"><code>req0_ctx_send</code></a>先取消同 context 的旧 send/recv，再重置旧状态，分配新的 request ID，并把 ID 写进 NNG 消息 header。</p>
+<p>随后它做三件事：</p>
+<ol>
+<li><code>ctx-&gt;req_msg = msg</code>，协议接管原消息；</li>
+<li>把 context 放入 retry queue；</li>
+<li>把 context 放入 send queue，调用 <code>req0_run_send_queue()</code>。</li>
+</ol>
+<p><a target="_blank" rel="noopener" href="https://github.com/nanomsg/nng/blob/v1.7.2/src/sp/protocol/reqrep0/req.c#L472-L533"><code>req0_run_send_queue</code></a>取一个 ready pipe，把用户的 send AIO 完成为成功，然后 clone <code>req_msg</code> 交给 pipe。</p>
+<p>原消息仍留在 context 中，正是为了可能的重发。这里的 send 成功表示协议已经接受请求，不表示 REP 已经收到，更不表示业务已完成。</p>
+<h3 id="reply-如何回到正确-context"><a href="#reply-如何回到正确-context" class="headerlink" title="reply 如何回到正确 context"></a>reply 如何回到正确 context</h3><p><a target="_blank" rel="noopener" href="https://github.com/nanomsg/nng/blob/v1.7.2/src/sp/protocol/reqrep0/req.c#L307-L378"><code>req0_recv_cb</code></a>从消息前面取出 4 字节 ID，在 <code>requests</code> map 中查 context。</p>
+<p>找不到 ID、请求还没真正发出，或者该 context 已经有 reply 时，消息会被释放。匹配成功后，它移除 ID map 项和重发节点，释放保留的 request，再完成等待中的 receive AIO；如果应用还没调用 receive，就暂存在 <code>rep_msg</code>。</p>
+<p>这就是发送新请求后，旧回复不会串给新请求的原因。</p>
+<h3 id="重发扫描做了什么"><a href="#重发扫描做了什么" class="headerlink" title="重发扫描做了什么"></a>重发扫描做了什么</h3><p><a target="_blank" rel="noopener" href="https://github.com/nanomsg/nng/blob/v1.7.2/src/sp/protocol/reqrep0/req.c#L380-L419"><code>req0_retry_cb</code></a>在 socket 锁内扫描 retry queue。</p>
+<p>到期且仍有 <code>req_msg</code> 的 context 会重新进入 send queue。只有 retry queue 非空时才继续启动 timer，避免空闲 socket 一直唤醒。</p>
+<p>pipe 断开时，<a target="_blank" rel="noopener" href="https://github.com/nanomsg/nng/blob/v1.7.2/src/sp/protocol/reqrep0/req.c#L213-L263"><code>req0_pipe_close</code></a>把仍有请求副本的 context 放回 send queue；若禁用 retry，则等待中的 receive 以连接重置结束。</p>
+<h3 id="REP-为什么必须先-receive"><a href="#REP-为什么必须先-receive" class="headerlink" title="REP 为什么必须先 receive"></a>REP 为什么必须先 receive</h3><p>REP context 在 <a target="_blank" rel="noopener" href="https://github.com/nanomsg/nng/blob/v1.7.2/src/sp/protocol/reqrep0/rep.c#L28-L38"><code>rep.c:28-38</code></a>保存 <code>pipe_id</code>、<code>btrace</code>、send AIO 与 receive AIO。</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/nanomsg/nng/blob/v1.7.2/src/sp/protocol/reqrep0/rep.c#L470-L569"><code>rep0_pipe_recv_cb</code></a>每次从 body 前面取 4 字节，搬进内部 header，直到看到最高位为 1 的 request ID。超过 TTL 的帧被丢弃，连 4 字节都不够的坏帧会让 pipe 关闭。</p>
+<p>它把完整 backtrace 和 pipe ID 保存进拿到该请求的 context，清掉应用可见 header，再完成 receive。</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/nanomsg/nng/blob/v1.7.2/src/sp/protocol/reqrep0/rep.c#L128-L204"><code>rep0_ctx_send</code></a>发现 <code>btrace_len == 0</code> 时直接返回 <code>NNG_ESTATE</code>。正常路径会把 backtrace 放回 header，并只向原 pipe 发送。</p>
+<p>还有一个容易忽略的细节：若回复时原 pipe 已消失，1.7.2 会释放消息并把 send 完成为成功。这是有意保持 REP 状态机前进，再次说明 send 成功不能作为送达凭据。</p>
+<h2 id="消息所有权：只看完成结果"><a href="#消息所有权：只看完成结果" class="headerlink" title="消息所有权：只看完成结果"></a>消息所有权：只看完成结果</h2><p>同步 <code>nng_sendmsg()</code> / <code>nng_ctx_sendmsg()</code> 的规则很简单：</p>
+<ul>
+<li>返回 0，socket 接管 <code>msg</code>，应用不能再读、改或 free；</li>
+<li>返回非 0，应用仍拥有 <code>msg</code>，可以重试或 free。</li>
+</ul>
+<p><a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.7.2/nng_ctx_sendmsg.3.html"><code>nng_ctx_sendmsg(3)</code></a>还说明，成功只代表 context 接受了消息，队列和物理链路上仍可能有延迟或丢失。</p>
+<p>异步发送要等 callback 才能分支。</p>
+<p><img src="/mdimg/protocol-depth/nng-ownership.svg" srcset="/img/loading.gif" lazyload alt="NNG AIO 发送成功、失败与关闭时的所有权"></p>
+<p>安全的回调骨架是：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-type">static</span> <span class="hljs-type">void</span> <span class="hljs-title function_">send_done</span><span class="hljs-params">(<span class="hljs-type">void</span> *arg)</span><br>&#123;<br>    worker *w = arg;<br>    <span class="hljs-type">int</span> rv = nng_aio_result(w-&gt;aio);<br>    nng_msg *left = nng_aio_get_msg(w-&gt;aio);<br><br>    <span class="hljs-keyword">if</span> (rv == <span class="hljs-number">0</span>) &#123;<br>        <span class="hljs-comment">/* NNG 已接管；成功路径通常 left == NULL。 */</span><br>        w-&gt;state = WORK_RECV;<br>        nng_ctx_recv(w-&gt;ctx, w-&gt;aio);<br>        <span class="hljs-keyword">return</span>;<br>    &#125;<br><br>    <span class="hljs-comment">/* 失败、取消、超时：消息仍由应用处理。 */</span><br>    <span class="hljs-keyword">if</span> (left != <span class="hljs-literal">NULL</span>) &#123;<br>        nng_aio_set_msg(w-&gt;aio, <span class="hljs-literal">NULL</span>);<br>        nng_msg_free(left);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p><a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.7.2/nng_send_aio.3.html"><code>nng_send_aio(3)</code></a>的措辞很精确：成功时是 socket accepted/queued；失败、取消或超时时，callback 必须从 AIO 取回消息并处置。</p>
+<p>提交 <code>nng_ctx_send(ctx, aio)</code> 之后，不能立即 free <code>msg</code>，也不能立即拿同一个 AIO 发起另一个操作。提交函数本身没有返回异步结果。</p>
+<h2 id="一个完整的-REP-AIO-worker"><a href="#一个完整的-REP-AIO-worker" class="headerlink" title="一个完整的 REP AIO worker"></a>一个完整的 REP AIO worker</h2><p>实验中的 worker 有四个显式状态：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-keyword">typedef</span> <span class="hljs-class"><span class="hljs-keyword">enum</span> &#123;</span><br>    WORK_RECV,<br>    WORK_DELAY,<br>    WORK_SEND,<br>    WORK_STOPPED,<br>&#125; worker_state;<br><br><span class="hljs-keyword">typedef</span> <span class="hljs-class"><span class="hljs-keyword">struct</span> &#123;</span><br>    <span class="hljs-type">int</span> id;<br>    nng_ctx ctx;<br>    nng_aio *aio;<br>    worker_state state;<br>    nng_msg *processing;<br>    <span class="hljs-type">bool</span> counted_active;<br>    server *owner;<br>&#125; worker;<br></code></pre></td></tr></table></figure>
+
+<p><code>processing</code> 与 <code>aio</code> 上的 message 分开记录，是为了让取消路径知道消息究竟停在哪一段。</p>
+<p><img src="/mdimg/protocol-depth/nng-aio-state.svg" srcset="/img/loading.gif" lazyload alt="REP AIO 的 receive、process、send 与 stop 状态"></p>
+<p>核心 callback 如下，完整错误检查和实验驱动见附件：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-type">static</span> <span class="hljs-type">void</span> <span class="hljs-title function_">worker_callback</span><span class="hljs-params">(<span class="hljs-type">void</span> *arg)</span><br>&#123;<br>    worker *w = arg;<br>    server *s = w-&gt;owner;<br>    <span class="hljs-type">int</span> rv = nng_aio_result(w-&gt;aio);<br><br>    <span class="hljs-keyword">if</span> (<span class="hljs-type">atomic_load</span>(&amp;s-&gt;stopping)) &#123;<br>        worker_release_messages(w);<br>        w-&gt;state = WORK_STOPPED;<br>        <span class="hljs-keyword">return</span>;<br>    &#125;<br><br>    <span class="hljs-keyword">if</span> (w-&gt;state == WORK_RECV) &#123;<br>        <span class="hljs-keyword">if</span> (rv != <span class="hljs-number">0</span>) &#123;<br>            worker_release_messages(w);<br>            w-&gt;state = WORK_STOPPED;<br>            <span class="hljs-keyword">return</span>;<br>        &#125;<br><br>        w-&gt;processing = nng_aio_get_msg(w-&gt;aio);<br>        nng_aio_set_msg(w-&gt;aio, <span class="hljs-literal">NULL</span>);<br>        <span class="hljs-comment">/* 完整附件在这里解析请求并原地生成 reply。 */</span><br><br>        w-&gt;state = WORK_DELAY;<br>        nng_sleep_aio(<span class="hljs-number">10</span>, w-&gt;aio); <span class="hljs-comment">/* 模拟 10 ms 业务处理 */</span><br>        <span class="hljs-keyword">return</span>;<br>    &#125;<br><br>    <span class="hljs-keyword">if</span> (w-&gt;state == WORK_DELAY) &#123;<br>        <span class="hljs-keyword">if</span> (rv != <span class="hljs-number">0</span>) &#123;<br>            worker_release_messages(w);<br>            w-&gt;state = WORK_STOPPED;<br>            <span class="hljs-keyword">return</span>;<br>        &#125;<br><br>        nng_aio_set_msg(w-&gt;aio, w-&gt;processing);<br>        w-&gt;processing = <span class="hljs-literal">NULL</span>;<br>        w-&gt;state = WORK_SEND;<br>        nng_ctx_send(w-&gt;ctx, w-&gt;aio);<br>        <span class="hljs-keyword">return</span>;<br>    &#125;<br><br>    <span class="hljs-keyword">if</span> (w-&gt;state == WORK_SEND) &#123;<br>        <span class="hljs-keyword">if</span> (rv != <span class="hljs-number">0</span>) &#123;<br>            worker_release_messages(w); <span class="hljs-comment">/* 取回并 free aio.msg */</span><br>            w-&gt;state = WORK_STOPPED;<br>            <span class="hljs-keyword">return</span>;<br>        &#125;<br><br>        <span class="hljs-comment">/* 成功后 aio 上不应再留着已转移的 msg。 */</span><br>        <span class="hljs-keyword">if</span> (nng_aio_get_msg(w-&gt;aio) != <span class="hljs-literal">NULL</span>) &#123;<br>            <span class="hljs-built_in">abort</span>();<br>        &#125;<br>        worker_submit_recv(w);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这里用 <code>nng_sleep_aio()</code> 模拟业务处理，让同一个 AIO 依次驱动 receive、timer 与 send。生产代码也可以把 CPU 工作交给线程池，再把结果送回事件状态机；关键是同一 worker 不同时复用一个 busy AIO。</p>
+<p>每个 REP context 只提交一个 receive。三个 worker 就有三个独立 receive，可以同时拿走三条请求，各自保存自己的 backtrace。</p>
+<h2 id="stop、cancel-与-free-的顺序"><a href="#stop、cancel-与-free-的顺序" class="headerlink" title="stop、cancel 与 free 的顺序"></a>stop、cancel 与 free 的顺序</h2><p>关停最危险的写法，是先 free <code>worker</code>，再 close socket，希望 pending callback 自己消失。callback 很可能仍持有 <code>worker *</code>，这就是 use-after-free。</p>
+<p>实验使用的顺序是：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-type">atomic_store</span>(&amp;s.stopping, <span class="hljs-literal">true</span>);<br><br><span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> i = <span class="hljs-number">0</span>; i &lt; WORKER_COUNT; i++) &#123;<br>    nng_aio_stop(s.workers[i].aio);<br>&#125;<br><br><span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> i = <span class="hljs-number">0</span>; i &lt; WORKER_COUNT; i++) &#123;<br>    worker_release_messages(&amp;s.workers[i]);<br>    nng_ctx_close(s.workers[i].ctx);<br>    nng_aio_free(s.workers[i].aio);<br>&#125;<br><br>nng_close(s.socket);<br>nng_mtx_free(s.log_lock);<br></code></pre></td></tr></table></figure>
+
+<p>先设置 <code>stopping</code>，callback 就不会再次提交 receive。随后 <strong>stop 全部 AIO</strong>，最后才逐个释放 context、AIO 和 owner。</p>
+<p><a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.7.2/nng_aio_stop.3.html"><code>nng_aio_stop(3)</code></a>会以 <code>NNG_ECANCELED</code> 中止操作，并等待操作及 callback 完全结束；它还会阻止这个 AIO 再次 begin。官方特别建议多个 AIO 先全部 stop，再 free 其中任何一个。</p>
+<p>不要在该 AIO 自己的 callback 里调用阻塞式 <code>nng_aio_free()</code>。确实要从 callback 丢弃它时，接口提供了后台回收的 <code>nng_aio_reap()</code>；更容易审计的做法仍是由 owner 统一停机。</p>
+<p>这套顺序没有在持有应用 mutex 时调用 <code>nng_aio_stop()</code>。否则主线程拿着锁等 callback 退出，而 callback 又等同一把锁，会形成死锁。</p>
+<h2 id="实测：并发、非法状态、超时与所有权"><a href="#实测：并发、非法状态、超时与所有权" class="headerlink" title="实测：并发、非法状态、超时与所有权"></a>实测：并发、非法状态、超时与所有权</h2><p>运行环境与命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">NNG_PREFIX=/path/to/nng-1.7.2/usr \<br>NNG_BUILD_DIR=/tmp/nng-build \<br>bash run_nng_labs.sh<br></code></pre></td></tr></table></figure>
+
+<p>脚本编译 <code>nng_aio_context_lab.c</code>、<code>nng_flow_lab.c</code> 和 <code>nng_roles.c</code>。主实验只绑定 <code>tcp://127.0.0.1:18892</code>，其余检查使用 <code>inproc://</code>。</p>
+<p>开头两条是专门设计的错误路径：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">NNG 1.7.2<br>async send before REP receive: Incorrect state; message retained=yes<br>REQ waiting for omitted reply: Timed out<br></code></pre></td></tr></table></figure>
+
+<p>第一条在 REP context 尚未 receive 时异步 send，结果为 <code>NNG_ESTATE</code>；失败消息仍挂在 AIO 上，应用取回并 free。</p>
+<p>第二条让 REP 收到请求后故意不回复，REQ 的 <code>NNG_OPT_RECVTIMEO=120ms</code> 最终得到 <code>NNG_ETIMEDOUT</code>。</p>
+<p>六个 context 的关键输出是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">worker=0 recv id=0 delay=180 active=1<br>worker=1 recv id=1 delay=20 active=2<br>worker=2 recv id=2 delay=120 active=3<br>worker=1 send-ok msg_on_aio=no<br>worker=1 recv id=3 delay=10 active=3<br>client=1 reply=id=1 worker=1 delay=20 elapsed=21ms<br>...<br>client=0 reply=id=0 worker=0 delay=180 elapsed=181ms<br>max concurrent server jobs: 3<br></code></pre></td></tr></table></figure>
+
+<p>短请求没有被 180 ms 的第一个请求挡住，<code>max concurrent server jobs: 3</code> 也由程序断言。每次成功异步 send 后 <code>msg_on_aio=no</code>，符合所有权转移规则。</p>
+<p>关闭时三个 pending receive 都收到取消：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">worker=0 stop result=Operation canceled<br>worker=1 stop result=Operation canceled<br>worker=2 stop result=Operation canceled<br>shutdown: stop-all -&gt; close-contexts -&gt; free-aio (clean)<br></code></pre></td></tr></table></figure>
+
+<p>这不是“忽略错误”，而是 stop 路径的预期完成结果。</p>
+<h2 id="PUSH-与-PUB-的“发送成功”完全不同"><a href="#PUSH-与-PUB-的“发送成功”完全不同" class="headerlink" title="PUSH 与 PUB 的“发送成功”完全不同"></a>PUSH 与 PUB 的“发送成功”完全不同</h2><p>PUSH/PULL 和 PUB/SUB 都能一对多连接，但发送策略相反。</p>
+<table>
 <thead>
 <tr>
-<th>模式</th>
-<th>消息行为</th>
-<th>使用时要注意</th>
+<th>情况</th>
+<th>PUSH</th>
+<th>PUB</th>
 </tr>
 </thead>
 <tbody><tr>
-<td>PAIR</td>
-<td>成对双向通信</td>
-<td>具体连接数量与 pair 版本/选项有关</td>
+<td>分发对象</td>
+<td>一个可接收的 PULL</td>
+<td>每条现存 pipe 各一份</td>
 </tr>
 <tr>
-<td>PUSH/PULL</td>
-<td>一个 PUSH 将工作分发给可用 PULL 中的一方</td>
-<td>适合任务分配，不是向所有工作者广播</td>
+<td>无可用 peer</td>
+<td>等待/排队，最终可能超时</td>
+<td>直接成功并丢弃</td>
 </tr>
 <tr>
-<td>PUB/SUB</td>
-<td>向匹配的订阅方发送消息</td>
-<td>慢订阅者、连接建立时机可能造成丢消息</td>
+<td>慢 peer</td>
+<td>产生背压，不选暂不可接收的 pipe</td>
+<td>每 pipe 队列满时丢旧消息</td>
 </tr>
 <tr>
-<td>REQ/REP</td>
-<td>请求后等待回复</td>
-<td>请求可能重发，有副作用时要处理幂等</td>
+<td>应用级确认</td>
+<td>没有</td>
+<td>没有</td>
 </tr>
 <tr>
-<td>BUS</td>
-<td>向直接连接的其他节点发送</td>
-<td>不等于自动构建任意多跳可靠广播网</td>
-</tr>
-<tr>
-<td>SURVEY</td>
-<td>一次询问收集多方回答</td>
-<td>要定义响应窗口，不能无限等待所有节点</td>
+<td>典型用途</td>
+<td>工作分配</td>
+<td>瞬时状态/事件广播</td>
 </tr>
 </tbody></table>
-<p>协议的状态限制也属于接口契约。以 cooked REQ 为例，尚未发送请求就接收会产生状态错误。要实现多个并发请求，可以使用协议支持的 <code>nng_ctx</code>，让每个上下文维护独立请求状态；原笔记中“没有 context”的说法不适用于这个层面。<a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.7.2/nng_req.7.html">REQ 文档</a>同时说明了重发与 context 行为。</p>
-<h3 id="重发不等于业务只执行一次"><a href="#重发不等于业务只执行一次" class="headerlink" title="重发不等于业务只执行一次"></a>重发不等于业务只执行一次</h3><p>例如 REQ 发出 <code>charge(order=42)</code>，REP 已扣款，但回复丢失。协议重发请求之后，服务端如果再次扣款，就产生了业务重复。解决办法需要落到业务层：使用稳定的请求 ID，记录已处理结果，再对重复请求返回相同结果。</p>
-<p>超时也不能证明远端没有执行。调用方只知道在自己的等待期限内没有收到最终回复，因此不能简单将一次超时等价为“安全重试”。</p>
-<h2 id="传输模式与连接角色"><a href="#传输模式与连接角色" class="headerlink" title="传输模式与连接角色"></a>传输模式与连接角色</h2><p><code>inproc://</code> 用于同一个进程中的 socket；<code>ipc://</code> 用于本机进程间通信；<code>tcp://</code> 用于 TCP 网络连接。换 URL 可以复用大量应用逻辑，但不是完全没有差异：不同 transport 的命名、权限、地址可达性和性能特征仍需考虑。</p>
-<p>PUSH 不一定是 dialer，PULL 不一定是 listener；REQ/REP 同理。下面故意让 REQ 监听，由 REP 主动连接：</p>
-<p><img src="/mdimg/notes-2026/nng-roles.svg" srcset="/img/loading.gif" lazyload alt="REQ 监听、REP 拨号：连接建立方向与请求方向相反"></p>
-<p><em>连接由 REP 发起，请求消息仍由 REQ 发出。两条箭头分别描述连接建立和协议消息。</em></p>
-<h3 id="一个能跑的反向连接实验"><a href="#一个能跑的反向连接实验" class="headerlink" title="一个能跑的反向连接实验"></a>一个能跑的反向连接实验</h3><p>下载 <a href="/downloads/notes-2026/nng_roles.c">nng_roles.c</a>。安装对应发行版的 NNG 开发包后编译：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">gcc -Wall -Wextra -Werror nng_roles.c -lnng -o nng_roles<br></code></pre></td></tr></table></figure>
+<p><a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.7.2/nng_push.7.html"><code>nng_push(7)</code></a>规定 PUSH 在可用 PULL 中轮转，并遵守 flow control。没有 peer 能接收时，send 会等到出现可用 peer或超时。</p>
+<p><code>NNG_OPT_SENDBUF</code> 默认是 0，表示无 socket 中间缓冲；设为正数后，容量单位是 <strong>消息条数</strong>，范围 0–8192。transport 还可能另有缓冲，所以 send 入队成功依然不是远端确认。</p>
+<p>1.7.2 的 <a target="_blank" rel="noopener" href="https://github.com/nanomsg/nng/blob/v1.7.2/src/sp/protocol/pipeline0/push.c#L262-L319"><code>push0_sock_send</code></a>依次尝试 ready pipe、socket queue，最后才把用户 AIO 挂进等待队列。pipe 再次 ready 时，<a target="_blank" rel="noopener" href="https://github.com/nanomsg/nng/blob/v1.7.2/src/sp/protocol/pipeline0/push.c#L179-L232"><code>push0_pipe_ready</code></a>优先排空缓冲消息。</p>
+<p>我的测试把 <code>SENDBUF=0</code>、<code>SENDTIMEO=80ms</code>，又不创建 PULL：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">PUSH with no PULL: Timed out<br></code></pre></td></tr></table></figure>
 
-<p>先在终端 A 运行，随后在五秒内启动终端 B：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">./nng_roles req<br></code></pre></td></tr></table></figure>
+<p>PUSH 尽量不丢并提供背压，但协议没有 ack。消息被 socket 接受后 pipe 随即损坏，仍可能丢失；需要端到端确认时应设计 REQ/REP 或应用层 receipt。</p>
+<p>PUB 则是 best effort。1.7.2 的 <a target="_blank" rel="noopener" href="https://github.com/nanomsg/nng/blob/v1.7.2/src/sp/protocol/pubsub0/pub.c#L219-L250"><code>pub0_sock_send</code></a>遍历当前 pipes，为每条 pipe clone 消息；pipe 忙且队列满时，先移除最旧消息，再放入新消息。若一个 pipe 都没有，循环为空，原消息被 free，用户 send 仍以 0 完成。</p>
+<p>所以这段程序没有竞态解释空间：它先发布一个 <strong>能匹配订阅前缀</strong> 的消息，再建立 SUB pipe，接收必然超时。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">message sent before SUB pipe: Timed out<br></code></pre></td></tr></table></figure>
 
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">./nng_roles rep<br></code></pre></td></tr></table></figure>
+<p>这类启动阶段丢失不是把 sleep 调大就能成为协议保证。若第一条状态不能丢，需要应用握手、快照接口，或者选带持久会话语义的系统。</p>
+<h2 id="SUB-过滤的是原始字节前缀"><a href="#SUB-过滤的是原始字节前缀" class="headerlink" title="SUB 过滤的是原始字节前缀"></a>SUB 过滤的是原始字节前缀</h2><p>SUB topic 不是 MQTT 风格的层级主题，也没有 <code>+</code>、<code>#</code> 通配符。</p>
+<p>它是消息 body 开头的一段任意字节。多个订阅之间是 OR；空前缀匹配所有消息。<a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.7.2/nng_sub.7.html"><code>nng_sub(7)</code></a>还指出，PUB 会把消息发给所有 subscriber，过滤发生在 SUB 本地，因此订阅不能节省链路带宽。</p>
+<p>二进制前缀必须用长度明确的接口：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-type">const</span> <span class="hljs-type">uint8_t</span> topic[] = &#123; <span class="hljs-number">0x01</span>, <span class="hljs-number">0x02</span> &#125;;<br>nng_socket_set(sub, NNG_OPT_SUB_SUBSCRIBE, topic, <span class="hljs-keyword">sizeof</span>(topic));<br></code></pre></td></tr></table></figure>
 
-<p>终端 A 收到 <code>pong</code> 后，在终端 B 按回车退出。示例特意没有在 REP <code>send()</code> 返回后立刻关闭 socket，因为“消息进入发送路径”和“对端应用已经收到了回复”是不同事件。</p>
-<p>本地结果：</p>
-<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text"># 终端 A<br>NNG 1.7.2<br>REQ listens on 127.0.0.1:18885<br>REQ received 4 bytes: pong<br><br># 终端 B<br>NNG 1.7.2<br>REP dials 127.0.0.1:18885<br>REP received 4 bytes: ping<br></code></pre></td></tr></table></figure>
+<p>实验发送两条三字节消息：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">subscription: 01 02<br>message A:    01 02 aa  -&gt; match<br>message B:    01 03 bb  -&gt; reject<br></code></pre></td></tr></table></figure>
 
-<p>关键代码很短：</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-comment">/* REQ */</span><br>nng_req0_open(&amp;sock);<br>nng_listen(sock, <span class="hljs-string">&quot;tcp://127.0.0.1:18885&quot;</span>, <span class="hljs-literal">NULL</span>, <span class="hljs-number">0</span>);<br><br><span class="hljs-comment">/* REP */</span><br>nng_rep0_open(&amp;sock);<br>nng_dial(sock, <span class="hljs-string">&quot;tcp://127.0.0.1:18885&quot;</span>, <span class="hljs-literal">NULL</span>, <span class="hljs-number">0</span>);<br></code></pre></td></tr></table></figure>
+<p>实际输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">binary prefix 01 02 matched: 01 02 aa<br>binary prefix 01 03 rejected: Timed out<br></code></pre></td></tr></table></figure>
 
-<p>这段只是摘出角色设置，完整附件检查了返回值、设置收发超时并释放接收缓冲区。<code>NNG_FLAG_ALLOC</code> 接收的是指定长度的消息，不保证末尾有 NUL，所以示例按实际长度打印，并使用 <code>nng_free</code> 配对释放。</p>
-<h2 id="组合-PIPELINE-与-PUB-SUB"><a href="#组合-PIPELINE-与-PUB-SUB" class="headerlink" title="组合 PIPELINE 与 PUB/SUB"></a>组合 PIPELINE 与 PUB/SUB</h2><p>原笔记里的 PULL → PUB 转发方案仍然有用：多个生产者向一个汇聚节点 PUSH，汇聚节点用 PULL 接收后，再从 PUB 发给订阅者。</p>
-<p>这里新增的是一个应用级转发节点，需要自己决定队列上限、慢消费者处理、重连后状态恢复以及关闭时如何收尾。它不会自动获得 MQTT 的 retained message 或持久 session。</p>
-<p>NNG SUB 通常按消息开头的字节前缀过滤，也不是 MQTT 的 <code>/</code> 层级和 <code>+/#</code> 规则。例如自定义消息以 <code>temperature/</code> 开头时，双方必须约定这个编码；如果把长度、类型或二进制头放在前面，过滤位置也随之改变。</p>
-<h2 id="数据传输：先把消息归属画清楚"><a href="#数据传输：先把消息归属画清楚" class="headerlink" title="数据传输：先把消息归属画清楚"></a>数据传输：先把消息归属画清楚</h2><p>使用 <code>nng_sendmsg</code> 时，最容易出错的是调用成功之后又去释放或修改同一条消息。</p>
-<p><img src="/mdimg/notes-2026/nng-ownership.svg" srcset="/img/loading.gif" lazyload alt="NNG 消息所有权从应用到库的转移，以及失败路径的清理"></p>
-<p>同步 <code>nng_sendmsg</code> 成功后，消息由库接管；失败则仍由调用者处理。对于接收得到的消息，应用最终应释放它，或者通过一次成功的消息发送把它交给库。<a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.10.0/nng_sendmsg.3.html">nng_sendmsg 接口文档</a>是核对这些规则的依据。</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-type">int</span> rv = nng_sendmsg(sock, msg, <span class="hljs-number">0</span>);<br><span class="hljs-keyword">if</span> (rv != <span class="hljs-number">0</span>) &#123;<br>    nng_msg_free(msg);  <span class="hljs-comment">/* 失败，调用者仍负责它 */</span><br>    msg = <span class="hljs-literal">NULL</span>;<br>    <span class="hljs-comment">/* 记录错误或构造新的重试消息 */</span><br>&#125; <span class="hljs-keyword">else</span> &#123;<br>    msg = <span class="hljs-literal">NULL</span>;        <span class="hljs-comment">/* 成功，不能再访问原消息 */</span><br>&#125;<br></code></pre></td></tr></table></figure>
+<p>源码 <a target="_blank" rel="noopener" href="https://github.com/nanomsg/nng/blob/v1.7.2/src/sp/protocol/pubsub0/sub.c#L293-L309"><code>sub0_matches</code></a>就是长度检查加 <code>memcmp(topic, body, topic_len)</code>。</p>
+<p>字符串接口有一个坑：1.7.2 手册说明 <code>nng_socket_set_string</code>/旧名 <code>nng_setopt_string</code> 会把结尾 <code>NUL</code> 算进 topic。订阅字符串 <code>&quot;sensor/&quot;</code> 实际前缀可能是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">73 65 6e 73 6f 72 2f 00<br></code></pre></td></tr></table></figure>
 
-<p>这里释放失败消息只是一个选择；如果准备重试，可以保留它，但必须避免其他线程同时修改。真正危险的是把同步与异步接口的成功时刻混用。</p>
-<h2 id="AIO：提交、完成、停止是三个阶段"><a href="#AIO：提交、完成、停止是三个阶段" class="headerlink" title="AIO：提交、完成、停止是三个阶段"></a>AIO：提交、完成、停止是三个阶段</h2><p>异步 API 提交之后，结果由完成回调或 <code>nng_aio_wait</code> 等等待方式取得。此时不能把“提交函数已经返回”当作 I/O 已完成，也不能立即重用还在进行中的 <code>nng_aio</code>。</p>
-<p>原笔记列出的 <code>INIT_RECV</code>、<code>RECV_RET_SEND</code> 等枚举，更适合被理解为应用自己定义的工作状态。它们不能替代库的完成结果。</p>
-<p>一个 REP 工作者可以按下面的状态组织：</p>
-<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">提交 receive<br>  -&gt; 完成：检查 nng_aio_result<br>  -&gt; 取出消息，解析并生成响应<br>  -&gt; 提交 send<br>  -&gt; 完成：检查结果，处理成功/失败时的消息归属<br>  -&gt; 再提交 receive<br></code></pre></td></tr></table></figure>
+<p>而 body <code>&quot;sensor/temp&quot;</code> 的第八字节是 <code>t</code>，自然不匹配。想订阅可见字符前缀，应使用通用 byte-array setter 和 <code>strlen(topic)</code>。</p>
+<p>SUB 自己也有队列丢弃策略。<code>NNG_OPT_SUB_PREFNEW=true</code> 是默认值，队列满时移除最旧消息以容纳新消息；设为 false 则拒绝新消息。对应实现可见 <a target="_blank" rel="noopener" href="https://github.com/nanomsg/nng/blob/v1.7.2/src/sp/protocol/pubsub0/sub.c#L311-L407"><code>sub0_recv_cb</code></a>。</p>
+<p>取消一个订阅后，1.7.2 还会重新扫描该 context 已排队的消息，清掉不再匹配剩余 topic 的项；见 <a target="_blank" rel="noopener" href="https://github.com/nanomsg/nng/blob/v1.7.2/src/sp/protocol/pubsub0/sub.c#L491-L535"><code>sub0_ctx_unsubscribe</code></a>。</p>
+<h2 id="队列与背压要画到具体一层"><a href="#队列与背压要画到具体一层" class="headerlink" title="队列与背压要画到具体一层"></a>队列与背压要画到具体一层</h2><p>“NNG 有队列”信息量很低。至少要说明是哪一层：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">application jobs<br>    -&gt; protocol socket/context queue<br>    -&gt; per-pipe protocol queue<br>    -&gt; transport / kernel buffers<br>    -&gt; peer protocol receive queue<br>    -&gt; peer application<br></code></pre></td></tr></table></figure>
 
-<p>错误路径至少要分清：超时、取消、socket 关闭、消息过大和协议状态不匹配。关闭对象时，应先协调停止新的提交，再等待相关异步操作和回调结束，最后释放 AIO 与工作状态；不要在回调可能继续访问对象时先释放它。具体生命周期可对照 <a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.10.0/nng_aio_stop.3.html">nng_aio_stop</a> 与 <a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.10.0/nng_aio_free.3.html">nng_aio_free</a>。</p>
-<h2 id="回头读源码时看哪些地方"><a href="#回头读源码时看哪些地方" class="headerlink" title="回头读源码时看哪些地方"></a>回头读源码时看哪些地方</h2><p>原来直接记函数调用链，换版本后很容易失效。更稳妥的阅读顺序是：</p>
-<ol>
-<li>从公开头文件确定参数、返回值和所有权约定。</li>
-<li>找对应协议的 socket/context 状态，确认允许的操作顺序。</li>
-<li>跟进发送、接收队列，观察什么时候排队、取消、完成。</li>
-<li>再看 transport 如何建立 pipe，以及断开连接怎样反馈。</li>
-</ol>
-<p>公开的 <code>nng_socket</code> 是 opaque handle，不应靠猜测其内部是一个指针来设计自己的代码。阅读内部 <code>nni_*</code> 实现时也要固定版本；它们不是应用应依赖的稳定 API。</p>
-<h2 id="调试时留下哪些证据"><a href="#调试时留下哪些证据" class="headerlink" title="调试时留下哪些证据"></a>调试时留下哪些证据</h2><p>收发日志至少记录业务请求 ID、协议角色、endpoint URL、消息长度、返回码与耗时。协议返回“超时”时，继续检查对端是否收到、是否已经处理、回复是否产生，再决定如何重试。</p>
-<p>这能区分几类看起来相同的问题：连错 URL，SUB 前缀不匹配，REQ 状态错误，应用处理太慢，或者在发送完成之前就关闭了连接。单凭一句“NNG 没收到”很难继续排查。</p>
+<p>每层的“成功”只说明它把责任交给了下一层。</p>
+<p>队列深度通常按消息数计算，不按总字节数。若消息从 100 B 到 5 MB 都可能出现，<code>SENDBUF=100</code> 不能直接推导出内存上限。生产环境还要限制单消息大小 <code>NNG_OPT_RECVMAXSZ</code>，并把应用队列计入预算。</p>
+<p>PUSH 的背压能把压力传回发送调用，但 PUB 为了不让慢订阅者拖住发布者，会选择丢消息。二者没有一个统一的“可靠等级”数字，必须从协议路径判断。</p>
+<h2 id="四类时间不能混成一个-timeout"><a href="#四类时间不能混成一个-timeout" class="headerlink" title="四类时间不能混成一个 timeout"></a>四类时间不能混成一个 timeout</h2><h3 id="1-send-timeout"><a href="#1-send-timeout" class="headerlink" title="1. send timeout"></a>1. send timeout</h3><p><code>NNG_OPT_SENDTIMEO</code> 限制本地 send 等待 socket/context 接受消息的时间。它不等待远端应用处理。</p>
+<p>对 <code>SENDBUF=0</code> 的 PUSH，它常表现为等待可用 PULL；对 best-effort PUB，send 本来就不会等待订阅者确认。</p>
+<h3 id="2-receive-timeout"><a href="#2-receive-timeout" class="headerlink" title="2. receive timeout"></a>2. receive timeout</h3><p><code>NNG_OPT_RECVTIMEO</code> 限制一次本地 receive。REQ receive 超时会结束本次等待；下一次业务尝试应重新 send，而不是在已经被取消的状态上无限 receive。</p>
+<p>源码 <a target="_blank" rel="noopener" href="https://github.com/nanomsg/nng/blob/v1.7.2/src/sp/protocol/reqrep0/req.c#L559-L599"><code>req0_ctx_cancel_recv</code></a>明确把取消 pending receive 当成终止整个 context 状态机，并清理 request。</p>
+<h3 id="3-REQ-resend-time"><a href="#3-REQ-resend-time" class="headerlink" title="3. REQ resend time"></a>3. REQ resend time</h3><p><code>NNG_OPT_REQ_RESENDTIME</code> 是协议内部在等待同一逻辑 reply 时的重发周期。它不是调用方的总 deadline。</p>
+<p>总 deadline 为 2 秒、resend 为 500 ms 时，一个调用可能在截止前发出多份请求。业务必须按同一幂等键识别它们。</p>
+<h3 id="4-dialer-reconnect-time"><a href="#4-dialer-reconnect-time" class="headerlink" title="4. dialer reconnect time"></a>4. dialer reconnect time</h3><p><code>NNG_OPT_RECONNMINT</code> 与 <code>NNG_OPT_RECONNMAXT</code> 控制失败连接的重试间隔。max 非 0 时，间隔从 min 指数增长直到 max；max 为 0 时固定使用 min。<a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.7.2/nng_options.5.html"><code>nng_options(5)</code></a>给出了这两个选项的范围。</p>
+<p>默认同步 <code>nng_dial()</code> 的首次连接若立即失败，会把错误返回给调用者，不自动安排首次失败后的重试。使用 <code>NNG_FLAG_NONBLOCK</code> 时，首次拨号异步进行，失败会在后台重试。</p>
+<p>一旦 dialer 曾经连通，pipe 后来断开，则即使最初是同步 dial，dialer 也会异步重连。<a target="_blank" rel="noopener" href="https://nng.nanomsg.org/man/v1.7.2/nng_dialer_start.3.html"><code>nng_dialer_start(3)</code></a>区分了这两个阶段。</p>
+<p>因此，启动成功、发送被接受、协议重发和业务 deadline 应分别记录。只打一条“timeout”日志，很难知道是哪层计时器触发。</p>
+<h2 id="排查时留下能关联的证据"><a href="#排查时留下能关联的证据" class="headerlink" title="排查时留下能关联的证据"></a>排查时留下能关联的证据</h2><p>每笔业务请求至少记录稳定的 <code>op_id</code>、context/worker、endpoint、操作名、消息长度、NNG 数值错误码与 <code>nng_strerror()</code>、耗时和绝对 deadline。能取得 pipe ID 时一并记录，断线重建后就能分辨新旧连接。</p>
+<p>看到 <code>ETIMEDOUT</code>，先确认来自 send、receive 还是业务 deadline；看到 send 0，再看协议是 PUSH、PUB 还是 REQ。异步崩溃则检查 callback 是否重提操作、AIO 是否仍挂着 message，以及 owner 是否早于全部 AIO stop 被释放。</p>
+<h2 id="复现实验"><a href="#复现实验" class="headerlink" title="复现实验"></a>复现实验</h2><p>Ubuntu/Debian 已安装 1.7.2 开发包时：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">mkdir</span> nng-lab &amp;&amp; <span class="hljs-built_in">cd</span> nng-lab<br><span class="hljs-comment"># 下载本页实验附件</span><br>NNG_PREFIX=/usr bash run_nng_labs.sh<br></code></pre></td></tr></table></figure>
+
+<p>自定义 <code>NNG_PREFIX</code> 需要包含 <code>include/nng</code> 与 <code>lib</code>；可用 <code>NNG_BUILD_DIR=&quot;$PWD/build&quot;</code> 改变产物目录。脚本也会把前缀的 lib 目录加入 <code>LD_LIBRARY_PATH</code>，供独立包树中的 NNG 与 TLS 依赖加载。</p>
+<p>端口 <code>18891</code> 用于角色反转例子，<code>18892</code> 用于并发例子，都只监听 <code>127.0.0.1</code>。若端口被占用，修改源码中的常量后重新编译即可。</p>
 
                 
               </div>

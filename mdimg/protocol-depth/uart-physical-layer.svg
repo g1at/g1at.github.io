@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 620" role="img" aria-labelledby="title desc">
+  <title id="title">UART 逻辑帧与三种常见电气接口的边界</title>
+  <desc id="desc">MCU UART 先产生逻辑比特，再经不同收发器变为 CMOS 单端、RS-232 单端或 RS-485 差分信号。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" fill="#2563eb"/></marker>
+    <style>
+      text{font-family:Inter,"Noto Sans SC","Microsoft YaHei",sans-serif;fill:#172033}
+      .title{font-size:30px;font-weight:700}.sub{font-size:16px;fill:#5f6b7a}.h{font-size:20px;font-weight:700}.p{font-size:16px}.tiny{font-size:14px;fill:#5f6b7a}.mono{font:600 15px Consolas,monospace}
+    </style>
+  </defs>
+  <rect width="960" height="620" fill="#fff"/>
+  <text x="48" y="52" class="title">UART 负责比特时序，收发器负责线上电气</text>
+  <text x="48" y="80" class="sub">“串口”是接口家族的俗称；连接之前必须同时确认逻辑层与物理层。</text>
+
+  <rect x="55" y="130" width="220" height="175" rx="14" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <rect x="55" y="130" width="7" height="175" rx="3" fill="#2563eb"/>
+  <text x="82" y="170" class="h">MCU UART 外设</text>
+  <text x="82" y="205" class="p">Start / Data / Parity / Stop</text>
+  <text x="82" y="235" class="p">TXD、RXD：逻辑 0 / 1</text>
+  <text x="82" y="265" class="p">示例 I/O：0 V / 3.3 V</text>
+  <text x="82" y="292" class="tiny">具体阈值查 MCU 数据手册</text>
+
+  <line x1="275" y1="217" x2="350" y2="217" stroke="#2563eb" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="312" y="201" text-anchor="middle" class="tiny">逻辑 TXD</text>
+
+  <rect x="350" y="120" width="245" height="195" rx="14" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <rect x="350" y="120" width="7" height="195" rx="3" fill="#7c3aed"/>
+  <text x="377" y="160" class="h">可选的线路收发器</text>
+  <text x="377" y="197" class="p">电平转换 / 反相</text>
+  <text x="377" y="227" class="p">差分驱动 / 三态控制</text>
+  <text x="377" y="257" class="p">ESD、共模与隔离能力</text>
+  <text x="377" y="289" class="tiny">能力与保护范围以具体型号为准</text>
+
+  <line x1="595" y1="217" x2="670" y2="217" stroke="#2563eb" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="632" y="201" text-anchor="middle" class="tiny">线缆侧</text>
+
+  <rect x="670" y="105" width="235" height="105" rx="13" fill="#ecfdf5" stroke="#16845b" stroke-width="2"/>
+  <text x="694" y="140" class="h">逻辑电平 UART</text>
+  <text x="694" y="171" class="p">单端 TX / RX / GND</text>
+  <text x="694" y="195" class="tiny">1.8 / 3.3 / 5 V 并不互相等价</text>
+
+  <rect x="670" y="230" width="235" height="105" rx="13" fill="#fff7ed" stroke="#b96800" stroke-width="2"/>
+  <text x="694" y="265" class="h">RS-232</text>
+  <text x="694" y="296" class="p">单端、正负电压、通常反相</text>
+  <text x="694" y="320" class="tiny">必须经过相应 driver / receiver</text>
+
+  <rect x="670" y="345" width="235" height="155" rx="13" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="694" y="380" class="h">RS-485</text>
+  <text x="694" y="411" class="p">A/B 差分、可多点</text>
+  <text x="694" y="438" class="p">半双工需控制 DE</text>
+  <text x="694" y="465" class="p">还要处理终端、偏置与拓扑</text>
+  <text x="694" y="490" class="tiny">A/B 极性仍需核对器件文档</text>
+
+  <rect x="65" y="385" width="520" height="120" rx="14" fill="#fff1f2" stroke="#c2413c" stroke-width="2"/>
+  <text x="90" y="425" class="h" fill="#c2413c">不能直接互接的典型情况</text>
+  <text x="90" y="461" class="p">MCU RXD ← RS-232 正负电压：可能损坏输入，且逻辑反相</text>
+  <text x="90" y="491" class="p">MCU TXD → RS-485 A/B：缺少差分驱动与总线方向控制</text>
+
+  <rect x="155" y="545" width="650" height="45" rx="22" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="480" y="574" text-anchor="middle" class="p">先查原理图与收发器型号，再设置 baud / data / parity / stop。</text>
+</svg>

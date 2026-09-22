@@ -16,16 +16,16 @@
   <meta name="author" content="g0at">
   <meta name="keywords" content="">
   
-    <meta name="description" content="沿输入、身份检查和敏感操作追踪 Android 组件、WebView、网络与文件安全问题。">
+    <meta name="description" content="从外部入口追到敏感操作，系统梳理 Android 组件、Provider、WebView、网络、升级、加密与文件解压的审计和修复验证。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Android APP常见安全漏洞">
 <meta property="og:url" content="https://g1at.github.io/2024/02/18/Android-App-Security-Vulnerabilities/index.html">
 <meta property="og:site_name" content="g0at&#39;s Blog">
-<meta property="og:description" content="沿输入、身份检查和敏感操作追踪 Android 组件、WebView、网络与文件安全问题。">
+<meta property="og:description" content="从外部入口追到敏感操作，系统梳理 Android 组件、Provider、WebView、网络、升级、加密与文件解压的审计和修复验证。">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="https://g1at.github.io/mdimg/Drozer/92916.png">
 <meta property="article:published_time" content="2024-02-18T08:12:27.000Z">
-<meta property="article:modified_time" content="2026-09-22T09:38:47.000Z">
+<meta property="article:modified_time" content="2026-09-22T10:20:33.000Z">
 <meta property="article:author" content="g0at">
 <meta property="article:tag" content="IoV">
 <meta property="article:tag" content="Android">
@@ -259,7 +259,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          6.8k 字
+          29k 字
         
       </span>
     
@@ -270,7 +270,7 @@
         
         
         
-          57 分钟
+          245 分钟
         
       </span>
     
@@ -320,190 +320,720 @@
             
               <div class="markdown-body">
                 
-                <p>Android 安全笔记如果只列漏洞名，很容易变成一张越来越长的清单。实际审计时更有用的是沿着一条输入往下追：谁能提供它，经过什么权限检查，最后触发了什么操作。</p>
-<p>下面从四大组件、网络、WebView、数据存储和 ZIP 解压几个方向追踪输入边界，并补上版本条件、代码审查位置与验证方法。文中的 Java/XML 用于解释边界，不是一套已经在所有系统版本上跑过的完整 App；实际测试应同时记录 Android 版本、<code>targetSdkVersion</code>、WebView 版本和 APK 构建类型。</p>
-<h2 id="概述：从入口跟到敏感操作"><a href="#概述：从入口跟到敏感操作" class="headerlink" title="概述：从入口跟到敏感操作"></a>概述：从入口跟到敏感操作</h2><p><img src="/mdimg/notes-2026/android-boundaries.svg" srcset="/img/loading.gif" lazyload alt="Android 外部输入经过组件、业务判断，到文件、网络和系统操作的路径"></p>
-<p>导出组件、URL、文件名、JSON 字段都是输入入口。风险是否成立，要看这条路径能否跨过原本应该存在的限制。例如导出 Activity 可能只是合法分享入口，也可能绕过首页登录直接进入敏感操作；这需要继续读代码和验证行为。</p>
+                <p>这篇笔记最初写于 2024 年，当时主要按漏洞类型整理。漏洞名可以帮助查漏，但真正落到一个 APK 上，还是要回答五个问题：<strong>入口在哪里、谁能调用、输入经过了什么检查、最后触发什么敏感操作、修复后怎样证明合法功能和拒绝路径都正确</strong>。</p>
+<p>旧文里的案例、命令、四张配图和漏洞分类都保留了下来；涉及旧 Android/WebView 行为的地方加上版本条件，不再把历史默认值直接套到新项目。本文自写的 Kotlin、Java 和 XML 都是用于讲清边界的教学片段，本次没有构建 APK，也没有在 Android 真机或模拟器上运行。文末的 Python 实验是在本机实际执行的，它只验证 URL、SQLite、ZIP 与防重放模型，不代替 Android 框架测试。</p>
+<h2 id="概述：先把输入画出来"><a href="#概述：先把输入画出来" class="headerlink" title="概述：先把输入画出来"></a>概述：先把输入画出来</h2><p>旧文用下面这张脑图列出了组件、网络、WebView、数据存储和动态加载等攻击面。它仍然适合做目录，但其中“默认设置”和“防护方式”要结合系统版本、<code>targetSdkVersion</code>、WebView 版本以及最终 APK 重新判断。</p>
+<p><img src="/mdimg/protocol-depth/android-original-architecture.png" srcset="/img/loading.gif" lazyload alt="旧文中的 Android App 常见安全漏洞脑图"></p>
+<blockquote>
+<p>旧文配图已本地化保存；<a target="_blank" rel="noopener" href="https://p.sda1.dev/16/eb2ba5b35945e4a672cf3248296a7b20/12.png">原图地址</a>仍保留作出处记录。</p>
+</blockquote>
+<p>原文归纳的五个入口没有变：</p>
+<ol>
+<li><strong>通信协议</strong>：本地 IPC、网络协议及其 C/C++ 解析代码，既可能有状态机逻辑错误，也可能出现越界读写、拒绝服务甚至代码执行。</li>
+<li><strong>四大组件</strong>：Activity、Service、BroadcastReceiver、ContentProvider 通过 Intent、Binder 或 URI 接收外部输入，常见问题是未授权调用、数据泄露和畸形输入导致崩溃。</li>
+<li><strong>开放端口</strong>：应用监听 TCP、UDP 或 Unix socket，却没有调用者认证、消息完整性和资源限制。</li>
+<li><strong>IPC</strong>：Binder 调用者身份、URI grant、PendingIntent 等能力一旦在错误的时机被放大，就可能越过组件本身的导出限制。</li>
+<li><strong>文件和数据</strong>：日志、外部存储、备份、数据库、压缩包、密钥与网络传输都可能让敏感数据离开预期边界。</li>
+</ol>
+<p><img src="/mdimg/protocol-depth/android-boundaries.svg" srcset="/img/loading.gif" lazyload alt="Android 外部输入经过组件、业务判断，到文件、网络和系统操作的路径"></p>
+<p>审计时我会先画一条最短数据流：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">可控输入 → Android 入口 → 身份/权限 → 参数与状态 → 敏感 sink → 可观察结果<br></code></pre></td></tr></table></figure>
+
+<p>例如“Activity 已导出”只是入口事实。若它只展示公开帮助页，风险可能很低；若它接受 <code>orderId</code> 后直接退款，且没有重新检查登录用户与订单归属，才形成可复现的越权。</p>
 <table>
 <thead>
 <tr>
-<th>入口</th>
-<th>优先追踪的数据</th>
-<th>可能到达的位置</th>
+<th>层次</th>
+<th>要留下的证据</th>
+<th>常见误判</th>
 </tr>
 </thead>
 <tbody><tr>
-<td>Activity / Deep Link</td>
-<td>URI、extras、嵌套 Intent</td>
-<td>页面、支付或账户操作、WebView</td>
+<td>入口</td>
+<td>合并后的 Manifest、动态注册代码、Deep Link、监听地址</td>
+<td>只看源码中的一个 Manifest</td>
 </tr>
 <tr>
-<td>Service / Binder</td>
-<td>方法参数、调用 UID</td>
-<td>文件操作、设备能力、后台任务</td>
+<td>身份</td>
+<td>Binder UID、组件权限、URI grant、服务端会话</td>
+<td>信任 extras 中自报的包名或 userId</td>
 </tr>
 <tr>
-<td>Provider</td>
-<td>URI、projection、selection、文件模式</td>
-<td>数据库、私有文件</td>
+<td>参数</td>
+<td>类型、长度、允许集合、解析器结果</td>
+<td><code>try-catch</code> 后继续执行；只做黑名单</td>
 </tr>
 <tr>
-<td>Receiver</td>
-<td>action、extras、发送方条件</td>
-<td>状态修改、任务触发</td>
+<td>业务授权</td>
+<td>对象归属、当前状态、动作范围</td>
+<td>有 HTTPS 或随机 ID 就认为不会越权</td>
 </tr>
 <tr>
-<td>网络 / 本地端口</td>
-<td>请求身份、消息格式、资源 ID</td>
-<td>业务数据、命令处理</td>
+<td>sink</td>
+<td>SQL、文件、WebView、Intent 转发、设备控制、升级安装</td>
+<td>找到危险 API 就直接报漏洞</td>
+</tr>
+<tr>
+<td>结果</td>
+<td>未授权读写、崩溃、文件落点、网络请求、系统状态</td>
+<td>只展示命令返回成功</td>
 </tr>
 </tbody></table>
-<h2 id="先把版本条件写清楚"><a href="#先把版本条件写清楚" class="headerlink" title="先把版本条件写清楚"></a>先把版本条件写清楚</h2><p><img src="/mdimg/notes-2026/android-versions.svg" srcset="/img/loading.gif" lazyload alt="Android 关键行为的版本条件：导出声明、广播标志与 WebView 文件访问"></p>
+<h2 id="版本条件：默认值不是常量"><a href="#版本条件：默认值不是常量" class="headerlink" title="版本条件：默认值不是常量"></a>版本条件：默认值不是常量</h2><p><img src="/mdimg/protocol-depth/android-versions.svg" srcset="/img/loading.gif" lazyload alt="Android 关键行为的版本条件"></p>
+<p>下面只列本文会用到的边界。这里的“必须”来自平台要求；“建议显式配置”是工程做法，两者不要混在一起。</p>
 <table>
 <thead>
 <tr>
-<th>检查点</th>
-<th>需要记录的条件</th>
+<th>行为</th>
+<th>版本条件</th>
+<th>审计含义</th>
 </tr>
 </thead>
 <tbody><tr>
-<td>Manifest 组件导出</td>
-<td>Android 12 上，target 31+ 且带 intent-filter 的 Activity、Service、Receiver 需要显式声明 <code>android:exported</code></td>
+<td>带 <code>intent-filter</code> 的 Activity、Service、Receiver</td>
+<td>应用 target 31+ 时必须显式声明 <code>android:exported</code>，否则 Android 12+ 上不能正常安装</td>
+<td>仍要看合并后的 Manifest；Provider 不属于这条安装要求，但也应显式声明</td>
 </tr>
 <tr>
-<td>动态 Receiver</td>
-<td>Android 14 上，target 34+ 的相关注册需要声明 EXPORTED/NOT_EXPORTED；仅接收系统广播有例外</td>
+<td><code>PendingIntent</code> 可变性</td>
+<td>target 31+ 必须给出 <code>FLAG_IMMUTABLE</code> 或 <code>FLAG_MUTABLE</code></td>
+<td>大多数场景选 immutable；确需可变时限制目标和可填字段</td>
 </tr>
 <tr>
-<td>WebView 文件访问默认值</td>
-<td><code>setAllowFileAccess</code> 的默认值与 target SDK 有关，target 30+ 为 false，较低 target 为 true</td>
+<td>动态 Receiver 导出标志</td>
+<td><code>RECEIVER_EXPORTED/NOT_EXPORTED</code> 在 API 33 引入；target 34+ 注册非纯系统广播时必须选择其一</td>
+<td>旧文“动态注册默认导出”不能当成现代统一结论</td>
 </tr>
 <tr>
-<td>网络信任与明文策略</td>
-<td>同时检查 target SDK、Network Security Config 和具体网络库是否遵守相应策略</td>
+<td>WebView <code>allowFileAccess</code></td>
+<td>target 29 及以下默认 <code>true</code>，target 30+ 默认 <code>false</code></td>
+<td>查显式调用和 target，不凭经验猜默认值</td>
 </tr>
 <tr>
-<td>备份</td>
-<td>区分云备份、设备间迁移、旧 adb backup 流程，检查所用系统与备份规则</td>
+<td>file URL 跨域开关</td>
+<td>target 15 及以下默认 <code>true</code>，target 16+ 默认 <code>false</code>；相关 setter 在 API 30 弃用</td>
+<td>新代码优先 <code>WebViewAssetLoader</code>，旧代码仍要审计残留开关</td>
+</tr>
+<tr>
+<td>明文网络</td>
+<td>Network Security Config 对 target 28+ 的平台默认是禁止明文</td>
+<td>自定义网络库、native 代码和显式放行仍需单独验证</td>
+</tr>
+<tr>
+<td><code>adb backup</code></td>
+<td>target 31+ 的应用数据默认不会被 <code>adb backup</code> 导出；云备份与设备迁移另有规则</td>
+<td>不能再用一条旧命令概括全部备份面</td>
+</tr>
+<tr>
+<td>Intent 重定向</td>
+<td>Android 16 增加默认加固</td>
+<td>仍需限制嵌套 Intent 的目标、flags 和 URI grant；不能依赖新系统替应用做业务授权</td>
 </tr>
 </tbody></table>
-<p>这些是定位常见旧笔记问题的边界，不是完整 Android 行为变更表。对应说明分别见 <a target="_blank" rel="noopener" href="https://developer.android.com/about/versions/12/behavior-changes-12#exported">Android 12</a>、<a target="_blank" rel="noopener" href="https://developer.android.com/about/versions/14/behavior-changes-14#runtime-receivers">Android 14</a>、<a target="_blank" rel="noopener" href="https://developer.android.com/reference/android/webkit/WebSettings">WebSettings</a>。旧版本漏洞仍有研究价值，但需要注明其成立环境。</p>
-<h2 id="四大组件"><a href="#四大组件" class="headerlink" title="四大组件"></a>四大组件</h2><h3 id="Activity：能打开页面之后，还能做什么"><a href="#Activity：能打开页面之后，还能做什么" class="headerlink" title="Activity：能打开页面之后，还能做什么"></a>Activity：能打开页面之后，还能做什么</h3><p>先看合并后的 Manifest，而不是只看源码里某一个 manifest 文件。记录 exported、permission、intent-filter、deep link 与任务栈相关配置，再跟进 <code>onCreate</code>、<code>onNewIntent</code> 以及最终的业务动作。</p>
-<p>最小验证过程可以是：在测试 App 的未登录状态下，用外部调用者打开目标组件，观察是否仍检查会话、能否读到数据、能否完成敏感操作。只显示一个空白 Activity，与实际读取别人的订单，是不同的影响。</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">adb shell am start -W -n com.example.notes/.ReportActivity<br></code></pre></td></tr></table></figure>
+<p>相关平台边界可对照 <a target="_blank" rel="noopener" href="https://developer.android.com/about/versions/12/behavior-changes-12#exported">Android 12 行为变更</a>、<a target="_blank" rel="noopener" href="https://developer.android.com/about/versions/14/behavior-changes-14#runtime-receivers">Android 14 动态 Receiver 变更</a>、<a target="_blank" rel="noopener" href="https://developer.android.com/reference/android/content/Context#registerReceiver(android.content.BroadcastReceiver,%20android.content.IntentFilter,%20int)"><code>Context.registerReceiver</code></a> 和 <a target="_blank" rel="noopener" href="https://developer.android.com/reference/android/webkit/WebSettings"><code>WebSettings</code></a>。</p>
+<p>一次有效复现至少记录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">APK SHA-256 / versionName / versionCode<br>设备 Android 版本 / API level / 安全补丁级别<br>minSdk / targetSdk / compileSdk（能取得时）<br>WebView provider 与版本<br>构建类型、是否 debuggable、Network Security Config<br>调用者身份（普通第三方 App、adb shell、root、系统 App）<br></code></pre></td></tr></table></figure>
 
-<p>这是参数形式示例，包名和组件要换成测试应用实际声明的值。<code>adb shell</code> 的身份不等于普通第三方 App，命令成功只是一个观察；涉及调用者权限差异时，还要从普通 App/Agent 的身份复测。</p>
-<p>内部页面通常设为 <code>exported=&quot;false&quot;</code>。同签名合作应用需要访问时，可以使用 signature 级自定义权限，例如：</p>
-<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">permission</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:name</span>=<span class="hljs-string">&quot;com.example.notes.ACCESS_REPORTS&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:protectionLevel</span>=<span class="hljs-string">&quot;signature&quot;</span> /&gt;</span><br><br><span class="hljs-comment">&lt;!-- application 内的组件声明 --&gt;</span><br><span class="hljs-tag">&lt;<span class="hljs-name">activity</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:name</span>=<span class="hljs-string">&quot;.ReportActivity&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:exported</span>=<span class="hljs-string">&quot;true&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:permission</span>=<span class="hljs-string">&quot;com.example.notes.ACCESS_REPORTS&quot;</span> /&gt;</span><br></code></pre></td></tr></table></figure>
+<h2 id="四大组件"><a href="#四大组件" class="headerlink" title="四大组件"></a>四大组件</h2><p>四大组件的问题经常和 <code>android:exported=&quot;true&quot;</code> 同时出现，但导出只是“可到达”。组件权限、调用者身份、业务会话、对象归属和参数校验共同决定它能不能被利用。</p>
+<h3 id="Intent-畸形输入与本地拒绝服务"><a href="#Intent-畸形输入与本地拒绝服务" class="headerlink" title="Intent 畸形输入与本地拒绝服务"></a>Intent 畸形输入与本地拒绝服务</h3><p>旧文列出的典型崩溃包括 <code>NullPointerException</code>、<code>ClassCastException</code>、<code>IndexOutOfBoundsException</code> 和 <code>ClassNotFoundException</code>：攻击者向导出组件发送缺失、类型错误、过长或无法反序列化的 extras，应用在 <code>Intent.getXXXExtra()</code> 之后直接使用，最终崩溃。安全防护、锁屏等 App 若关键进程被反复打崩，影响会比普通页面更大。</p>
+<p>只在最外层写一个 <code>catch (Exception)</code> 不够。异常前可能已经写了一半状态，异常后继续走默认分支也可能触发敏感操作。入口应先完成类型、空值、长度和枚举检查，再修改状态：</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs kotlin"><span class="hljs-comment">// 教学片段：本次未在 Android 设备编译运行</span><br><span class="hljs-keyword">private</span> <span class="hljs-function"><span class="hljs-keyword">fun</span> <span class="hljs-title">parseExportRequest</span><span class="hljs-params">(intent: <span class="hljs-type">Intent</span>)</span></span>: ExportRequest? &#123;<br>    <span class="hljs-keyword">val</span> id = intent.getStringExtra(<span class="hljs-string">&quot;report_id&quot;</span>)<br>        ?.takeIf &#123; it.matches(Regex(<span class="hljs-string">&quot;[A-Za-z0-9_-]&#123;1,64&#125;&quot;</span>)) &#125;<br>        ?: <span class="hljs-keyword">return</span> <span class="hljs-literal">null</span><br><br>    <span class="hljs-keyword">val</span> format = intent.getStringExtra(<span class="hljs-string">&quot;format&quot;</span>)<br>        ?.takeIf &#123; it <span class="hljs-keyword">in</span> setOf(<span class="hljs-string">&quot;pdf&quot;</span>, <span class="hljs-string">&quot;json&quot;</span>) &#125;<br>        ?: <span class="hljs-keyword">return</span> <span class="hljs-literal">null</span><br><br>    <span class="hljs-keyword">return</span> ExportRequest(id, format)<br>&#125;<br></code></pre></td></tr></table></figure>
 
-<p>这段解决谁能调用组件，不替代登录状态和资源权限检查。<code>dangerous</code> 权限也不是“只允许指定合作 App”的同义词。组件权限的具体规则可对照 <a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/risks/access-control-to-exported-components">Android 导出组件访问控制说明</a>。</p>
-<h3 id="Service：线程与权限是两回事"><a href="#Service：线程与权限是两回事" class="headerlink" title="Service：线程与权限是两回事"></a>Service：线程与权限是两回事</h3><p>Service 不自动拥有独立工作线程，也不能简单理解成“一启动就无限后台运行”；后台限制、前台服务规则和组件生命周期都会影响它。</p>
-<p>对导出的 Service，重点看启动路径和绑定路径分别做了什么。Binder 方法应在执行敏感操作时确认调用者身份与权限；不能信任参数里自报的包名，也不能只在 UI 或某次 <code>onCreate</code> 中检查一次。</p>
-<p>如果实现会调用 <code>clearCallingIdentity</code>，要确认权限判断发生在哪个身份下，并配对恢复身份。异步把任务交给其他线程后，再读“当前 Binder 调用者”也可能已经失去原始请求语境，因此要在入口取得并验证必要信息。</p>
-<h3 id="BroadcastReceiver：发送限制与接收限制分别看"><a href="#BroadcastReceiver：发送限制与接收限制分别看" class="headerlink" title="BroadcastReceiver：发送限制与接收限制分别看"></a>BroadcastReceiver：发送限制与接收限制分别看</h3><p>发送敏感广播时，明确接收范围与所需权限；接收外部广播时，验证发送条件、参数与操作授权。只设置一个看起来难猜的 action，并不构成身份认证。</p>
-<p>动态注册不能再统一写成“默认导出”。应按系统和 target SDK 使用相应标志；仅在进程内部传播状态时，可以使用普通回调或合适的可观察状态机制。LocalBroadcastManager 已弃用，旧项目分析时可以识别它，但不再作为新代码的默认建议。<a target="_blank" rel="noopener" href="https://developer.android.com/jetpack/androidx/releases/localbroadcastmanager">弃用说明</a></p>
-<p>接收到空 extras、错误类型或超长字段时，应验证并拒绝不符合格式的输入。大范围 <code>catch (Exception)</code> 然后继续执行，并不能修好状态已经被部分修改的问题。</p>
-<h3 id="Content-Provider：URI-权限、SQL-与文件路径是三道边界"><a href="#Content-Provider：URI-权限、SQL-与文件路径是三道边界" class="headerlink" title="Content Provider：URI 权限、SQL 与文件路径是三道边界"></a>Content Provider：URI 权限、SQL 与文件路径是三道边界</h3><p>检查 exported、readPermission、writePermission、path-permission 和 URI grant。<code>exported=false</code> 不表示所有被授予临时 URI 权限的外部访问都不可能发生；需要看应用是否主动授予了某条 URI 的访问能力。</p>
-<p>查询接口里重点追 <code>projection</code>、<code>selection</code>、<code>selectionArgs</code>、<code>sortOrder</code> 与 URI 路由：</p>
+<p>Parcelable/Serializable 还涉及类加载和对象图大小。对外入口只接收确实需要的简单类型；API 支持时使用带目标类型的读取方法。还要测试超长字符串、大数组、重复 key 与空 Bundle，避免 Binder 事务过大或解析消耗成为另一条拒绝服务路径。</p>
+<h3 id="Activity：从“能打开”追到业务动作"><a href="#Activity：从“能打开”追到业务动作" class="headerlink" title="Activity：从“能打开”追到业务动作"></a>Activity：从“能打开”追到业务动作</h3><h4 id="导出与任务栈钓鱼"><a href="#导出与任务栈钓鱼" class="headerlink" title="导出与任务栈钓鱼"></a>导出与任务栈钓鱼</h4><p>旧文讨论了 Activity 历史栈、AMS 调度和 <code>FLAG_ACTIVITY_NEW_TASK</code>：恶意 App 把伪装登录页或带任意 URL 的 WebView 放到前台，可能造成钓鱼。这个场景应保留，但现代结论不能简化成“加一个 flag 就能任意劫持”。还要结合 <code>taskAffinity</code>、<code>launchMode</code>、<code>allowTaskReparenting</code>、最近任务显示方式、系统版本以及用户实际看到的来源提示复现。</p>
+<p>防护不是简单地在 App 进入后台时弹提示。更可靠的做法是：</p>
 <ul>
-<li>数据值用占位符绑定，例如 <code>owner_id = ? AND _id = ?</code>。</li>
-<li>表名、列名、排序方向通常不能当作普通 SQL 值绑定，要映射到固定允许集合。</li>
-<li>参数化查询解决 SQL 语法注入，不自动解决调用者是否有权读取该行数据。</li>
+<li>内部页面明确 <code>exported=&quot;false&quot;</code>；对外页面只暴露必要功能。</li>
+<li>Deep Link 到达敏感页面后重新检查会话和对象归属，不把“从首页走过一遍”当授权。</li>
+<li>登录、支付、密钥导出等页面显示可核对的账户与动作上下文，切回前台时按风险重新认证。</li>
+<li>WebView Activity 不接受任意 <code>http/file/content/javascript</code> URL。</li>
+<li>审查异常 <code>taskAffinity</code> 和任务栈配置，不把旧系统上的 task hijacking 条件泛化到所有设备。</li>
 </ul>
-<p><code>openFile</code> 路径还要检查模式：只读 URI 是否能被请求为写入，目标是否落在允许目录，以及 URI grant 是否被扩大。可参考 <a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/risks/sql-injection">Android SQL 注入说明</a>。</p>
-<h2 id="默认设置：检查最终生效的配置"><a href="#默认设置：检查最终生效的配置" class="headerlink" title="默认设置：检查最终生效的配置"></a>默认设置：检查最终生效的配置</h2><p><code>debuggable</code>、备份和导出状态应从实际发布 APK 与设备行为确认。构建变体、依赖库 Manifest 合并和 OEM 行为都可能让源码里的意图与结果不同。</p>
-<p>备份尤其不能只写一句 <code>allowBackup=false</code> 就结束。云备份与设备迁移的覆盖范围、<code>dataExtractionRules</code>/旧规则格式、系统版本需要分别记录；敏感凭据是否进入备份与恢复后是否还能被使用，是两个问题。<a target="_blank" rel="noopener" href="https://developer.android.com/identity/data/autobackup">Auto Backup 文档</a>解释了这些条件。</p>
-<h2 id="网络：TLS、身份认证和授权分别验证"><a href="#网络：TLS、身份认证和授权分别验证" class="headerlink" title="网络：TLS、身份认证和授权分别验证"></a>网络：TLS、身份认证和授权分别验证</h2><p>TLS 证书链与主机名校验解决“连到谁、传输是否被篡改”等问题。代码里空实现 <code>checkServerTrusted</code>、总返回 true 的 <code>HostnameVerifier</code>、或者在 <code>onReceivedSslError</code> 中直接 <code>proceed()</code>，都值得沿调用路径确认。</p>
-<p>一般优先使用平台/网络库正确的默认校验，按需要配置可信 CA；调试证书放在调试配置里，避免把“临时抓包方便”的绕过带进 release。WebView 收到 SSL 错误时不应静默忽略并继续加载。<a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/security-config">Network Security Config</a>提供了可声明的配置方式。</p>
-<h3 id="越权必须回到具体对象"><a href="#越权必须回到具体对象" class="headerlink" title="越权必须回到具体对象"></a>越权必须回到具体对象</h3><p><img src="/mdimg/notes-2026/android-authz.svg" srcset="/img/loading.gif" lazyload alt="HTTPS 保护传输，但订单归属仍要由服务端检查"></p>
-<p>用两个测试账户 A、B，各自创建一条对象。携带 A 的凭据请求 B 的对象，分别检查读取、修改、删除、导出等操作。资源 ID 换成随机 UUID 之后，也要执行相同验证。</p>
-<p>服务端查询应把经过认证的用户范围带入授权决策，例如：</p>
-<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> id, title<br><span class="hljs-keyword">FROM</span> reports<br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> :requested_id <span class="hljs-keyword">AND</span> owner_id <span class="hljs-operator">=</span> :authenticated_user_id;<br></code></pre></td></tr></table></figure>
+<p>最小到达性验证可以这样写：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">adb shell am start -W -n com.example.notes/.ReportActivity \<br>  --es report_id B-1007 --es format pdf<br></code></pre></td></tr></table></figure>
 
-<p>其中用户身份来自可信认证上下文，不能直接使用请求体中自报的 <code>user_id</code>。随机 ID 提高猜测难度，HTTPS 保护传输，二者都不能替代对象级授权。<a target="_blank" rel="noopener" href="https://cheatsheetseries.owasp.org/cheatsheets/Insecure_Direct_Object_Reference_Prevention_Cheat_Sheet.html">OWASP IDOR 指南</a></p>
-<h3 id="重放与幂等"><a href="#重放与幂等" class="headerlink" title="重放与幂等"></a>重放与幂等</h3><p>仅加时间戳不能阻止窗口期内重放；签名如果没覆盖方法、路径、正文等关键字段，也可能被移用。根据协议需求，可以结合验证过的时间窗口、一次性 nonce、服务端去重记录和与请求内容绑定的认证。</p>
-<p>幂等键与认证同样不同：前者控制重复执行，后者识别请求主体。检查时关注断网重试、App 重启、跨账户重用相同请求 ID 等情况。</p>
-<h2 id="WebView：从-URL-一直跟到-Native-Bridge"><a href="#WebView：从-URL-一直跟到-Native-Bridge" class="headerlink" title="WebView：从 URL 一直跟到 Native Bridge"></a>WebView：从 URL 一直跟到 Native Bridge</h2><h3 id="配置与默认值"><a href="#配置与默认值" class="headerlink" title="配置与默认值"></a>配置与默认值</h3><table>
+<p>这只能说明 <code>adb shell</code> 身份能够启动它。<code>shell</code> 的权限和普通第三方 App 不相同，涉及权限与 Binder UID 时要用一个最小测试 APK 再调用一次。随后观察未登录状态、其他账户资源 ID、畸形参数以及合法参数分别发生什么。</p>
+<h4 id="显式-Intent、隐式-Intent-与敏感数据"><a href="#显式-Intent、隐式-Intent-与敏感数据" class="headerlink" title="显式 Intent、隐式 Intent 与敏感数据"></a>显式 Intent、隐式 Intent 与敏感数据</h4><p>显式 Intent 直接给出组件名；隐式 Intent 描述 action、data 和 category，由系统匹配能处理它的组件。多个处理者匹配时可能出现选择器。旧文用下面的图说明了隐式 Intent 可能落到其他 App 的公开 Activity：</p>
+<p><img src="/mdimg/protocol-depth/android-original-intent.png" srcset="/img/loading.gif" lazyload alt="隐式 Intent 被其他应用组件匹配的示意图"></p>
+<blockquote>
+<p><a target="_blank" rel="noopener" href="https://p.sda1.dev/16/d767398f9c81da798d2ce518a239d2e9/5.png">原图地址</a>。图里的旧式选择器界面仅作机制示意，实际 UI 随系统版本变化。</p>
+</blockquote>
+<p>对明确合作方发送敏感信息时，优先设置具体 component 或至少 <code>setPackage()</code>，并确认接收方签名/权限模型。系统 chooser 只让用户选处理者，不保证每个候选都可信。能不放进 Intent 的 token、明文凭据和完整个人信息就不要放；确需共享文件时使用窄范围 <code>content://</code> URI grant，并及时撤销。</p>
+<p>接收 Activity 也不能把 <code>getCallingActivity()!=null</code>、Referer 或某个可伪造 extra 当身份认证。对外 Deep Link 的 <code>orderId</code>、<code>redirect</code>、<code>next</code> 之类参数，都要在当前会话下重新解析和授权。<a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/risks/unsafe-use-of-deeplinks">Android Deep Link 风险说明</a>也强调了入口参数与登录/授权检查。</p>
+<h3 id="Service：线程和权限是两回事"><a href="#Service：线程和权限是两回事" class="headerlink" title="Service：线程和权限是两回事"></a>Service：线程和权限是两回事</h3><p>Service 可以由组件启动，也可以通过 <code>bindService()</code> 暴露客户端—服务端接口。旧文中“启动后可无限期后台运行”的描述适用于早期的简化模型；现代 Android 还有后台执行与前台服务限制。Service 默认也运行在应用主线程，长时间网络或文件操作必须自行调度。</p>
+<p>导出的 Service 若没有限制，其他 App 可能启动任务、绑定 Binder、读取返回值或污染内部状态。审计要分别走：</p>
+<ol>
+<li><code>onStartCommand()</code> 收到的 Intent；</li>
+<li><code>onBind()</code> 返回了哪个 Binder；</li>
+<li>每个 Binder 方法在什么时机鉴权；</li>
+<li>是否调用 <code>clearCallingIdentity()</code>；</li>
+<li>是否把任务转给线程池后才尝试读取原始调用者身份。</li>
+</ol>
+<p><img src="/mdimg/protocol-depth/android-component-gate.svg" srcset="/img/loading.gif" lazyload alt="导出组件的调用身份、授权和敏感操作顺序"></p>
+<p>下面的核心是<strong>先在 Binder 调用语境中取 UID 并完成授权</strong>，之后才清理身份或排队：</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><code class="hljs kotlin"><span class="hljs-comment">// 教学片段：本次未在 Android 设备编译运行</span><br><span class="hljs-keyword">override</span> <span class="hljs-function"><span class="hljs-keyword">fun</span> <span class="hljs-title">exportReport</span><span class="hljs-params">(reportId: <span class="hljs-type">String</span>)</span></span>: ParcelFileDescriptor &#123;<br>    <span class="hljs-keyword">val</span> callingUid = Binder.getCallingUid()<br>    context.enforceCallingPermission(<br>        <span class="hljs-string">&quot;com.example.notes.permission.EXPORT_REPORT&quot;</span>,<br>        <span class="hljs-string">&quot;missing export permission&quot;</span><br>    )<br>    require(reportId.matches(Regex(<span class="hljs-string">&quot;[A-Za-z0-9_-]&#123;1,64&#125;&quot;</span>)))<br><br>    <span class="hljs-keyword">val</span> principal = callerDirectory.principalForUid(callingUid)<br>        ?: <span class="hljs-keyword">throw</span> SecurityException(<span class="hljs-string">&quot;unknown caller&quot;</span>)<br>    <span class="hljs-keyword">val</span> report = repository.findOwnedBy(reportId, principal.accountId)<br>        ?: <span class="hljs-keyword">throw</span> SecurityException(<span class="hljs-string">&quot;report not owned by caller&quot;</span>)<br><br>    <span class="hljs-keyword">val</span> token = Binder.clearCallingIdentity()<br>    <span class="hljs-keyword">return</span> <span class="hljs-keyword">try</span> &#123;<br>        exporter.openReadOnly(report)<br>    &#125; <span class="hljs-keyword">finally</span> &#123;<br>        Binder.restoreCallingIdentity(token)<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>不要信任参数里自报的包名。一个 UID 可能对应需要特殊处理的包集合，旧项目还可能使用 shared UID。准确的版本边界是：Manifest 的 <code>android:sharedUserId</code> 在 API 29 弃用；API 33 又引入 <code>android:sharedUserMaxSdkVersion</code>，让应用可以阻止较新系统上的新安装继续加入 shared UID。两者不是同一项变更，历史 App 的既有安装也仍需兼容分析。<a target="_blank" rel="noopener" href="https://developer.android.com/guide/topics/manifest/manifest-element">Manifest <code>&lt;manifest&gt;</code> 元素</a>列出了这两个属性的 API 条件。signature 级自定义权限适合同一签名合作 App：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">permission</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:name</span>=<span class="hljs-string">&quot;com.example.notes.permission.EXPORT_REPORT&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:protectionLevel</span>=<span class="hljs-string">&quot;signature&quot;</span> /&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">service</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:name</span>=<span class="hljs-string">&quot;.ReportExportService&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:exported</span>=<span class="hljs-string">&quot;true&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:permission</span>=<span class="hljs-string">&quot;com.example.notes.permission.EXPORT_REPORT&quot;</span> /&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>旧文示例里的 <code>android:permission:&quot;android.perrmission.SEND SMS&quot;</code> 既有 XML 语法/拼写问题，也把 dangerous 权限和合作方信任混在了一起，因此这里改成完整的 signature 权限声明。组件权限控制调用入口，不替代用户登录和对象授权。<a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/risks/access-control-to-exported-components">导出组件权限控制</a>给出了同一边界的官方说明。</p>
+<h3 id="BroadcastReceiver：发送面和接收面分开看"><a href="#BroadcastReceiver：发送面和接收面分开看" class="headerlink" title="BroadcastReceiver：发送面和接收面分开看"></a>BroadcastReceiver：发送面和接收面分开看</h3><p>广播发送者产生 Intent，系统按显式目标或 <code>IntentFilter</code> 分发给接收者。Manifest 静态注册和 <code>Context.registerReceiver()</code> 动态注册都可能出现两类问题：</p>
+<ul>
+<li><strong>发送不受限</strong>：恶意接收者嗅探敏感 extras，或在有序广播中截断/修改结果。</li>
+<li><strong>接收不受限</strong>：恶意发送者伪造状态、触发任务、传入畸形数据造成崩溃。</li>
+</ul>
+<p>旧文说“动态注册默认导出”，这在现代版本上过于笼统。API 33 引入 <code>RECEIVER_EXPORTED</code>/<code>RECEIVER_NOT_EXPORTED</code>；target 34+ 注册非纯系统广播时必须显式选择。仅在进程内部传播状态时，直接使用回调、Flow/LiveData 等进程内机制。<code>LocalBroadcastManager</code> 已经弃用，因此保留为旧项目识别点，不再推荐给新代码。<a target="_blank" rel="noopener" href="https://developer.android.com/jetpack/androidx/releases/localbroadcastmanager">弃用说明</a></p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs kotlin"><span class="hljs-comment">// 教学片段：API/AndroidX 调用需按项目 minSdk 适配</span><br>ContextCompat.registerReceiver(<br>    context,<br>    syncReceiver,<br>    IntentFilter(ACTION_SYNC_FINISHED),<br>    ContextCompat.RECEIVER_NOT_EXPORTED<br>)<br></code></pre></td></tr></table></figure>
+
+<p>需要接收合作 App 广播时，可以要求发送者持有 signature 权限，同时对 action、extras 和业务状态做校验。发送给明确合作方时使用显式 component 或 <code>setPackage()</code>；敏感数据尽量走受权限保护的 Binder/API，而不是全局广播。</p>
+<h3 id="ContentProvider：URI、SQL-与文件是三道门"><a href="#ContentProvider：URI、SQL-与文件是三道门" class="headerlink" title="ContentProvider：URI、SQL 与文件是三道门"></a>ContentProvider：URI、SQL 与文件是三道门</h3><p>ContentProvider 负责跨进程共享结构化数据或文件。旧文示意图准确表达了“调用进程—Provider—数据源”的关系：</p>
+<p><img src="/mdimg/protocol-depth/android-original-provider.png" srcset="/img/loading.gif" lazyload alt="ContentProvider 在进程和数据源之间传递数据"></p>
+<blockquote>
+<p><a target="_blank" rel="noopener" href="https://p.sda1.dev/16/5eee352e2127dded73fdb4516abe0e5d/944365-3c4339c5f1d4a0fd.png">原图地址</a>。</p>
+</blockquote>
+<p>原文列出的三类问题都要保留，并且要分别复现：</p>
+<ol>
+<li><strong>信息泄露</strong>：Provider 导出或 URI grant 过宽，外部调用者能读取敏感行/文件。</li>
+<li><strong>SQL 注入</strong>：调用者控制的 <code>selection</code>、列、排序等被拼进 SQL，越过表或权限边界。</li>
+<li><strong>目录遍历</strong>：<code>openFile()</code> 将 URI 片段直接拼成文件路径，第三方 App 读取或覆盖允许目录之外的文件。</li>
+</ol>
+<p><img src="/mdimg/protocol-depth/android-provider-pipeline.svg" srcset="/img/loading.gif" lazyload alt="ContentProvider 查询和文件接口的完整检查链"></p>
+<h4 id="入口与权限"><a href="#入口与权限" class="headerlink" title="入口与权限"></a>入口与权限</h4><p>先看合并后的 Provider 声明：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">provider</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:name</span>=<span class="hljs-string">&quot;.ReportsProvider&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:authorities</span>=<span class="hljs-string">&quot;com.example.notes.reports&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:exported</span>=<span class="hljs-string">&quot;true&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:readPermission</span>=<span class="hljs-string">&quot;com.example.notes.permission.READ_REPORTS&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:writePermission</span>=<span class="hljs-string">&quot;com.example.notes.permission.WRITE_REPORTS&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:grantUriPermissions</span>=<span class="hljs-string">&quot;false&quot;</span> /&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p><code>readPermission</code> 和 <code>writePermission</code> 应按能力拆开；若只需要临时共享单个文件，通常让内部 Provider 保持不导出，通过精确 URI grant 或 <code>FileProvider</code> 分享更容易收口。还要检查 <code>&lt;path-permission&gt;</code>、<code>grantUriPermissions</code>、<code>FLAG_GRANT_PREFIX_URI_PERMISSION</code>、持久 grant 以及撤销时机。</p>
+<p>旧文提醒“API level 低于 8 时即使写 <code>exported=false</code> 仍可能被访问”。这条保留作历史线索，但现代审计不能从它推出当前设备上 <code>exported=false</code> 无效。实际支持范围应由 APK 的 min/target、Manifest 合并结果和目标设备验证；对现代项目直接显式声明，避免依赖不同年代的默认值。</p>
+<h4 id="SQL：绑定值、限制结构、追加归属"><a href="#SQL：绑定值、限制结构、追加归属" class="headerlink" title="SQL：绑定值、限制结构、追加归属"></a>SQL：绑定值、限制结构、追加归属</h4><p>危险实现通常类似：</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs kotlin"><span class="hljs-comment">// 反例：selection 的 SQL 结构完全由外部调用者决定</span><br>db.rawQuery(<span class="hljs-string">&quot;SELECT * FROM reports WHERE <span class="hljs-variable">$selection</span>&quot;</span>, selectionArgs)<br></code></pre></td></tr></table></figure>
+
+<p>只把 <code>selectionArgs</code> 分开，不代表任意 <code>selection</code> 就安全。对不可信调用者，Provider 自己定义 URI 语义和 WHERE 结构；外部只提供值。列名、表名、排序方向无法作为普通值参数绑定，要映射到允许集合：</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><code class="hljs kotlin"><span class="hljs-comment">// 教学片段：本次未在 Android 设备编译运行</span><br><span class="hljs-keyword">private</span> <span class="hljs-keyword">val</span> allowedProjection = mapOf(<br>    <span class="hljs-string">&quot;_id&quot;</span> to <span class="hljs-string">&quot;_id&quot;</span>,<br>    <span class="hljs-string">&quot;title&quot;</span> to <span class="hljs-string">&quot;title&quot;</span>,<br>    <span class="hljs-string">&quot;updated_at&quot;</span> to <span class="hljs-string">&quot;updated_at&quot;</span><br>)<br><br><span class="hljs-keyword">override</span> <span class="hljs-function"><span class="hljs-keyword">fun</span> <span class="hljs-title">query</span><span class="hljs-params">(</span></span><br><span class="hljs-params"><span class="hljs-function">    uri: <span class="hljs-type">Uri</span>,</span></span><br><span class="hljs-params"><span class="hljs-function">    projection: <span class="hljs-type">Array</span>&lt;<span class="hljs-type">out</span> <span class="hljs-type">String</span>&gt;?,</span></span><br><span class="hljs-params"><span class="hljs-function">    selection: <span class="hljs-type">String</span>?,</span></span><br><span class="hljs-params"><span class="hljs-function">    selectionArgs: <span class="hljs-type">Array</span>&lt;<span class="hljs-type">out</span> <span class="hljs-type">String</span>&gt;?,</span></span><br><span class="hljs-params"><span class="hljs-function">    sortOrder: <span class="hljs-type">String</span>?</span></span><br><span class="hljs-params"><span class="hljs-function">)</span></span>: Cursor &#123;<br>    <span class="hljs-keyword">val</span> caller = authenticatedCaller(Binder.getCallingUid())<br>    <span class="hljs-keyword">val</span> id = ContentUris.parseId(uri)<br><br>    <span class="hljs-keyword">val</span> columns = (projection ?: arrayOf(<span class="hljs-string">&quot;_id&quot;</span>, <span class="hljs-string">&quot;title&quot;</span>))<br>        .map &#123; allowedProjection[it] ?: <span class="hljs-keyword">throw</span> IllegalArgumentException(<span class="hljs-string">&quot;bad column&quot;</span>) &#125;<br>        .toTypedArray()<br>    <span class="hljs-keyword">val</span> order = <span class="hljs-keyword">when</span> (sortOrder) &#123;<br>        <span class="hljs-literal">null</span>, <span class="hljs-string">&quot;newest&quot;</span> -&gt; <span class="hljs-string">&quot;updated_at DESC&quot;</span><br>        <span class="hljs-string">&quot;oldest&quot;</span> -&gt; <span class="hljs-string">&quot;updated_at ASC&quot;</span><br>        <span class="hljs-keyword">else</span> -&gt; <span class="hljs-keyword">throw</span> IllegalArgumentException(<span class="hljs-string">&quot;bad sort&quot;</span>)<br>    &#125;<br><br>    <span class="hljs-keyword">return</span> db.query(<br>        <span class="hljs-string">&quot;reports&quot;</span>,<br>        columns,<br>        <span class="hljs-string">&quot;_id = ? AND owner_id = ?&quot;</span>,<br>        arrayOf(id.toString(), caller.accountId),<br>        <span class="hljs-literal">null</span>,<br>        <span class="hljs-literal">null</span>,<br>        order<br>    )<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这里的 <code>owner_id = ?</code> 才是对象级授权。参数化查询阻止值变成 SQL 语法，却不会自动判断 Alice 能否读 Bob 的记录。官方 <a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/risks/sql-injection">SQL 注入说明</a>也把 replaceable parameter 作为值绑定方案；Provider 还要根据自身共享模型收紧 projection、selection 与表边界。</p>
+<p>本机实验用内存 SQLite 实际跑了同一差异：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">payload: alice&#x27; OR 1=1 --<br>字符串拼接: 返回 alice、bob 两行<br>参数绑定:   返回 0 行<br>id=2 + authenticated_owner=alice: 返回 0 行<br></code></pre></td></tr></table></figure>
+
+<p>实验脚本见 <a href="/downloads/protocol-labs/android_boundary_lab.py"><code>android_boundary_lab.py</code></a>。这是 SQLite 后端模型，不是 Android <code>ContentResolver</code> 实机结果。</p>
+<h4 id="openFile-：不要让-URI-直接变成路径"><a href="#openFile-：不要让-URI-直接变成路径" class="headerlink" title="openFile()：不要让 URI 直接变成路径"></a><code>openFile()</code>：不要让 URI 直接变成路径</h4><p>更稳妥的设计是把 URI 中的业务 ID 查询成应用自己保存的相对路径，而不是接受外部文件名。即便如此，也要限制打开模式并验证最终规范路径：</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs kotlin"><span class="hljs-comment">// 教学片段：本次未在 Android 设备编译运行</span><br><span class="hljs-keyword">override</span> <span class="hljs-function"><span class="hljs-keyword">fun</span> <span class="hljs-title">openFile</span><span class="hljs-params">(uri: <span class="hljs-type">Uri</span>, mode: <span class="hljs-type">String</span>)</span></span>: ParcelFileDescriptor &#123;<br>    <span class="hljs-keyword">if</span> (mode != <span class="hljs-string">&quot;r&quot;</span>) <span class="hljs-keyword">throw</span> FileNotFoundException(<span class="hljs-string">&quot;read only&quot;</span>)<br><br>    <span class="hljs-keyword">val</span> caller = authenticatedCaller(Binder.getCallingUid())<br>    <span class="hljs-keyword">val</span> exportId = uri.lastPathSegment<br>        ?.takeIf &#123; it.matches(Regex(<span class="hljs-string">&quot;[A-Za-z0-9_-]&#123;1,64&#125;&quot;</span>)) &#125;<br>        ?: <span class="hljs-keyword">throw</span> FileNotFoundException(<span class="hljs-string">&quot;bad id&quot;</span>)<br>    <span class="hljs-keyword">val</span> relative = repository.ownedExportPath(exportId, caller.accountId)<br>        ?: <span class="hljs-keyword">throw</span> FileNotFoundException(<span class="hljs-string">&quot;not found&quot;</span>)<br><br>    <span class="hljs-keyword">val</span> root = File(requireContext().filesDir, <span class="hljs-string">&quot;exports&quot;</span>).canonicalFile<br>    <span class="hljs-keyword">val</span> target = File(root, relative).canonicalFile<br>    <span class="hljs-keyword">val</span> prefix = root.path + File.separator<br>    <span class="hljs-keyword">if</span> (!target.path.startsWith(prefix) || !target.isFile) &#123;<br>        <span class="hljs-keyword">throw</span> FileNotFoundException(<span class="hljs-string">&quot;outside export root&quot;</span>)<br>    &#125;<br>    <span class="hljs-keyword">return</span> ParcelFileDescriptor.<span class="hljs-keyword">open</span>(target, ParcelFileDescriptor.MODE_READ_ONLY)<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>目录前缀必须带分隔符，否则 <code>/safe-other</code> 可能被误认成 <code>/safe</code> 的子目录。目标目录还应由应用独占，避免符号链接和并发替换；调用权限、URI grant、行级归属、文件模式和路径边界缺一不可。</p>
+<p>可以在授权测试设备上用下面的命令观察 Provider 行为：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs bash">adb shell content query \<br>  --uri content://com.example.notes.reports/reports/7 \<br>  --projection _id:title:updated_at<br><br>adb shell content <span class="hljs-built_in">read</span> \<br>  --uri content://com.example.notes.reports/exports/demo-7<br></code></pre></td></tr></table></figure>
+
+<p><code>adb shell</code> 仍不是普通第三方 App；权限拒绝、临时 grant 和 Binder UID 的结论必须用对应身份复测。</p>
+<h3 id="原文四大组件防护清单，按现代边界校正"><a href="#原文四大组件防护清单，按现代边界校正" class="headerlink" title="原文四大组件防护清单，按现代边界校正"></a>原文四大组件防护清单，按现代边界校正</h3><p>原文的要点没有删，整理后可以作为 review checklist：</p>
+<ul>
+<li><strong>Activity</strong>：谨慎处理 Intent 和返回数据；私有页面不导出；目标明确时使用显式 Intent；不要发送不必要的敏感 extras；合作方访问用 signature 权限或可验证的信任关系；对外页面仍做会话、对象归属和参数检查。</li>
+<li><strong>Service</strong>：内部 Service 不设无用的 intent-filter 并显式不导出；显式启动；合作 Binder 校验权限/UID；在每次 <code>onStartCommand</code>、<code>onBind</code> 和 Binder 方法入口鉴权；限制返回数据；不要只在 <code>onCreate</code> 检查一次。</li>
+<li><strong>ContentProvider</strong>：无需共享就不导出；需要共享时拆分读写权限；所有外部参数均视为不可信；SQL 值绑定、结构白名单、行级授权分别落实；避免把外部文本交给 <code>execSQL()</code>；文件接口单独检查 URI grant、模式和规范路径。</li>
+<li><strong>Receiver</strong>：私有 Receiver 设为不导出；动态注册选择导出标志；公开 Receiver 限制发送者并验证消息；敏感广播指定接收者；不再把已弃用的 LocalBroadcastManager 当成新项目方案。</li>
+</ul>
+<h2 id="Intent-转发和-PendingIntent"><a href="#Intent-转发和-PendingIntent" class="headerlink" title="Intent 转发和 PendingIntent"></a>Intent 转发和 PendingIntent</h2><h3 id="嵌套-Intent-转发"><a href="#嵌套-Intent-转发" class="headerlink" title="嵌套 Intent 转发"></a>嵌套 Intent 转发</h3><p>常见危险入口是导出的 Activity/Service 从 extras 取出另一个 Intent，然后直接 <code>startActivity()</code>、<code>startService()</code> 或 <code>sendBroadcast()</code>：</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs kotlin"><span class="hljs-comment">// 反例：外部调用者控制目标、data、clipData 和 URI grant flags</span><br><span class="hljs-keyword">val</span> forward = intent.getParcelableExtra&lt;Intent&gt;(<span class="hljs-string">&quot;next&quot;</span>)<br>startActivity(forward)<br></code></pre></td></tr></table></figure>
+
+<p>攻击者可能借应用身份访问本来不导出的组件，或把读写 URI 权限带到非预期目标。修复时先判断业务是否真的需要通用转发；如果只允许两个页面，直接把外部枚举映射到内部显式 Intent 最清楚：</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs kotlin"><span class="hljs-comment">// 教学片段：本次未在 Android 设备编译运行</span><br><span class="hljs-keyword">val</span> destination = <span class="hljs-keyword">when</span> (intent.getStringExtra(<span class="hljs-string">&quot;destination&quot;</span>)) &#123;<br>    <span class="hljs-string">&quot;help&quot;</span> -&gt; Intent(<span class="hljs-keyword">this</span>, HelpActivity::<span class="hljs-keyword">class</span>.java)<br>    <span class="hljs-string">&quot;settings&quot;</span> -&gt; Intent(<span class="hljs-keyword">this</span>, PublicSettingsActivity::<span class="hljs-keyword">class</span>.java)<br>    <span class="hljs-keyword">else</span> -&gt; <span class="hljs-keyword">return</span> finish()<br>&#125;<br>destination.replaceExtras(Bundle())<br>destination.flags = <span class="hljs-number">0</span><br>startActivity(destination)<br></code></pre></td></tr></table></figure>
+
+<p>确需接收嵌套 Intent 时，用固定 component/package 允许集合，清理 <code>FLAG_GRANT_READ_URI_PERMISSION</code>、<code>FLAG_GRANT_WRITE_URI_PERMISSION</code>、<code>FLAG_GRANT_PERSISTABLE_URI_PERMISSION</code>、<code>FLAG_GRANT_PREFIX_URI_PERMISSION</code>，限制 data/type/ClipData/extras，并考虑 AndroidX <code>IntentSanitizer</code>。Android 16 的默认加固降低部分风险，但不能替代应用自己的目标允许集合和业务授权。<a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/risks/intent-redirection">Intent Redirection</a>列出了 flags 和 <code>IntentSanitizer</code> 的处理方式。</p>
+<p>修复验证至少包含：</p>
+<ol>
+<li>允许目标仍能正常打开；</li>
+<li>指向私有 Activity 的嵌套 Intent 被拒绝；</li>
+<li>带 URI grant、ClipData 和异常 flags 的输入被清理/拒绝；</li>
+<li>Android 16 与较低测试版本都执行应用自身策略。</li>
+</ol>
+<h3 id="PendingIntent：受托能力、可变字段和重放"><a href="#PendingIntent：受托能力、可变字段和重放" class="headerlink" title="PendingIntent：受托能力、可变字段和重放"></a>PendingIntent：受托能力、可变字段和重放</h3><p>PendingIntent 是系统维护的 token，接收者可以让创建者身份执行预定义动作。风险通常来自三处：</p>
+<ul>
+<li>内层 Intent 隐式或字段未填完整，同时 PendingIntent 可变，接收方可以 <code>fillIn()</code> 改目标或 data。</li>
+<li>多个语义不同的 PendingIntent 因 requestCode/action/data 相同而被系统视为同一份，旧 extras 被复用或覆盖。</li>
+<li>本应一次性的能力可被重复触发。</li>
+</ul>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs kotlin"><span class="hljs-comment">// 教学片段：本次未在 Android 设备编译运行</span><br><span class="hljs-keyword">val</span> <span class="hljs-keyword">inner</span> = Intent(context, ConfirmPaymentActivity::<span class="hljs-keyword">class</span>.java).apply &#123;<br>    action = <span class="hljs-string">&quot;com.example.notes.CONFIRM_PAYMENT&quot;</span><br>    <span class="hljs-keyword">data</span> = Uri.parse(<span class="hljs-string">&quot;app://payment/<span class="hljs-variable">$paymentId</span>&quot;</span>) <span class="hljs-comment">// 参与 Intent identity</span><br>    putExtra(<span class="hljs-string">&quot;payment_id&quot;</span>, paymentId)<br>&#125;<br><br><span class="hljs-keyword">val</span> pending = PendingIntent.getActivity(<br>    context,<br>    paymentId.hashCode(),<br>    <span class="hljs-keyword">inner</span>,<br>    PendingIntent.FLAG_IMMUTABLE or<br>        PendingIntent.FLAG_ONE_SHOT or<br>        PendingIntent.FLAG_UPDATE_CURRENT<br>)<br></code></pre></td></tr></table></figure>
+
+<p><code>FLAG_IMMUTABLE</code> 阻止接收方填充字段，但创建者仍可通过 <code>FLAG_UPDATE_CURRENT</code> 更新自己创建 token 的 extras；它不是“对象永远不变”。<code>FLAG_ONE_SHOT</code> 适合只允许触发一次的能力，但最终页面仍应检查 payment 当前状态、账户归属和服务端幂等，不能把 token 本身当成完成支付的唯一授权。官方 <a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/risks/pending-intent">PendingIntent 风险说明</a>也单独列出了 mutable 与 replay 两类问题。</p>
+<h2 id="默认设置：以发布-APK-为准"><a href="#默认设置：以发布-APK-为准" class="headerlink" title="默认设置：以发布 APK 为准"></a>默认设置：以发布 APK 为准</h2><h3 id="合并后的-Manifest"><a href="#合并后的-Manifest" class="headerlink" title="合并后的 Manifest"></a>合并后的 Manifest</h3><p>库 Manifest、product flavor、构建占位符和 manifest merger 都可能改变最终声明。审计源码时同步检查 release APK：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># Android SDK build-tools</span><br>aapt2 dump xmltree app-release.apk --file AndroidManifest.xml<br><br><span class="hljs-comment"># Android Studio command-line tools</span><br>apkanalyzer manifest <span class="hljs-built_in">print</span> app-release.apk<br><br><span class="hljs-comment"># 记录样本身份</span><br><span class="hljs-built_in">sha256sum</span> app-release.apk<br></code></pre></td></tr></table></figure>
+
+<p>重点搜 <code>debuggable</code>、<code>testOnly</code>、<code>allowBackup</code>、<code>dataExtractionRules</code>、<code>usesCleartextTraffic</code>、<code>networkSecurityConfig</code>、组件 <code>exported</code>、组件权限、Provider authority 与 URI grant。<code>android:debuggable=&quot;true&quot;</code> 会扩大调试与数据观察面；结论应来自最终发布包，而不是 Gradle 文件中的期望值。</p>
+<h3 id="备份不是一条-allowBackup-就结束"><a href="#备份不是一条-allowBackup-就结束" class="headerlink" title="备份不是一条 allowBackup 就结束"></a>备份不是一条 <code>allowBackup</code> 就结束</h3><p>旧文记录了 Android 2.1 以后 <code>allowBackup</code> 默认风险，并用 <code>adb backup/restore</code> 解释数据导出。这是早期 Android 上重要的检查点，但现在需要拆成：</p>
+<ol>
+<li>旧设备上的 <code>adb backup</code>；</li>
+<li>Auto Backup 云备份；</li>
+<li>设备到设备迁移（D2D）；</li>
+<li>自定义 <code>BackupAgent</code>；</li>
+<li>恢复后的 token、设备密钥和账户状态是否仍然有效。</li>
+</ol>
+<p>Android 官方说明：Auto Backup 的 <code>allowBackup</code> 默认值仍是 <code>true</code>；target 31+ 在 Android 12+ 上使用 <code>data-extraction-rules</code>，同时还要为 Android 11 及以下保留旧规则。部分厂商设备上，<code>allowBackup=&quot;false&quot;</code> 可能关闭云备份却不关闭 D2D，因此敏感数据应通过明确的 include/exclude 规则和恢复后失效策略一起处理。<a target="_blank" rel="noopener" href="https://developer.android.com/identity/data/autobackup">Auto Backup 文档</a></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-comment">&lt;!-- AndroidManifest.xml，教学配置片段 --&gt;</span><br><span class="hljs-tag">&lt;<span class="hljs-name">application</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:allowBackup</span>=<span class="hljs-string">&quot;true&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:fullBackupContent</span>=<span class="hljs-string">&quot;@xml/backup_rules_legacy&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:dataExtractionRules</span>=<span class="hljs-string">&quot;@xml/data_extraction_rules&quot;</span> /&gt;</span><br></code></pre></td></tr></table></figure>
+
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-comment">&lt;!-- res/xml/data_extraction_rules.xml，Android 12+ 示例 --&gt;</span><br><span class="hljs-meta">&lt;?xml version=<span class="hljs-string">&quot;1.0&quot;</span> encoding=<span class="hljs-string">&quot;utf-8&quot;</span>?&gt;</span><br><span class="hljs-tag">&lt;<span class="hljs-name">data-extraction-rules</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">cloud-backup</span> <span class="hljs-attr">disableIfNoEncryptionCapabilities</span>=<span class="hljs-string">&quot;true&quot;</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span> <span class="hljs-attr">domain</span>=<span class="hljs-string">&quot;sharedpref&quot;</span> <span class="hljs-attr">path</span>=<span class="hljs-string">&quot;session.xml&quot;</span> /&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span> <span class="hljs-attr">domain</span>=<span class="hljs-string">&quot;database&quot;</span> <span class="hljs-attr">path</span>=<span class="hljs-string">&quot;device_keys.db&quot;</span> /&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">cloud-backup</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">device-transfer</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span> <span class="hljs-attr">domain</span>=<span class="hljs-string">&quot;sharedpref&quot;</span> <span class="hljs-attr">path</span>=<span class="hljs-string">&quot;session.xml&quot;</span> /&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span> <span class="hljs-attr">domain</span>=<span class="hljs-string">&quot;database&quot;</span> <span class="hljs-attr">path</span>=<span class="hljs-string">&quot;device_keys.db&quot;</span> /&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">device-transfer</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">data-extraction-rules</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>是否允许备份是产品决策。更重要的是，长期 refresh token、设备绑定私钥和防重放状态不要随着普通偏好一起迁移；恢复后服务端应能识别新设备状态并要求重新认证。</p>
+<h2 id="网络：TLS、调用认证和对象授权逐层验证"><a href="#网络：TLS、调用认证和对象授权逐层验证" class="headerlink" title="网络：TLS、调用认证和对象授权逐层验证"></a>网络：TLS、调用认证和对象授权逐层验证</h2><h3 id="TLS-证书链与主机名校验"><a href="#TLS-证书链与主机名校验" class="headerlink" title="TLS 证书链与主机名校验"></a>TLS 证书链与主机名校验</h3><p>旧文列出的风险仍然成立：</p>
+<ul>
+<li>自定义 <code>X509TrustManager.checkServerTrusted()</code> 为空，或无条件接受证书；</li>
+<li><code>HostnameVerifier.verify()</code> 总返回 <code>true</code>，或使用历史上的 <code>ALLOW_ALL_HOSTNAME_VERIFIER</code>；</li>
+<li>WebView 的 <code>onReceivedSslError()</code> 直接调用 <code>proceed()</code>；</li>
+<li>明文 HTTP 或调试 CA 配置进入 release；</li>
+<li>证书颁发机构或应用自管密钥失陷。</li>
+</ul>
+<p>这些问题会让中间人读取或修改账号密码、聊天内容、地址、电话、支付信息，也可能把升级地址和页面内容换成恶意版本。正常业务优先使用平台/成熟网络库的默认验证，不要为了抓包长期保留空 TrustManager。WebView 遇到证书错误应取消加载，而不是静默继续。</p>
+<p>Network Security Config 能把系统 CA、调试 CA 和明文策略分开：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-comment">&lt;!-- res/xml/network_security_config.xml，教学配置片段 --&gt;</span><br><span class="hljs-meta">&lt;?xml version=<span class="hljs-string">&quot;1.0&quot;</span> encoding=<span class="hljs-string">&quot;utf-8&quot;</span>?&gt;</span><br><span class="hljs-tag">&lt;<span class="hljs-name">network-security-config</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">base-config</span> <span class="hljs-attr">cleartextTrafficPermitted</span>=<span class="hljs-string">&quot;false&quot;</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">trust-anchors</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">certificates</span> <span class="hljs-attr">src</span>=<span class="hljs-string">&quot;system&quot;</span> /&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">trust-anchors</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">base-config</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">debug-overrides</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">trust-anchors</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">certificates</span> <span class="hljs-attr">src</span>=<span class="hljs-string">&quot;@raw/debug_ca&quot;</span> /&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">trust-anchors</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">debug-overrides</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">network-security-config</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">application</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:networkSecurityConfig</span>=<span class="hljs-string">&quot;@xml/network_security_config&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">android:usesCleartextTraffic</span>=<span class="hljs-string">&quot;false&quot;</span> /&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>官方 <a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/security-config">Network Security Configuration</a>说明了三个容易忽略的条件：target 28+ 的平台默认禁止明文；target 23 及以下默认还信任用户安装 CA；<code>debug-overrides</code> 只在 <code>debuggable=true</code> 时生效。使用 native socket、自带 TLS 栈或忽略平台策略的第三方库时，还要验证具体实现是否遵守配置。</p>
+<p>证书 pinning 不是默认必选项。若业务确实需要，至少准备 backup pin、密钥轮换和失效恢复方案；否则一次证书/CA 变更可能让旧客户端永久离线。pinning 也不能替代主机名校验、业务登录和服务端授权。</p>
+<h4 id="怎样复测修复"><a href="#怎样复测修复" class="headerlink" title="怎样复测修复"></a>怎样复测修复</h4><p>在授权测试环境中准备 release 等价构建和 debug 构建：</p>
+<ol>
+<li>正常证书、正确主机名应成功；</li>
+<li>自签证书、错误主机名、过期证书应失败；</li>
+<li>debug CA 仅 debug 构建成功，release 构建失败；</li>
+<li>HTTP URL 和 HTTPS→HTTP 重定向应按策略拒绝；</li>
+<li>WebView SSL 错误不应出现 <code>proceed()</code> 后继续展示的页面。</li>
+</ol>
+<p>不要只根据代理“抓不到包”判断安全；应用可能使用 pinning、QUIC、native 库，也可能根本没有发出请求。记录 Logcat、网络错误、目标地址和服务端日志，说明实际发生了什么。</p>
+<h3 id="HTTPS-之后仍有对象级越权"><a href="#HTTPS-之后仍有对象级越权" class="headerlink" title="HTTPS 之后仍有对象级越权"></a>HTTPS 之后仍有对象级越权</h3><p><img src="/mdimg/protocol-depth/android-authz.svg" srcset="/img/loading.gif" lazyload alt="HTTPS 保护传输，但订单归属仍由服务端判断"></p>
+<p>旧文“业务接口是否存在任意权限调用”指的就是这一层：敏感接口如果只相信请求里的 <code>user_id</code>、订单号或设备号，攻击者即使无法窃听 TLS，也可以用自己的合法会话请求别人的资源。</p>
+<p>最清楚的验证方法是准备两个测试账户 A、B：</p>
+<ol>
+<li>A、B 分别创建一条对象并记录 ID；</li>
+<li>带 A 的认证信息读取、修改、删除、导出 B 的对象；</li>
+<li>再测批量接口、子资源、分享链接和历史版本；</li>
+<li>把 ID 换成随机 UUID 后重复；</li>
+<li>修复后确认 A→B 全部拒绝，A→A 仍正常。</li>
+</ol>
+<p>服务端查询把认证主体放进条件：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> id, title, status<br><span class="hljs-keyword">FROM</span> reports<br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> :requested_id<br>  <span class="hljs-keyword">AND</span> owner_id <span class="hljs-operator">=</span> :authenticated_user_id;<br></code></pre></td></tr></table></figure>
+
+<p><code>:authenticated_user_id</code> 来自验证过的会话或 token，而不是请求体自报字段。随机 ID 降低枚举概率，HTTPS 保护传输；两者都不是授权。</p>
+<h3 id="Socket-远程连接与本地监听"><a href="#Socket-远程连接与本地监听" class="headerlink" title="Socket 远程连接与本地监听"></a>Socket 远程连接与本地监听</h3><p>旧文的结论是：App 开放端口但没有发送者认证或权限控制时，攻击者可能获得该端口背后的全部功能。这个检查仍然有价值，但“开放”要精确到监听地址和命名空间：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">adb shell ss -lntup<br>adb shell ss -lnup<br>adb shell <span class="hljs-built_in">cat</span> /proc/net/unix<br></code></pre></td></tr></table></figure>
+
+<p>不同 Android 版本、SELinux 策略和 shell 权限可能隐藏进程信息。<code>127.0.0.1:port</code> 不对局域网开放，但设备上的其他 App 通常仍能访问 loopback；<code>0.0.0.0:port</code> 还要结合网络路由、防火墙与权限验证。Unix domain socket 要看文件权限或 abstract namespace 名称，不要只检查 TCP。</p>
+<p>沿服务端代码继续确认：</p>
+<ul>
+<li>每条连接如何认证，token 是否可重放；</li>
+<li>长度字段、帧边界、字符编码和状态机是否有上限；</li>
+<li>并发连接、空闲超时、单连接内存和文件写入是否受限；</li>
+<li>管理命令是否与普通数据通道隔离；</li>
+<li>身份校验失败后是否仍执行了一部分操作；</li>
+<li>C/C++ 解析器是否对整数溢出、越界和生命周期做了防护。</li>
+</ul>
+<p>“系统版本不影响此漏洞”的旧说法太绝对。应用协议缺陷由 App 引入，但网络命名空间、后台限制、SELinux 与平台 API 会影响可达性和利用条件，报告中要写实测环境。</p>
+<h2 id="APK-升级、签名与动态加载"><a href="#APK-升级、签名与动态加载" class="headerlink" title="APK 升级、签名与动态加载"></a>APK 升级、签名与动态加载</h2><h3 id="原升级链路的三个风险点"><a href="#原升级链路的三个风险点" class="headerlink" title="原升级链路的三个风险点"></a>原升级链路的三个风险点</h3><p>旧文的表格保留，并补上最终验证：</p>
+<table>
 <thead>
 <tr>
-<th>配置</th>
-<th>审计重点</th>
+<th>阶段</th>
+<th>原文隐患</th>
+<th>可能结果</th>
+<th>现在还要验证</th>
 </tr>
 </thead>
 <tbody><tr>
-<td>JavaScript</td>
-<td>业务是否需要，哪些内容能在这里执行</td>
+<td>升级 API</td>
+<td>API 未加密</td>
+<td>返回恶意下载地址</td>
+<td>TLS、服务端认证、元数据签名、版本与通道</td>
 </tr>
 <tr>
-<td>File / Content access</td>
-<td>是否需要本地资源访问，是否被显式打开</td>
+<td>下载 API</td>
+<td>下载未加密</td>
+<td>APK 内容或路径被替换</td>
+<td>私有临时文件、大小、可信 SHA-256、完整写入</td>
 </tr>
 <tr>
-<td>File URL 跨域开关</td>
-<td>旧配置是否残留，加载来源是否可信</td>
-</tr>
-<tr>
-<td>JavaScript interface</td>
-<td>哪些方法暴露，哪些 frame 可以调用，传入值最终做了什么</td>
-</tr>
-<tr>
-<td>SSL 错误处理</td>
-<td>是否错误地继续加载</td>
+<td>程序安装</td>
+<td>本地路径可篡改</td>
+<td>安装错误 APK</td>
+<td>包名、签名证书沿革、versionCode、防回滚、PackageInstaller 结果</td>
 </tr>
 </tbody></table>
-<p><code>setSavePassword</code> 已是弃用接口，不能继续把它的旧默认行为写成现代 WebView 的统一事实。对不需要本地文件与 JS 的简单展示页，可以明确关闭相应能力：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">WebSettings</span> <span class="hljs-variable">settings</span> <span class="hljs-operator">=</span> webView.getSettings();<br>settings.setJavaScriptEnabled(<span class="hljs-literal">false</span>);<br>settings.setAllowFileAccess(<span class="hljs-literal">false</span>);<br>settings.setAllowContentAccess(<span class="hljs-literal">false</span>);<br></code></pre></td></tr></table></figure>
+<p><img src="/mdimg/protocol-depth/android-update-replay.svg" srcset="/img/loading.gif" lazyload alt="APK 升级链和业务请求防重放检查"></p>
+<p>如果 APK 和“正确 hash”来自同一个可篡改 HTTP 响应，攻击者可以同时替换两者。hash 必须由已经认证的元数据绑定，或者依赖平台安装时对包签名身份的校验。下载完成后先在应用私有目录验证，安装成功前不要覆盖当前可用包或插件。</p>
+<h3 id="从-v1-的-META-INF-到现代签名方案"><a href="#从-v1-的-META-INF-到现代签名方案" class="headerlink" title="从 v1 的 META-INF 到现代签名方案"></a>从 v1 的 META-INF 到现代签名方案</h3><p>旧文详细记录了 v1/JAR 签名结构，这部分对分析老 APK 仍有用：</p>
+<ol>
+<li><code>META-INF/MANIFEST.MF</code> 保存各文件的 SHA-1 或 SHA-256 摘要及 Base64 编码；</li>
+<li><code>CERT.SF</code> 保存 Manifest 整体和各 section 的摘要；</li>
+<li><code>CERT.RSA</code>、<code>CERT.DSA</code> 或 <code>CERT.EC</code> 是 PKCS#7 数据，包含对 <code>CERT.SF</code> 的签名以及证书、公钥、算法、有效期等信息；</li>
+<li>ZIP 中可以出现多个签名文件，因此“看到了一个 CERT.RSA”不能单独证明 APK 身份。</li>
+</ol>
+<p>这只描述 v1。Android 7.0 引入 v2，Android 9 引入 v3；v2/v3 把签名块放在 APK 中并覆盖更完整的文件内容，不能再只盯着 <code>META-INF</code>。AOSP 的 <a target="_blank" rel="noopener" href="https://source.android.com/docs/security/features/apksigning">APK Signing</a>说明了 v1/v2/v3 的版本与覆盖范围。v4 用于增量安装，签名存放在 APK 旁边的 <code>.idsig</code> 文件；它要求 APK 已有相同 key 的 v2/v3 签名，不能替代包内签名。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">apksigner verify --verbose --print-certs app-release.apk<br></code></pre></td></tr></table></figure>
 
-<p>这只是对应场景的配置片段；如果业务需要 JS，就要继续限制内容来源和 bridge 权限，而不是为了“安全”破坏功能后结束分析。</p>
-<h3 id="URL-白名单不能只看字符串像不像"><a href="#URL-白名单不能只看字符串像不像" class="headerlink" title="URL 白名单不能只看字符串像不像"></a>URL 白名单不能只看字符串像不像</h3><p><code>contains(&quot;example.com&quot;)</code> 或无边界的 <code>endsWith(&quot;example.com&quot;)</code> 都不是可靠域名判断。需要解析并核对 scheme、host、端口、userinfo 等组成部分，同时考虑解析器差异和后续重定向。</p>
-<p>下面是一个刻意限制较严的 Java 示例，只允许 <code>https://docs.example.com</code> 的常规地址：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">static</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">allowedDocsUrl</span><span class="hljs-params">(String raw)</span> &#123;<br>    <span class="hljs-keyword">if</span> (raw == <span class="hljs-literal">null</span> || raw.indexOf(<span class="hljs-string">&#x27;\\&#x27;</span>) &gt;= <span class="hljs-number">0</span>) <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;<br>    <span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> <span class="hljs-variable">i</span> <span class="hljs-operator">=</span> <span class="hljs-number">0</span>; i &lt; raw.length(); i++) &#123;<br>        <span class="hljs-type">char</span> <span class="hljs-variable">c</span> <span class="hljs-operator">=</span> raw.charAt(i);<br>        <span class="hljs-keyword">if</span> (c &lt;= <span class="hljs-number">0x20</span> || c == <span class="hljs-number">0x7f</span>) <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;<br>    &#125;<br>    <span class="hljs-keyword">try</span> &#123;<br>        java.net.<span class="hljs-type">URI</span> <span class="hljs-variable">uri</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">java</span>.net.URI(raw);<br>        <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;https&quot;</span>.equalsIgnoreCase(uri.getScheme())<br>            &amp;&amp; <span class="hljs-string">&quot;docs.example.com&quot;</span>.equalsIgnoreCase(uri.getHost())<br>            &amp;&amp; uri.getRawUserInfo() == <span class="hljs-literal">null</span><br>            &amp;&amp; (uri.getPort() == -<span class="hljs-number">1</span> || uri.getPort() == <span class="hljs-number">443</span>);<br>    &#125; <span class="hljs-keyword">catch</span> (java.net.URISyntaxException e) &#123;<br>        <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+<p>记录每个包内 scheme 的验证结果、Signer certificate DN、SHA-256 digest、包名和 versionCode；交付链使用 v4 时再连同 <code>.idsig</code> 核对。<code>apksigner</code> 的 <a target="_blank" rel="noopener" href="https://developer.android.com/tools/apksigner">命令文档</a>还区分了 v3.1 key rotation：默认的轮换 signing key 面向 Android 13/API 33+，较低版本继续使用旧 key，除非构建时明确调整 rotation min SDK。知道证书或公钥指纹不等于拥有私钥；真正的升级关系由安装系统根据已有包的签名身份/证书沿革判断。Google Play App Signing 的 signing key、upload key 和 key upgrade 也不能混为一谈。<a target="_blank" rel="noopener" href="https://developer.android.com/studio/publish/app-signing">App signing 文档</a>说明：系统升级时会比较新旧包证书；Play 的 signing key 升级在不同 Android 版本上还可能使用不同签名密钥。</p>
+<p>对自定义插件、DEX/JAR/SO 热更新，系统 PackageInstaller 的包级校验不再自动保护每个文件。应用必须把插件版本、允许的宿主版本、hash/签名、来源和防回滚状态放进同一可信策略；校验完成前不得加载。仅检查文件后缀或下载 URL 白名单没有意义。</p>
+<h2 id="加密、密钥和重放"><a href="#加密、密钥和重放" class="headerlink" title="加密、密钥和重放"></a>加密、密钥和重放</h2><h3 id="原文中的弱算法清单如何使用"><a href="#原文中的弱算法清单如何使用" class="headerlink" title="原文中的弱算法清单如何使用"></a>原文中的弱算法清单如何使用</h3><p>原文列出 MD5、DES、RC2、TripleDES、SHA-1、RIPEMD-160。保留这些名字，但判断时要先问“算法用来做什么”：</p>
+<ul>
+<li>MD5、SHA-1 的碰撞弱点使其不适合安全完整性和数字签名；用于非对抗性的缓存键，与用于验证更新包不是同一风险。</li>
+<li>DES 密钥空间过小；RC2、TripleDES 都不应继续用于新设计。</li>
+<li>普通 SHA-256 不能替代密码哈希/KDF，也不能提供消息来源认证；认证消息用 HMAC 或数字签名。</li>
+<li>Base64 是编码，不是加密；把固定 AES key 写进 APK 再混淆，也不等于密钥安全。</li>
+</ul>
+<p>Android 官方 <a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/cryptography">Cryptography</a>推荐的现代原语包括 SHA-2、HMAC-SHA-2 和 AES/GCM；具体协议仍要处理 nonce、密钥轮换、错误返回与数据格式。</p>
+<h3 id="AES-GCM-与-Android-Keystore"><a href="#AES-GCM-与-Android-Keystore" class="headerlink" title="AES-GCM 与 Android Keystore"></a>AES-GCM 与 Android Keystore</h3><p>下面演示本地加密记录的基本形状：密钥生成在 Android Keystore，GCM IV 由 <code>Cipher.init(ENCRYPT_MODE, key)</code> 生成并和密文一起保存，解密时验证 tag。代码是教学片段，本次未构建或在 Android 设备运行：</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><code class="hljs kotlin"><span class="hljs-keyword">private</span> <span class="hljs-keyword">const</span> <span class="hljs-keyword">val</span> KEY_ALIAS = <span class="hljs-string">&quot;local-records-v1&quot;</span><br><br><span class="hljs-function"><span class="hljs-keyword">fun</span> <span class="hljs-title">createKeyIfMissing</span><span class="hljs-params">()</span></span> &#123;<br>    <span class="hljs-keyword">val</span> store = KeyStore.getInstance(<span class="hljs-string">&quot;AndroidKeyStore&quot;</span>).apply &#123; load(<span class="hljs-literal">null</span>) &#125;<br>    <span class="hljs-keyword">if</span> (store.containsAlias(KEY_ALIAS)) <span class="hljs-keyword">return</span><br><br>    <span class="hljs-keyword">val</span> generator = KeyGenerator.getInstance(<br>        KeyProperties.KEY_ALGORITHM_AES,<br>        <span class="hljs-string">&quot;AndroidKeyStore&quot;</span><br>    )<br>    generator.<span class="hljs-keyword">init</span>(<br>        KeyGenParameterSpec.Builder(<br>            KEY_ALIAS,<br>            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT<br>        )<br>            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)<br>            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)<br>            .setRandomizedEncryptionRequired(<span class="hljs-literal">true</span>)<br>            .build()<br>    )<br>    generator.generateKey()<br>&#125;<br><br><span class="hljs-function"><span class="hljs-keyword">fun</span> <span class="hljs-title">encrypt</span><span class="hljs-params">(plain: <span class="hljs-type">ByteArray</span>, aad: <span class="hljs-type">ByteArray</span>)</span></span>: ByteArray &#123;<br>    <span class="hljs-keyword">val</span> store = KeyStore.getInstance(<span class="hljs-string">&quot;AndroidKeyStore&quot;</span>).apply &#123; load(<span class="hljs-literal">null</span>) &#125;<br>    <span class="hljs-keyword">val</span> key = store.getKey(KEY_ALIAS, <span class="hljs-literal">null</span>) <span class="hljs-keyword">as</span> SecretKey<br>    <span class="hljs-keyword">val</span> cipher = Cipher.getInstance(<span class="hljs-string">&quot;AES/GCM/NoPadding&quot;</span>)<br>    cipher.<span class="hljs-keyword">init</span>(Cipher.ENCRYPT_MODE, key)<br>    cipher.updateAAD(aad)<br>    <span class="hljs-keyword">val</span> ciphertextAndTag = cipher.doFinal(plain)<br>    <span class="hljs-keyword">return</span> byteArrayOf(cipher.iv.size.toByte()) + cipher.iv + ciphertextAndTag<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>真实格式要限制 IV 长度、版本化 envelope，并在解密前验证长度；AAD 可以绑定记录类型、账户或 schema 版本。不要重用同一密钥下的 GCM nonce。Keystore 能让 key material 保持不可导出，并可限制密钥用途；进程被控制时，攻击者仍可能调用应用已有的解密功能，因此业务授权和最小数据暴露依然必要。<a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/keystore">Android Keystore</a></p>
+<h3 id="加密不阻止重放"><a href="#加密不阻止重放" class="headerlink" title="加密不阻止重放"></a>加密不阻止重放</h3><p>攻击者不需要解密，只需再次发送一份先前合法的密文或签名请求。单独加时间戳也挡不住时间窗口内重放。一个可审计的请求认证格式至少绑定：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP method<br>canonical path + query<br>timestamp<br>随机 nonce<br>SHA-256(body)<br>认证主体 / key id<br></code></pre></td></tr></table></figure>
+
+<p>服务端先验证认证标签与时间窗口，再把 <code>(subject, nonce)</code> 以原子唯一约束写入带 TTL 的共享存储，最后在事务中检查对象归属和状态并执行一次。多实例服务只在单机内存放 <code>Set</code>，切换节点就能绕过。幂等键可以让客户端安全重试，但必须绑定账户、操作和响应，不能成为跨账户通用通行证。</p>
+<p>本机实验实际执行的结果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">第一次提交 nonce-001: accepted<br>原样再次提交:          replay<br>改 path 但沿用旧 tag:  bad-authenticator<br>超过 60 秒窗口:        stale<br></code></pre></td></tr></table></figure>
+
+<p>脚本以 HMAC-SHA256 模拟请求认证，不代表特定生产协议；测试 key 是固定 fixture，nonce 存储也只是内存模型。完整代码和运行方法见 <a href="/downloads/protocol-labs/android_boundary_lab.py"><code>android_boundary_lab.py</code></a> 与 <a href="/downloads/protocol-labs/android-labs-README.md"><code>android-labs-README.md</code></a>。</p>
+<h2 id="WebView：URL、origin-和-Native-Bridge"><a href="#WebView：URL、origin-和-Native-Bridge" class="headerlink" title="WebView：URL、origin 和 Native Bridge"></a>WebView：URL、origin 和 Native Bridge</h2><p>旧文把 WebView 风险分成远程代码执行、UXSS、设置错误、忽略证书错误和 file 域同源绕过。这五类都保留，但分析顺序改成“谁能控制 URL—最终加载哪个 origin—页面能执行什么脚本—脚本能调用什么原生能力”。</p>
+<p><img src="/mdimg/protocol-depth/android-webview-origin.svg" srcset="/img/loading.gif" lazyload alt="WebView 导航、重定向和 Native Bridge 的信任边界"></p>
+<h3 id="设置项与准确的历史条件"><a href="#设置项与准确的历史条件" class="headerlink" title="设置项与准确的历史条件"></a>设置项与准确的历史条件</h3><table>
+<thead>
+<tr>
+<th>设置</th>
+<th>旧文关注点</th>
+<th>现在的判断方式</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>setJavaScriptEnabled()</code></td>
+<td>JS 使页面能执行脚本，默认 false</td>
+<td>仅业务需要时开启；同时审计内容来源和 bridge</td>
+</tr>
+<tr>
+<td><code>setPluginState()</code></td>
+<td>ON / ON_DEMAND / OFF，旧 WebView 默认 OFF</td>
+<td>API 18 已弃用，作为老项目线索，不用于现代修复建议</td>
+</tr>
+<tr>
+<td><code>setAllowFileAccess()</code></td>
+<td>允许 file 访问</td>
+<td>target ≤29 默认 true，target ≥30 默认 false；仍建议按业务显式配置</td>
+</tr>
+<tr>
+<td><code>setAllowContentAccess()</code></td>
+<td>允许 <code>content://</code></td>
+<td>默认 true；不需要就关闭，需使用时约束 URI 来源</td>
+</tr>
+<tr>
+<td><code>setAllowFileAccessFromFileURLs()</code></td>
+<td>file 页面读其他 file</td>
+<td>target ≤15 默认 true，target ≥16 默认 false；API 30 弃用</td>
+</tr>
+<tr>
+<td><code>setAllowUniversalAccessFromFileURLs()</code></td>
+<td>file 页面跨到任意 origin</td>
+<td>同上；API 30 弃用，官方建议 <code>WebViewAssetLoader</code></td>
+</tr>
+<tr>
+<td><code>setSavePassword()</code></td>
+<td>早期 WebView 将密码保存到 <code>webview.db</code></td>
+<td>API 18 已弃用；旧设备/旧引擎仍可作为历史检查点，不能当现代统一默认</td>
+</tr>
+<tr>
+<td>mixed content</td>
+<td>HTTPS 页面加载 HTTP 子资源</td>
+<td>target Lollipop+ 默认 <code>MIXED_CONTENT_NEVER_ALLOW</code>，检查代码是否放宽</td>
+</tr>
+</tbody></table>
+<p>旧文提到密码可能明文保存在 <code>/data/data/&lt;package&gt;/databases/webview.db</code>，root 后被读取。这是早期 WebView 的典型风险，因此保留并标明历史范围；现代审计应直接查看实际 WebView 版本、应用自己的 credential storage 和页面 autofill 行为，而不是只搜索一个旧数据库名。</p>
+<p>一个只展示静态可信内容且不需要脚本的页面可以明确收紧：</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs kotlin"><span class="hljs-comment">// 教学片段：本次未在 Android 设备编译运行</span><br>webView.settings.apply &#123;<br>    javaScriptEnabled = <span class="hljs-literal">false</span><br>    allowFileAccess = <span class="hljs-literal">false</span><br>    allowContentAccess = <span class="hljs-literal">false</span><br>    mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>业务确实依赖 JS 时，不应为了通过扫描器直接关闭功能；要继续限制内容来源、重定向和 bridge 权限。</p>
+<h3 id="File-域与同源策略绕过"><a href="#File-域与同源策略绕过" class="headerlink" title="File 域与同源策略绕过"></a>File 域与同源策略绕过</h3><p>旧文描述的历史利用链是：WebView 启用 JavaScript 和 file 访问，外部可控 HTML 借延时与符号链接切换读取应用私有文件，再把结果送出。早期版本里 <code>setAllowFileAccessFromFileURLs(true)</code> 或 <code>setAllowUniversalAccessFromFileURLs(true)</code> 会显著扩大后果。</p>
+<p>修复时同时处理入口和能力：</p>
+<ol>
+<li>含 WebView 的 Activity 不必要就不导出；</li>
+<li>不加载外部可写目录中的 HTML；</li>
+<li>不需要 file/content scheme 就显式关闭；</li>
+<li>本地静态资源使用 <code>WebViewAssetLoader</code> 映射到受控 HTTPS origin；</li>
+<li>不可信内容加载前移除 JavaScript interface；</li>
+<li>更新系统 WebView，并验证厂商定制接口。</li>
+</ol>
+<p>旧文只写 <code>setAllowFileAccess(false)</code> 或关闭 JS 是必要但不总是充分的：应用若把私有内容先复制到共享目录，或 bridge 本身提供通用 <code>readFile(path)</code>，攻击面仍然存在。</p>
+<h3 id="URL-白名单：解析完整-origin"><a href="#URL-白名单：解析完整-origin" class="headerlink" title="URL 白名单：解析完整 origin"></a>URL 白名单：解析完整 origin</h3><p>旧文保留了一个历史解析差异案例：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">http://192.168.0.11\.163.com/2.html<br></code></pre></td></tr></table></figure>
+
+<p>当时某些 Android URL 解析/WebView 组合可能对反斜杠作不同解释，导致 <code>getHost()</code> 判断结果与实际导航目标不一致。原文还给过基于站内跳转参数的示例：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">http://mbs.hao.163.cn/?c=redirect&amp;ur=http://tu.623.cn/7vNo<br></code></pre></td></tr></table></figure>
+
+<p>这些地址只作为旧案例保留，不表示今天仍可访问或所有 Android/WebView 都有相同解析结果。现代测试要对<strong>当前应用实际使用的解析器和 WebView 版本</strong>构造用例，不能把“<code>getHost</code> 本身有漏洞”当作普遍结论。</p>
+<p>策略上至少解析并完整比较 scheme、host、port 和 userinfo，拒绝控制字符与反斜杠，对每次重定向重新判断：</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs kotlin"><span class="hljs-comment">// 教学片段：本次未在 Android 设备编译运行</span><br><span class="hljs-keyword">private</span> <span class="hljs-function"><span class="hljs-keyword">fun</span> <span class="hljs-title">allowedDocsUrl</span><span class="hljs-params">(raw: <span class="hljs-type">String</span>)</span></span>: <span class="hljs-built_in">Boolean</span> &#123;<br>    <span class="hljs-keyword">if</span> (raw.any &#123; it.code &lt;= <span class="hljs-number">0x20</span> || it.code == <span class="hljs-number">0x7f</span> &#125; || <span class="hljs-string">&#x27;\\&#x27;</span> <span class="hljs-keyword">in</span> raw) <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span><br>    <span class="hljs-keyword">val</span> uri = runCatching &#123; Uri.parse(raw) &#125;.getOrNull() ?: <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span><br>    <span class="hljs-keyword">val</span> port = uri.port<br>    <span class="hljs-keyword">return</span> uri.scheme.equals(<span class="hljs-string">&quot;https&quot;</span>, ignoreCase = <span class="hljs-literal">true</span>) &amp;&amp;<br>        uri.host.equals(<span class="hljs-string">&quot;docs.example.com&quot;</span>, ignoreCase = <span class="hljs-literal">true</span>) &amp;&amp;<br>        uri.userInfo == <span class="hljs-literal">null</span> &amp;&amp;<br>        (port == -<span class="hljs-number">1</span> || port == <span class="hljs-number">443</span>)<br>&#125;<br></code></pre></td></tr></table></figure>
 
 <table>
 <thead>
 <tr>
 <th>输入</th>
-<th>该策略下的结果</th>
+<th align="right">该策略结果</th>
+<th>原因</th>
 </tr>
 </thead>
 <tbody><tr>
 <td><code>https://docs.example.com/help</code></td>
-<td>允许</td>
+<td align="right">允许</td>
+<td>origin 精确匹配</td>
 </tr>
 <tr>
-<td><code>https://docs.example.com.evil.test/help</code></td>
-<td>拒绝</td>
+<td><code>https://DOCS.EXAMPLE.COM:443/help</code></td>
+<td align="right">允许</td>
+<td>host 大小写不敏感、标准 TLS 端口</td>
 </tr>
 <tr>
-<td><code>https://docs.example.com@evil.test/help</code></td>
-<td>拒绝</td>
+<td><code>https://docs.example.com.evil.test/</code></td>
+<td align="right">拒绝</td>
+<td>host 不相等</td>
 </tr>
 <tr>
-<td><code>http://docs.example.com/help</code></td>
-<td>拒绝</td>
+<td><code>https://docs.example.com@evil.test/</code></td>
+<td align="right">拒绝</td>
+<td>实际 host 是 <code>evil.test</code>，且有 userinfo</td>
 </tr>
 <tr>
-<td><code>file:///data/...</code></td>
-<td>拒绝</td>
+<td><code>http://docs.example.com/</code></td>
+<td align="right">拒绝</td>
+<td>scheme 错误</td>
+</tr>
+<tr>
+<td><code>https://docs.example.com:444/</code></td>
+<td align="right">拒绝</td>
+<td>端口不在允许集合</td>
+</tr>
+<tr>
+<td><code>file:///data/user/0/...</code></td>
+<td align="right">拒绝</td>
+<td>scheme 错误</td>
 </tr>
 </tbody></table>
-<p>这不是一段通用浏览器防护库。首次 <code>loadUrl</code>、后续导航和应用自身的 URL 打开入口都要纳入策略；主框架 URL 合法，也不自动保证 iframe、子资源和 native bridge 的交互安全。不要把历史解析差异一概写成“getHost 有漏洞”。<a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/risks/unsafe-uri-loading">官方 URI 加载说明</a>强调同时核对 scheme 与 host。</p>
-<h3 id="Native-Bridge-的额外权限"><a href="#Native-Bridge-的额外权限" class="headerlink" title="Native Bridge 的额外权限"></a>Native Bridge 的额外权限</h3><p>一个 WebView 中的脚本如果能调用读取私有文件、取 token 或执行设备操作的方法，就跨进了 App 的权限范围。现代系统仍需审查暴露方法和不可信内容可达性，不能因为用了 <code>@JavascriptInterface</code> 就认为业务授权已经解决。</p>
-<p>旧系统上的反射类漏洞应单独注明 API 与 target 条件；现代 bridge 风险则更多需要沿“谁能加载页面—谁能执行脚本—哪些方法可调用”这条路径判断。<a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/risks/insecure-webview-native-bridges">Native Bridge 风险说明</a></p>
-<h2 id="签名、升级与敏感数据"><a href="#签名、升级与敏感数据" class="headerlink" title="签名、升级与敏感数据"></a>签名、升级与敏感数据</h2><p><code>META-INF/MANIFEST.MF</code>、<code>CERT.SF</code>、<code>CERT.RSA</code> 属于 APK v1/JAR 签名体系，不能代表全部现代 APK 签名。核对签名时使用适合 APK 的验证工具，并记录实际签名方案与证书：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">apksigner verify --verbose --print-certs app.apk<br></code></pre></td></tr></table></figure>
+<p>本机 Python fixture 对上述 host、userinfo、端口、反斜杠和逐跳重定向实际执行了 13 个相关断言，其中显式端口 <code>0</code> 和越界端口 <code>65536</code> 都必须拒绝；这验证策略模型，不证明 <code>android.net.Uri</code> 与 Python 对所有畸形输入解析一致。官方 <a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/risks/unsafe-uri-loading">Unsafe URI Loading</a>要求同时校验 scheme 与完整 host，并提醒不正确的 <code>startsWith</code>/<code>endsWith</code>/<code>contains</code> 会扩大信任范围。</p>
+<h3 id="Native-Bridge：网页进入-App-权限范围的门"><a href="#Native-Bridge：网页进入-App-权限范围的门" class="headerlink" title="Native Bridge：网页进入 App 权限范围的门"></a>Native Bridge：网页进入 App 权限范围的门</h3><p><code>addJavascriptInterface</code>、<code>postWebMessage</code> 和 message channel 都可能让页面调用原生代码。API 17 以前还存在著名的反射调用面；现代系统即便使用 <code>@JavascriptInterface</code>，如果不可信页面能到达读取 token、文件、联系人或设备控制方法，仍会以宿主 App 权限执行。</p>
+<p>检查时画出三件事：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">哪些顶层页面/iframe/注入脚本能执行？<br>它们能看见哪些 bridge 名称和方法？<br>每个方法最终到达哪个文件、Provider、Binder 或后端 API？<br></code></pre></td></tr></table></figure>
 
-<p>知道证书、公钥或证书指纹，不等于获得了用于签名的私钥。应用升级流程还要检查下载来源、文件替换时机与安装前后的签名身份关系。<a target="_blank" rel="noopener" href="https://developer.android.com/tools/apksigner">apksigner 文档</a></p>
-<p>数据入口包括日志、外部存储、数据库、SharedPreferences、硬编码与网络传输。分析时再问一步：这些数据对哪个身份可读，生命周期多长，退出登录和备份恢复后是否仍可使用？</p>
-<p>加密算法按用途看。散列不是加密，Base64 只是编码；把密钥和密文一起放进 APK 也不能依靠“加密过”获得秘密性。使用 AEAD 时要同时处理 nonce 唯一性、认证失败和密钥管理；Keystore 能提供相应密钥保护能力，但不能替代被允许调用解密功能时的业务授权。</p>
-<h2 id="ZIP-解压缩：路径越界只是一部分"><a href="#ZIP-解压缩：路径越界只是一部分" class="headerlink" title="ZIP 解压缩：路径越界只是一部分"></a>ZIP 解压缩：路径越界只是一部分</h2><p>ZIP entry 名称可以包含路径。危险逻辑通常是把它直接拼在目标目录后面就写文件。修复应验证规范化后的最终目标确实位于允许目录内，而不是只搜索字符串中有没有 <code>../</code>。</p>
-<p><img src="/mdimg/notes-2026/android-zip.svg" srcset="/img/loading.gif" lazyload alt="ZIP 解压路径经过规范化、目录边界判断与写入限制"></p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">File</span> <span class="hljs-variable">root</span> <span class="hljs-operator">=</span> destination.getCanonicalFile();<br><span class="hljs-type">File</span> <span class="hljs-variable">target</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">File</span>(root, entry.getName()).getCanonicalFile();<br><span class="hljs-type">String</span> <span class="hljs-variable">prefix</span> <span class="hljs-operator">=</span> root.getPath() + File.separator;<br><span class="hljs-keyword">if</span> (!target.getPath().startsWith(prefix)) &#123;<br>    <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IOException</span>(<span class="hljs-string">&quot;entry escapes destination&quot;</span>);<br>&#125;<br></code></pre></td></tr></table></figure>
+<p>不要假定“顶层 URL 在白名单”就保证所有 frame 都可信。把接口缩成具体业务动作，不暴露通用 <code>readFile(path)</code>、<code>exec(cmd)</code>、<code>getToken()</code>；原生方法里仍校验当前用户、对象和状态。加载不可信内容前调用 <code>removeJavascriptInterface()</code>，或更直接地让不可信内容进入没有 bridge 的独立 WebView/外部浏览器。官方 <a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/risks/insecure-webview-native-bridges">WebView Native Bridge 风险说明</a>明确建议不需要 JS 时关闭，并在不可信内容加载前移除接口。</p>
+<h3 id="WebView-修复回归矩阵"><a href="#WebView-修复回归矩阵" class="headerlink" title="WebView 修复回归矩阵"></a>WebView 修复回归矩阵</h3><table>
+<thead>
+<tr>
+<th>用例</th>
+<th>预期</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>允许 HTTPS 页面</td>
+<td>正常加载，合法业务动作可用</td>
+</tr>
+<tr>
+<td>允许页 302 到非允许 host</td>
+<td>WebView 停止或转系统浏览器</td>
+</tr>
+<tr>
+<td><code>http/file/content/javascript</code> URL</td>
+<td>拒绝或按明确外部策略处理</td>
+</tr>
+<tr>
+<td>错误证书/主机名</td>
+<td><code>cancel</code>，页面不继续</td>
+</tr>
+<tr>
+<td>非允许页面尝试 bridge</td>
+<td>接口不可见或动作拒绝</td>
+</tr>
+<tr>
+<td>允许页面的恶意 iframe/脚本</td>
+<td>不能借 bridge 取得通用 App 权限</td>
+</tr>
+<tr>
+<td>旧 target 与新 target 构建</td>
+<td>显式设置使结果一致，差异有记录</td>
+</tr>
+</tbody></table>
+<p>手机厂商、浏览器厂商、App 开发者和用户都需要及时更新 WebView/浏览器；这是旧文的防护建议之一。对 App 团队而言，更新不能替代自身 URL 和 bridge 边界，但能缩短已知 Chromium/WebView 漏洞暴露时间。</p>
+<h2 id="敏感数据泄露"><a href="#敏感数据泄露" class="headerlink" title="敏感数据泄露"></a>敏感数据泄露</h2><p>原文列出的六类泄露全部保留：</p>
+<ul>
+<li>Logcat 输出 token、手机号、VIN、定位、请求/响应正文；</li>
+<li>敏感数据明文写入 sdcard/共享外部存储；</li>
+<li>数据库敏感字段明文保存；</li>
+<li>SharedPreferences 被错误设为全局可读写，或通过备份/调试环境泄露；</li>
+<li>API key、私钥、固定加密 key 等硬编码进 APK；</li>
+<li>HTTP 明文传输敏感信息。</li>
+</ul>
+<p>现代 Android 的应用沙箱、scoped storage 和 SELinux 降低了部分默认暴露，但不能把“私有目录”写成绝对安全：debuggable 构建、root/设备失陷、备份、导出 Provider、WebView bridge 和应用自身越权接口都可能把数据带出来。</p>
+<p>逐项审计生命周期比只看“是否加密”更有用：</p>
+<table>
+<thead>
+<tr>
+<th>数据</th>
+<th>产生</th>
+<th>存储</th>
+<th>使用</th>
+<th>清理/失效</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>access token</td>
+<td>登录响应</td>
+<td>内存/受控持久层</td>
+<td>Authorization header</td>
+<td>过期、登出、设备解绑</td>
+</tr>
+<tr>
+<td>refresh token</td>
+<td>服务端签发</td>
+<td>不进入普通备份</td>
+<td>换取短期 token</td>
+<td>服务端撤销、轮换</td>
+</tr>
+<tr>
+<td>业务导出文件</td>
+<td>用户操作</td>
+<td>私有临时目录</td>
+<td>FileProvider/分享</td>
+<td>超时删除、撤销 URI grant</td>
+</tr>
+<tr>
+<td>日志事件</td>
+<td>各模块</td>
+<td>Logcat/本地文件/SDK</td>
+<td>排障与审计</td>
+<td>脱敏、采样、保留期限</td>
+</tr>
+</tbody></table>
+<p>硬编码的公开 API identifier 不一定是秘密；真正高风险的是能代表服务端身份的 secret、可签名私钥、长期通用 token。把它们加密后连同可解密 key 一起放进 APK，只增加逆向步骤，没有建立服务器侧信任边界。</p>
+<p>还应检查通知、最近任务缩略图、剪贴板、截图/录屏、键盘与第三方 SDK。<code>FLAG_SECURE</code> 可以降低特定敏感页面被普通截图/投屏捕获的概率，但会影响可用性，也不能防住被控制的进程或所有外部相机/系统场景。</p>
+<h2 id="ZIP-解压缩漏洞"><a href="#ZIP-解压缩漏洞" class="headerlink" title="ZIP 解压缩漏洞"></a>ZIP 解压缩漏洞</h2><p>ZIP entry 名称可以包含 <code>../</code>、绝对路径等特殊形式。若应用简单执行 <code>File(destination, entry.name)</code>，攻击者可能把文件写到目标目录之外，覆盖配置、数据库、DEX 或 SO，造成拒绝服务，特定条件下甚至代码执行。旧文提到“寄生兽”、海豚浏览器和三星输入法相关历史事件，保留作这一漏洞影响的背景；具体成因与版本应分别查对应事件资料，不能把它们当作同一利用链。</p>
+<p><img src="/mdimg/protocol-depth/android-zip.svg" srcset="/img/loading.gif" lazyload alt="ZIP 解压路径经过规范化、目录边界判断与资源限制"></p>
+<p>最小路径检查如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-comment">// 教学片段：本次未在 Android 设备编译运行</span><br><span class="hljs-keyword">static</span> File <span class="hljs-title function_">checkedTarget</span><span class="hljs-params">(File destination, ZipEntry entry)</span> <span class="hljs-keyword">throws</span> IOException &#123;<br>    <span class="hljs-type">File</span> <span class="hljs-variable">root</span> <span class="hljs-operator">=</span> destination.getCanonicalFile();<br>    <span class="hljs-type">File</span> <span class="hljs-variable">target</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">File</span>(root, entry.getName()).getCanonicalFile();<br>    <span class="hljs-type">String</span> <span class="hljs-variable">prefix</span> <span class="hljs-operator">=</span> root.getPath() + File.separator;<br>    <span class="hljs-keyword">if</span> (!target.getPath().startsWith(prefix)) &#123;<br>        <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ZipException</span>(<span class="hljs-string">&quot;entry escapes destination: &quot;</span> + entry.getName());<br>    &#125;<br>    <span class="hljs-keyword">return</span> target;<br>&#125;<br></code></pre></td></tr></table></figure>
 
-<p>目录边界要带分隔符，避免把 <code>/safe-outside</code> 当成 <code>/safe</code> 的子目录。示例还假定目标目录由应用控制；工程实现要处理符号链接、并发替换、覆盖策略、文件数量和解压后的大小限制。路径检查本身不解决 ZIP bomb。</p>
-<p>Android 14 对 target 34+ 的部分 ZIP API 增加了相应路径检查，但这不覆盖所有自定义或第三方解压实现。版本保护和应用的目录策略仍需分别验证。<a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/risks/zip-path-traversal">Zip Path Traversal</a></p>
-<h2 id="怎样留下能复核的结果"><a href="#怎样留下能复核的结果" class="headerlink" title="怎样留下能复核的结果"></a>怎样留下能复核的结果</h2><p>每个发现记录 APK 哈希与版本、设备/API/target 信息、调用者身份、触发输入、实际输出和敏感操作。修复后同时复测应该拒绝的调用与合法功能，避免只证明“页面打不开了”。</p>
-<p>原来的漏洞分类可以继续做索引，但结论最好写成一句可验证的话：哪个身份，经哪个入口，在什么条件下，访问或修改了什么。这样比把一串风险名勾完更容易定位真正的问题。</p>
+<p>这段只解决规范路径边界，完整实现还要做：</p>
+<ol>
+<li>目标目录由应用独占，解压前为空或采用明确的覆盖策略；</li>
+<li>拒绝符号链接 entry，并防止检查后到打开前的 symlink/rename 竞态；</li>
+<li>限制 entry 数、单文件大小、总解压大小和压缩比，防 ZIP bomb；</li>
+<li>拒绝 NUL、绝对路径、盘符、反斜杠歧义与异常 Unicode 规范化；</li>
+<li>使用独占创建，不静默覆盖现有文件；</li>
+<li>写入失败时清理临时目录，验证完成后再原子移动；</li>
+<li>对 TAR/RAR/7z 和第三方库执行同类检查。</li>
+</ol>
+<p>Android 官方 <a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/risks/zip-path-traversal">Zip Path Traversal</a>明确指出 <code>java.util.zip</code> 默认不会替调用者过滤 <code>../</code>，并要求在每个 entry 写入前确认目标是 destination 的子路径。不要依赖“新 Android 会自动拦”这类没有覆盖到自定义/第三方解压器的假设。</p>
+<p>本机实验构造了真实内存 ZIP，实际验证：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">images/a.txt            -&gt; 写入允许目录<br>../escape.txt           -&gt; 拒绝，目录外没有生成文件<br>a/../../escape.txt      -&gt; 拒绝<br>/absolute.txt           -&gt; 拒绝<br>..\escape.txt           -&gt; 拒绝<br>Unix symlink entry      -&gt; 拒绝<br>声明解压大小超上限      -&gt; 拒绝<br></code></pre></td></tr></table></figure>
+
+<p>实验脚本还要求目标目录为空并使用独占创建。它运行在 Windows/Python 3.11，不是 Android Java 解压器的实机结果；价值在于让路径和资源策略有可重复的正反断言。</p>
+<h2 id="Android-APP-审计系统：从清单变成证据"><a href="#Android-APP-审计系统：从清单变成证据" class="headerlink" title="Android APP 审计系统：从清单变成证据"></a>Android APP 审计系统：从清单变成证据</h2><p>旧文最后保存了一张静态/动态扫描脑图，覆盖文件信息、证书、权限、SO、第三方 SDK、组件、WebView、SQLite、网络、加密、敏感数据、动态 Hook、拒绝服务与注入等检查项：</p>
+<p><img src="/mdimg/protocol-depth/android-original-audit.jpg" srcset="/img/loading.gif" lazyload alt="旧文 Android APP 审计系统脑图"></p>
+<blockquote>
+<p><a target="_blank" rel="noopener" href="https://p.sda1.dev/16/781c2f05c295078a25bb5d48f20c93e2/1.jpg">原图地址</a>。图中包含 Wormhole、XG SDK、旧 WebView/File 域、<code>adb backup</code> 等当年的检查项，适合作历史索引；工具名称和红绿状态不代表当前版本仍适用。</p>
+</blockquote>
+<p>一套可复核的流程可以这样走。</p>
+<h3 id="1-固定样本与运行条件"><a href="#1-固定样本与运行条件" class="headerlink" title="1. 固定样本与运行条件"></a>1. 固定样本与运行条件</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sha256sum</span> app-release.apk<br>apksigner verify --verbose --print-certs app-release.apk<br>apkanalyzer manifest <span class="hljs-built_in">print</span> app-release.apk &gt; manifest-final.xml<br></code></pre></td></tr></table></figure>
+
+<p>记录 APK 来源、版本、签名摘要、设备/API/补丁、target SDK、WebView provider、账户和测试网络。只有这样，同事才能解释“我这里复现不了”到底是代码、版本还是身份差异。</p>
+<h3 id="2-枚举真正入口"><a href="#2-枚举真正入口" class="headerlink" title="2. 枚举真正入口"></a>2. 枚举真正入口</h3><ul>
+<li>合并 Manifest 中的 exported Activity/Service/Receiver/Provider；</li>
+<li>动态 Receiver、Deep Link/App Link、WebView <code>loadUrl</code>；</li>
+<li>Binder/AIDL、ContentProvider URI、FileProvider paths；</li>
+<li>本地 TCP/UDP/Unix socket；</li>
+<li>通知/PendingIntent、分享与文件导入；</li>
+<li>网络 API、升级/插件下载和压缩包解析。</li>
+</ul>
+<p>每个入口写明调用者身份。<code>adb shell</code>、root、同签名 App、普通第三方 App 和远程未登录用户的影响不能混写。</p>
+<h3 id="3-从入口追到-sink"><a href="#3-从入口追到-sink" class="headerlink" title="3. 从入口追到 sink"></a>3. 从入口追到 sink</h3><p>用数据流而不是关键字作结论：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">Intent.getStringExtra(&quot;url&quot;)<br>  → normalize/allowlist?<br>  → redirect?<br>  → WebView.loadUrl<br>  → JavaScript enabled?<br>  → addJavascriptInterface<br>  → NativeBridge.exportReport(id)<br>  → repository.openFile<br></code></pre></td></tr></table></figure>
+
+<p>SQL、文件路径、反射、动态加载、系统 Intent、设备控制、日志和网络请求都可以是 sink。遇到“已校验”继续问：校验的是字符串格式、调用身份、对象归属，还是全部？校验发生在 <code>clearCallingIdentity</code> 或异步切换之前吗？</p>
+<h3 id="4-写最小复现和对照组"><a href="#4-写最小复现和对照组" class="headerlink" title="4. 写最小复现和对照组"></a>4. 写最小复现和对照组</h3><p>一个好的复现同时有正例与反例：</p>
+<table>
+<thead>
+<tr>
+<th>组别</th>
+<th>输入</th>
+<th>调用者</th>
+<th>预期/实际</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>合法</td>
+<td>A 读取 A 的 report</td>
+<td>普通合作 App A</td>
+<td>成功</td>
+</tr>
+<tr>
+<td>越权</td>
+<td>A 读取 B 的 report</td>
+<td>普通合作 App A</td>
+<td>修复前成功、修复后拒绝</td>
+</tr>
+<tr>
+<td>无权限</td>
+<td>无 signature 权限调用 Service</td>
+<td>普通第三方 App</td>
+<td><code>SecurityException</code></td>
+</tr>
+<tr>
+<td>畸形</td>
+<td>错类型/超长 extras</td>
+<td>普通第三方 App</td>
+<td>拒绝且进程不崩溃</td>
+</tr>
+<tr>
+<td>重放</td>
+<td>同 nonce 再发一次</td>
+<td>已认证账户 A</td>
+<td>第二次拒绝/返回同一幂等结果</td>
+</tr>
+</tbody></table>
+<p>截图用于展示 UI、代理请求和系统行为；关键参数、命令、日志和哈希仍要以文本保存，避免证据只剩一张难搜索的图。</p>
+<h3 id="5-修复验证要回到敏感操作"><a href="#5-修复验证要回到敏感操作" class="headerlink" title="5. 修复验证要回到敏感操作"></a>5. 修复验证要回到敏感操作</h3><p>“页面打不开了”不一定等于漏洞修复，可能只是测试路径失效。确认最终 sink 没有发生：数据库无越权行、文件未写出允许目录、WebView 未加载恶意 origin、服务端状态只变化一次。同时确认合法调用仍可用，避免以破坏功能换取扫描器不报警。</p>
+<h2 id="本机可复现实验"><a href="#本机可复现实验" class="headerlink" title="本机可复现实验"></a>本机可复现实验</h2><p>下载：</p>
+<ul>
+<li><a href="/downloads/protocol-labs/android_boundary_lab.py"><code>android_boundary_lab.py</code></a></li>
+<li><a href="/downloads/protocol-labs/android-labs-README.md"><code>android-labs-README.md</code></a></li>
+</ul>
+<p>运行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">python android_boundary_lab.py --demo<br>python android_boundary_lab.py --<span class="hljs-built_in">test</span> -v<br></code></pre></td></tr></table></figure>
+
+<p>本次在 Python 3.11.5 上实际执行 13 个 unittest，结果全部通过，覆盖：</p>
+<ul>
+<li>9 个 URL 输入和两条 redirect chain；</li>
+<li>SQL 字符串拼接、参数绑定、行归属和排序字段允许集合；</li>
+<li>正常 ZIP、4 种路径逃逸、symlink 与大小限制；</li>
+<li>请求首次接受、重复 nonce、篡改 path 与过期时间戳。</li>
+</ul>
+<p>这些 fixture 是可重复的主机侧模型。本文没有声称以下内容已经实测：Android 组件导出、Binder UID、URI grant、PendingIntent、WebView bridge、Network Security Config、Keystore、PackageInstaller。把代码带进真实项目时，应按项目的 minSdk/targetSdk、设备矩阵和网络栈补上 instrumentation/集成测试。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><h3 id="Android-官方资料"><a href="#Android-官方资料" class="headerlink" title="Android 官方资料"></a>Android 官方资料</h3><ul>
+<li><a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/risks/access-control-to-exported-components">Permission-based access control to exported components</a></li>
+<li><a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/risks/intent-redirection">Intent redirection</a></li>
+<li><a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/risks/pending-intent">Pending intents</a></li>
+<li><a target="_blank" rel="noopener" href="https://developer.android.com/guide/topics/providers/content-provider-creating">Create a content provider</a></li>
+<li><a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/risks/sql-injection">SQL injection</a></li>
+<li><a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/risks/unsafe-uri-loading">Unsafe URI loading</a></li>
+<li><a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/risks/insecure-webview-native-bridges">WebView native bridges</a></li>
+<li><a target="_blank" rel="noopener" href="https://developer.android.com/reference/android/webkit/WebSettings">WebSettings API reference</a></li>
+<li><a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/security-config">Network Security Configuration</a></li>
+<li><a target="_blank" rel="noopener" href="https://developer.android.com/identity/data/autobackup">Back up user data with Auto Backup</a></li>
+<li><a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/cryptography">Cryptography</a></li>
+<li><a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/keystore">Android Keystore</a></li>
+<li><a target="_blank" rel="noopener" href="https://developer.android.com/privacy-and-security/risks/zip-path-traversal">Zip Path Traversal</a></li>
+<li><a target="_blank" rel="noopener" href="https://source.android.com/docs/security/features/apksigning">APK Signing (AOSP)</a></li>
+<li><a target="_blank" rel="noopener" href="https://developer.android.com/tools/apksigner">apksigner</a></li>
+</ul>
+<h3 id="旧文参考链接"><a href="#旧文参考链接" class="headerlink" title="旧文参考链接"></a>旧文参考链接</h3><p>以下链接是原文的资料来源，继续保留；其中部分文章较早，涉及默认值和防护方式时以上面的官方版本条件为准。</p>
+<ul>
+<li><a target="_blank" rel="noopener" href="https://blog.csdn.net/Kelaker/article/details/80569232">Android Intent 基础</a></li>
+<li><a target="_blank" rel="noopener" href="https://blog.csdn.net/javazejian/article/details/52709857">Android Service</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.jianshu.com/p/32938446e4e0">Activity 笔记</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.jianshu.com/p/ca3d87a4cdf3">BroadcastReceiver 笔记</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.jianshu.com/p/ea8bc4aaf057">ContentProvider 笔记</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.jianshu.com/p/5459c653b34a">旧 WebView/Android 安全笔记一</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.jianshu.com/p/d963c55c3ab9">旧 WebView/Android 安全笔记二</a></li>
+<li><a target="_blank" rel="noopener" href="https://blog.csdn.net/qian1127/article/details/103531761">Android 签名旧文</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.cnblogs.com/Gandy/p/7290069.html">MANIFEST.MF 旧文</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.cnblogs.com/rebeyond/p/10916076.html">签名白名单绕过旧文</a></li>
+<li><a target="_blank" rel="noopener" href="https://blog.csdn.net/whnyao1314/article/details/83007498">旧 Android 安全参考</a></li>
+</ul>
 
                 
               </div>

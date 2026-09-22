@@ -16,16 +16,16 @@
   <meta name="author" content="g0at">
   <meta name="keywords" content="">
   
-    <meta name="description" content="从 ISO-TP 分帧到会话、安全访问与常见服务，系统梳理 UDS 诊断链路。">
+    <meta name="description" content="拆解 ISO-TP 流控和定时器、多 DID 与 DTC 记录，以及 4 KiB 下载事务中的两层计数与失败恢复。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="UDS诊断">
 <meta property="og:url" content="https://g1at.github.io/2024/06/10/UDS/index.html">
 <meta property="og:site_name" content="g0at&#39;s Blog">
-<meta property="og:description" content="从 ISO-TP 分帧到会话、安全访问与常见服务，系统梳理 UDS 诊断链路。">
+<meta property="og:description" content="拆解 ISO-TP 流控和定时器、多 DID 与 DTC 记录，以及 4 KiB 下载事务中的两层计数与失败恢复。">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="https://g1at.github.io/mdimg/UDS/UDS.png">
 <meta property="article:published_time" content="2024-06-10T09:39:32.000Z">
-<meta property="article:modified_time" content="2026-09-22T09:38:47.000Z">
+<meta property="article:modified_time" content="2026-09-22T10:20:33.000Z">
 <meta property="article:author" content="g0at">
 <meta property="article:tag" content="IoV">
 <meta name="twitter:card" content="summary_large_image">
@@ -258,7 +258,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          6.8k 字
+          16k 字
         
       </span>
     
@@ -269,7 +269,7 @@
         
         
         
-          57 分钟
+          134 分钟
         
       </span>
     
@@ -366,6 +366,109 @@
 <p><code>30 00 05</code> 表示 Continue To Send、BS=0、STmin=5 ms。BS=0 表示本次传输无需每过固定数量 CF 再等待一个 FC，并不取消其他时序限制。STmin 的 <code>00</code>～<code>7F</code> 对应 0～127 ms，<code>F1</code>～<code>F9</code> 对应 100～900 μs，其他编码不能直接按毫秒解释。<a target="_blank" rel="noopener" href="https://docs.kernel.org/networking/iso15765-2.html">Linux ISO-TP 文档</a>给出了相关字段与接口。</p>
 <h3 id="CAN-FD-的边界"><a href="#CAN-FD-的边界" class="headerlink" title="CAN FD 的边界"></a>CAN FD 的边界</h3><p>CAN FD 可以使用更长的数据场；相应 ISO-TP 单帧长度编码、容量和填充规则也需要按实际 DLC 与寻址格式处理。扩展长度 FF 也不能套用这里的两字节 PCI 简化模型。</p>
 <p>因此下面的离线脚本刻意只处理经典 CAN 正常寻址，不声称兼容所有 CAN FD 报文。实际工程优先使用完整协议栈，避免在一个教学拼包脚本上继续堆协议例外。</p>
+<h2 id="ISO-TP-真正需要维护哪些状态"><a href="#ISO-TP-真正需要维护哪些状态" class="headerlink" title="ISO-TP 真正需要维护哪些状态"></a>ISO-TP 真正需要维护哪些状态</h2><p>只拼接字节可以解释一条正常报文，却不足以分析一次失败的传输。对于一个正在接收的多帧消息，至少要保存 <code>total_length</code>、已接收长度、期望 SN、当前 block 的 CF 数量、最近一帧时间与流控状态。两条传输若共用这些变量，一遇到交错报文就会互相覆盖。</p>
+<p>一个连接的标识应包含通道、寻址格式、请求/响应 ID、必要的扩展地址，以及数据方向。例如 <code>can0 / normal-11 / 7E0 / 7E8 / ECU→Tester</code>。这里的 ID 对从配置或上下文得来，不能对任意厂商报文都机械使用“响应 ID 减 8”。</p>
+<p><img src="/mdimg/protocol-depth/uds-flow-state.svg" srcset="/img/loading.gif" lazyload alt="30 字节消息在 BS=2 下的流控，以及接收端需要保存的状态"></p>
+<h3 id="用-30-字节、BS-2-算一遍"><a href="#用-30-字节、BS-2-算一遍" class="headerlink" title="用 30 字节、BS=2 算一遍"></a>用 30 字节、BS=2 算一遍</h3><p>经典 CAN 正常寻址下，FF 带 6 字节，之后每条 CF 最多带 7 字节。总长 30 字节需要：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">FF：6 字节<br>CF1：7 字节，累计 13<br>CF2：7 字节，累计 20<br>CF3：7 字节，累计 27<br>CF4：3 字节，累计 30；数据场剩余部分为填充<br></code></pre></td></tr></table></figure>
+
+<p>假设接收端返回 <code>30 02 05</code>，表示每个 block 最多接收 2 个 CF，CF 间要求 5 ms 的 STmin。发送端在 FF 后等待第一次 CTS，发完 CF1、CF2 后再等第二次 CTS，随后发 CF3、CF4。本例一共需要 2 个 FC。CF4 已经完成全部负载，不能因为它又凑够了两个 CF，就再等待一个毫无用途的 FC。</p>
+<p>BS 统计的是连续帧数量，不包括 FF 或 FC。<code>BS=0</code> 表示不用在中途因块数量再次等待 FC；发送端仍然要在 FF 后等待首次流控，也仍然受 STmin 约束。</p>
+<h3 id="CTS、WAIT-与-Overflow"><a href="#CTS、WAIT-与-Overflow" class="headerlink" title="CTS、WAIT 与 Overflow"></a>CTS、WAIT 与 Overflow</h3><table>
+<thead>
+<tr>
+<th>FC 流状态</th>
+<th>接收方含义</th>
+<th>发送方应该怎样处理</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>0</code> CTS</td>
+<td>允许继续</td>
+<td>使用本次协商的 BS、STmin 推进发送</td>
+</tr>
+<tr>
+<td><code>1</code> WAIT</td>
+<td>暂时不能继续</td>
+<td>暂停，并受等待次数/时间策略约束</td>
+</tr>
+<tr>
+<td><code>2</code> Overflow</td>
+<td>无法接收本次长度</td>
+<td>终止传输，向上层报告失败</td>
+</tr>
+</tbody></table>
+<p>WAIT 不是允许永远占用缓存的承诺。实现通常需要有上限，超出上限就释放本次状态。Overflow 也不能按 CTS 处理后继续灌数据，否则正好打穿接收端声明的容量边界。</p>
+<p>同一个协议在具体栈里还有实现限制。例如 Linux 内核 ISO-TP 文档说明其接收端不发送 WAIT，而是在收到 FF 时判断能否接收整条消息。分析代码时应把“协议允许什么”和“所选栈实现了什么”分别核对。<a target="_blank" rel="noopener" href="https://docs.kernel.org/networking/iso15765-2.html">内核 ISO-TP 接口与错误语义</a>能直接对应 FC 超时、序号错误、填充错误等失败原因。</p>
+<h3 id="SN-回绕、重复与缺帧"><a href="#SN-回绕、重复与缺帧" class="headerlink" title="SN 回绕、重复与缺帧"></a>SN 回绕、重复与缺帧</h3><p>CF 的 SN 是 4 bit，因此序列是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">1, 2, ... E, F, 0, 1, 2, ...<br></code></pre></td></tr></table></figure>
+
+<p>每次新的 FF 开始，第一条 CF 又从 1 计数。SN 不是整个 CAN 通道的全局序号，<code>20</code> 也不意味着“无效连续帧”。只在完整传输上下文中，才能判断它是正常回绕还是错误。</p>
+<p>重组器若期待 SN=3 却收到 SN=4，不能简单跳过差异继续拼，因为应用负载的字节偏移已经不可信。重复帧也不能无条件追加；这里没有 TCP 那种按绝对字节偏移自动去重的机制。诊断工具应把传输错误和 ECU 返回的 NRC 分开记录：前者可能尚未产生可交给 UDS 的完整消息。</p>
+<h3 id="STmin-到底量哪两个时刻"><a href="#STmin-到底量哪两个时刻" class="headerlink" title="STmin 到底量哪两个时刻"></a>STmin 到底量哪两个时刻</h3><p>STmin 描述相邻 CF 的最小分离要求，不能把它当作 ECU 的总响应时间。记录仪只给出一个时间戳时，先确认它记录的是帧开始、帧结束还是主机收到回调的时刻。控制器队列、USB 批量上传、驱动调度都会改变后两种观察值。</p>
+<p>本文离线附件约定时间戳为帧结束时刻。两个 CF 的结束时刻之差已经小于 STmin 时，可以判定间隔不足；反过来，结束时刻之差大于 STmin，并不能证明“前帧结束到后帧开始”的要求一定满足，因为还没有扣除后帧本身的传输时间。这也是脚本只称为轨迹检查器的原因。</p>
+<p>分析微秒级 STmin 时尤需注意这一点：<code>F3</code> 是 300 μs，不是 243 ms。Python <code>sleep(0.0003)</code> 或桌面操作系统中的定时回调，也不能自动承诺 300 μs 精度。<a target="_blank" rel="noopener" href="https://can-isotp.readthedocs.io/en/latest/isotp/implementation.html">python-can-isotp 参数说明</a>分别提供发送间隔、阻塞发送与等待函数等选项，使用时还要检查底层时钟和调度能力。</p>
+<h3 id="把流控成本算进传输预算"><a href="#把流控成本算进传输预算" class="headerlink" title="把流控成本算进传输预算"></a>把流控成本算进传输预算</h3><p>对本文的长度范围，负载 L 大于 7 时：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">CF 数量 = ceil((L − 6) / 7)<br>若 BS &gt; 0：FC 数量 = ceil(CF 数量 / BS)<br>若 BS = 0：FC 数量 = 1<br></code></pre></td></tr></table></figure>
+
+<p>L=4095 时需要 585 个 CF。取 BS=8，需要 74 个 FC。若 STmin=5 ms，仅 584 个相邻 CF 间隔的最低等待量就是 2.92 s；还没有计入帧本身的传输、总线仲裁和接收端返回流控的时间。</p>
+<p>这解释了一个常见误会：ECU 可以及时启动响应，但整条长响应依然耗时数秒。拿 P2=50 ms 去限制整条 ISO-TP 长消息全部收完，容易制造假超时。实际库如果只能向上层返回完整 PDU，就还要核查它如何暴露首帧事件、如何计算接收期间的等待以及总请求超时，不能只依据参数名字推断计时起止。</p>
+<h2 id="CAN-FD-与长长度-FF：解析器在哪里分支"><a href="#CAN-FD-与长长度-FF：解析器在哪里分支" class="headerlink" title="CAN FD 与长长度 FF：解析器在哪里分支"></a>CAN FD 与长长度 FF：解析器在哪里分支</h2><p>旧的两字节 FF PCI 只编码 12 bit 长度，不能把 4095 误认为所有现代 ISO-TP 实现的最大负载。较新格式可以在特定 FF 长度标记之后使用更长的长度字段；接收端也应按自身配置限制最大消息，避免对远端声明的巨大长度无条件分配内存。</p>
+<p>对 CAN FD，单帧的长度解析需要同时看链路层数据长度与 PCI 编码。常见分支是：适用普通 SF 编码时从低半字节取长度；适用 escape 格式时，首字节的长度半字节为零，后续长度字节再给出有效负载长度。PCI 和可能的地址字节都占用容量，不能简单认为“64 字节 CAN FD 帧就能放 64 字节 UDS”。</p>
+<p>工程里应先固定地址模式和 <code>tx_data_length</code>，再按库支持的标准版本选择处理。本文脚本发现超出经典 CAN 正常寻址范围的输入就拒绝，不以“尽量拼出来”的方式冒充兼容 CAN FD。</p>
+<h2 id="定时器不能合成一个-timeout"><a href="#定时器不能合成一个-timeout" class="headerlink" title="定时器不能合成一个 timeout"></a>定时器不能合成一个 timeout</h2><p>传输层和应用层的超时负责不同阶段。即使软件最后都抛一个 <code>TimeoutError</code>，日志也应该保留发生在哪个阶段。</p>
+<table>
+<thead>
+<tr>
+<th>计时概念</th>
+<th>等待或约束对象</th>
+<th>典型问题</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>N_As / N_Ar</td>
+<td>网络层帧发送及链路确认相关过程</td>
+<td>下层队列拥塞、发送无法完成</td>
+</tr>
+<tr>
+<td>N_Bs</td>
+<td>发完 FF 或当前 block 后等待 FC</td>
+<td>地址不匹配、流控丢失、接收方停止</td>
+</tr>
+<tr>
+<td>N_Cr</td>
+<td>接收方等待后续 CF</td>
+<td>帧丢失、发送端中断、调度延迟</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>请求后的首次响应时限</td>
+<td>ECU 未及时开始响应处理</td>
+</tr>
+<tr>
+<td>P2*</td>
+<td>收到 ResponsePending 后的等待</td>
+<td>长操作迟迟没有后续响应</td>
+</tr>
+<tr>
+<td>S3</td>
+<td>非默认会话空闲维持相关时限</td>
+<td>长时间无有效诊断活动导致会话退出</td>
+</tr>
+<tr>
+<td>工具总截止时间</td>
+<td>用户允许一次操作占用的总时长</td>
+<td>连续 pending 使工具无限等待</td>
+</tr>
+</tbody></table>
+<p>这不是 ISO-TP 所有计时参数的完整清单，而是抓包排错时最常用的几个位置。具体计时起止、容差和可配置项要回到所用栈与会话层定义。</p>
+<h3 id="NRC-78-的等待模型"><a href="#NRC-78-的等待模型" class="headerlink" title="NRC 78 的等待模型"></a>NRC 78 的等待模型</h3><p>假设客户端首次响应预算为 80 ms，pending 后预算为 5000 ms，总操作预算为 6000 ms。时间线如下：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">0 ms     发送 31 01 F0 01<br>40 ms    收到 7F 31 78，下一截止点为 5040 ms<br>4040 ms  再收到 7F 31 78，按 P2* 可等到 9040 ms<br>         但总截止点仍然是 6000 ms<br>7000 ms  即使最终 71 到达，对这个操作预算也已经超时<br></code></pre></td></tr></table></figure>
+
+<p><img src="/mdimg/protocol-depth/uds-timers.svg" srcset="/img/loading.gif" lazyload alt="P2、P2* 和总截止时间共同决定何时停止等待"></p>
+<p>附件的 <code>PendingRequest</code> 使用显式时间戳模拟这条时间线，得到的截止点依次是 5040、6000。没有真的等待 7 秒，也没有把模拟时钟包装成 ECU 响应时间的实测值。</p>
+<p>这里还要验证否定响应中的原请求 SID。等待 <code>31</code> 时收到 <code>7F 22 78</code>，不能据此刷新 <code>31</code> 的计时器。肯定响应同样需要匹配子功能、RID、DID 或块号；只看“首字节等于 SID+40”还不够。</p>
+<p>对于 <code>78</code>，客户端继续等最终结果；对于某些 busy/retry 类错误，重试策略、延迟和总次数要另行定义。写操作是否允许重试更不能由一个通用网络重试装饰器决定。<a target="_blank" rel="noopener" href="https://udsoncan.readthedocs.io/en/latest/udsoncan/client.html">udsoncan 的超时配置</a>把首次等待、pending 等待和全局请求上限明确分开，可用来对照自己的客户端实现。</p>
 <h2 id="UDS-的请求与响应"><a href="#UDS-的请求与响应" class="headerlink" title="UDS 的请求与响应"></a>UDS 的请求与响应</h2><p>请求至少包含一个 SID；后面有没有子功能，由具体服务决定：</p>
 <figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">10 03          SID=10，子功能=03<br>22 F1 90       SID=22，DID=F190；F1 不是子功能<br></code></pre></td></tr></table></figure>
 
@@ -630,6 +733,148 @@
 <figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">请求：01 37 55 55 55 55 55 55<br>成功：01 77 55 55 55 55 55 55<br>失败：03 7F 37 24 55 55 55 55<br></code></pre></td></tr></table></figure>
 
 <p>服务可以根据流程带额外参数或返回记录，因此“没有参数”只能描述这个最小例子。退出传输得到肯定响应，也不能自行推断整套固件已经通过验证或完成激活。</p>
+<h2 id="把会话状态放回每一个-ECU"><a href="#把会话状态放回每一个-ECU" class="headerlink" title="把会话状态放回每一个 ECU"></a>把会话状态放回每一个 ECU</h2><p>诊断软件可以用一个小表保存每个目标的状态：当前 session、已满足的安全级别、服务器返回的时序参数、当前未完成请求，以及是否存在下载事务。这个表必须按目标分别维护。</p>
+<p>如果工具向 ECU A 成功发送 <code>10 03</code>，随后把全局变量 <code>session=extended</code> 用到 ECU B，就会产生一串难以解释的 <code>7F</code>。网关后的两个 ECU 即使使用相同 DID，支持矩阵也可能不同。重连后同样不应把上次连接的安全状态直接当成仍然有效；需要按配置和当前响应重新确认。</p>
+<p>服务权限可以抽象为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">允许执行 = 会话允许 ∧ 身份/安全级别满足 ∧ 参数合法 ∧ 当前条件满足<br></code></pre></td></tr></table></figure>
+
+<p>这个表达式有助于定位失败发生在哪里，但不意味着 ECU 一定按这个顺序检查，也不意味着 NRC 可以反推出其全部内部状态。两个实现对相同无效请求，可能优先报告不同条件。</p>
+<h3 id="TesterPresent-与并发请求"><a href="#TesterPresent-与并发请求" class="headerlink" title="TesterPresent 与并发请求"></a>TesterPresent 与并发请求</h3><p>S3 保活要与客户端请求调度协调。一个线程正在等待长例程的最终响应，另一个线程随时发 <code>3E 00</code>，若两者从同一个接收队列取消息，就可能互相拿走响应。正确做法是由一个调度器管理目标的请求与响应关联，并按协议栈/OEM 要求安排保活。</p>
+<p><code>3E 80</code> 抑制的是肯定响应，不是关闭全部错误处理。是否能够从“没有收到响应”判断会话仍有效，取决于请求与寻址条件；无响应本身没有携带成功证据。P2 和 S3 也不能互相替代：P2 只有几十毫秒，不代表需要用这个周期发送保活。</p>
+<h3 id="SecurityAccess-的状态比算法更值得检查"><a href="#SecurityAccess-的状态比算法更值得检查" class="headerlink" title="SecurityAccess 的状态比算法更值得检查"></a>SecurityAccess 的状态比算法更值得检查</h3><p>有了 Seed-to-Key 公式，只能说明能够为某种输入生成一个候选 Key。真正的状态还包括安全级别、Seed 是否仍有效、请求顺序、失败计数、等待窗口以及会话/复位后如何恢复。</p>
+<p>例如收到 Seed 后切换会话，再提交旧 Key，服务端应该如何处理，要看目标约定的状态清理规则。只在一条正常流程里得到 <code>67 02</code>，不足以证明跨会话、并发请求和异常断线的行为正确。</p>
+<p>分析失败响应时，可以逐项记录：</p>
+<table>
+<thead>
+<tr>
+<th>观察</th>
+<th>待验证的问题</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>7F 27 24</code></td>
+<td>是否未请求 Seed、级别不匹配，或中间状态已失效</td>
+</tr>
+<tr>
+<td><code>7F 27 35</code></td>
+<td>Key 校验失败后是否累计次数，旧 Seed 是否仍可使用</td>
+</tr>
+<tr>
+<td><code>7F 27 36</code></td>
+<td>超限状态作用于哪个级别、哪个目标，是否进入延时</td>
+</tr>
+<tr>
+<td><code>7F 27 37</code></td>
+<td>等待窗口如何结束，重连是否错误地绕过窗口</td>
+</tr>
+</tbody></table>
+<p>Seed/Key 的长度和算法不由这张表决定。本文保留前面的占位报文，不虚构一个通用解锁算法。现代诊断中的 <code>0x29 Authentication</code> 又是另一项服务，不能把它和 <code>0x27</code> 的安全级别简单视作同一个认证过程。</p>
+<h2 id="多-DID-响应为什么不能搜索-F1-90-来切分"><a href="#多-DID-响应为什么不能搜索-F1-90-来切分" class="headerlink" title="多 DID 响应为什么不能搜索 F1 90 来切分"></a>多 DID 响应为什么不能搜索 F1 90 来切分</h2><p>请求 <code>22 F1 90 F1 8C</code> 后，假设目标的诊断描述规定 F190 为 17 字节、F18C 为 4 字节。这里<strong>4 字节序列号是本例配置，不是 F18C 的统一长度</strong>。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">62 | F1 90 | 4C 54 45 53 54 31 32 33 34 35 36 37 38 39 30 31 32<br>   | F1 8C | F1 90 00 01<br></code></pre></td></tr></table></figure>
+
+<p>第二个数据记录故意包含 <code>F1 90</code>。如果用字符串搜索 DID 作为分隔符，它会被误判成第三条记录。正确的解析过程是读 DID、从诊断字典取长度、精确消费该长度，然后再读下一个 DID。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs python">lengths = &#123;<span class="hljs-number">0xF190</span>: <span class="hljs-number">17</span>, <span class="hljs-number">0xF18C</span>: <span class="hljs-number">4</span>&#125;  <span class="hljs-comment"># 仅对应这个教学目标</span><br>pos = <span class="hljs-number">1</span>                           <span class="hljs-comment"># 跳过 62</span><br><span class="hljs-keyword">while</span> pos &lt; <span class="hljs-built_in">len</span>(response):<br>    did = <span class="hljs-built_in">int</span>.from_bytes(response[pos:pos + <span class="hljs-number">2</span>], <span class="hljs-string">&quot;big&quot;</span>)<br>    size = lengths[did]            <span class="hljs-comment"># 未知 DID 必须停止或交给专用 codec</span><br>    record = response[pos + <span class="hljs-number">2</span>:pos + <span class="hljs-number">2</span> + size]<br>    <span class="hljs-keyword">if</span> <span class="hljs-built_in">len</span>(record) != size:<br>        <span class="hljs-keyword">raise</span> ValueError(<span class="hljs-string">&quot;truncated DID data&quot;</span>)<br>    pos += <span class="hljs-number">2</span> + size<br></code></pre></td></tr></table></figure>
+
+<p>完整附件还检查 DID 字段本身是否截断、重复 DID 和不合法长度。可变长度记录需要目标定义的专用 codec；“未知 DID 就把剩余字节全部吃掉”只能用于明确允许消费剩余负载的配置，不能作为通用容错策略。<a target="_blank" rel="noopener" href="https://udsoncan.readthedocs.io/en/latest/_modules/udsoncan/services/ReadDataByIdentifier.html">ReadDataByIdentifier 实现</a>同样依赖 DID 编解码定义。</p>
+<p>服务 <code>22</code> 本身没有 subfunction，所以不能给 DID 高字节随意按上 <code>0x80</code> 来抑制响应。<code>F190</code> 里的 <code>F1</code> 就是 DID 的一部分，这类错误与前面的层次混淆本质相同。</p>
+<h3 id="2E：写成功的证据分几步"><a href="#2E：写成功的证据分几步" class="headerlink" title="2E：写成功的证据分几步"></a>2E：写成功的证据分几步</h3><p>假设一个教学 DID <code>F1A0</code> 被配置为可写的两字节参数，则请求与响应可以是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">2E F1 A0 00 64<br>6E F1 A0<br></code></pre></td></tr></table></figure>
+
+<p>这里的 DID 用法与长度都由教学配置指定，不表示任意 ECU 存在这个参数。回显 DID 表明这次服务得到了相应肯定响应，但值的单位、是否立即生效、是否写入非易失存储仍依赖目标定义。</p>
+<p>验证写入时，应在同一会话读回、退出/重建会话后再读回；若测试目标允许重启，还应确认重启后的值。这样可以区分运行时缓存更新、延迟持久化和真正保存。不能把一次 <code>6E</code> 扩大成“永久配置已经可靠更新”。</p>
+<h3 id="2F：临时接管-I-O-的恢复路径"><a href="#2F：临时接管-I-O-的恢复路径" class="headerlink" title="2F：临时接管 I/O 的恢复路径"></a>2F：临时接管 I/O 的恢复路径</h3><p>常用 inputOutputControlParameter 的值包括 <code>00</code> ReturnControlToECU、<code>01</code> ResetToDefault、<code>02</code> FreezeCurrentState、<code>03</code> ShortTermAdjustment。后面的控制状态记录和可选控制使能掩码由 DID 配置决定，不存在一套所有执行器通用的长度。</p>
+<p>这里的风险点不仅是“能不能控制”，还有“控制怎样结束”。诊断工具断线、会话超时、条件变化时，临时控制应如何退回正常逻辑？回包 <code>6F</code> 只能证明服务响应，还要结合状态记录和目标反馈确认实际效果。把 I/O 控制当成永久写参数，会遗漏这一整条恢复路径。<a target="_blank" rel="noopener" href="https://udsoncan.readthedocs.io/en/latest/udsoncan/services.html#inputoutputcontrolbyidentifier-0x2f">InputOutputControlByIdentifier 接口</a>将控制参数、值和掩码分别建模。</p>
+<h2 id="0x19：三字节-DTC-与状态掩码"><a href="#0x19：三字节-DTC-与状态掩码" class="headerlink" title="0x19：三字节 DTC 与状态掩码"></a>0x19：三字节 DTC 与状态掩码</h2><p>先用一个完整例子看 <code>reportDTCByStatusMask</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">请求：19 02 08<br>响应：59 02 FF 12 34 56 2F AB CD EF 08<br>         │  │  └───────┬───────┘<br>         │  │     两条 DTC + status 记录<br>         │  └─ statusAvailabilityMask<br>         └──── subfunction echo<br></code></pre></td></tr></table></figure>
+
+<p>请求掩码 <code>08</code> 选择 confirmedDTC 状态。这个构造响应中，目标声明支持全部八个状态位；<code>123456</code> 的状态为 <code>2F</code>，<code>ABCDEF</code> 为 <code>08</code>，两条都满足 <code>status &amp; 08 != 0</code>。</p>
+<table>
+<thead>
+<tr>
+<th>bit</th>
+<th>状态名称</th>
+<th>阅读抓包时的含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0</td>
+<td>testFailed</td>
+<td>当前测试结果标记为失败</td>
+</tr>
+<tr>
+<td>1</td>
+<td>testFailedThisOperationCycle</td>
+<td>本操作循环发生过失败</td>
+</tr>
+<tr>
+<td>2</td>
+<td>pendingDTC</td>
+<td>pending 状态</td>
+</tr>
+<tr>
+<td>3</td>
+<td>confirmedDTC</td>
+<td>confirmed 状态</td>
+</tr>
+<tr>
+<td>4</td>
+<td>testNotCompletedSinceLastClear</td>
+<td>自上次清除以来测试尚未完成</td>
+</tr>
+<tr>
+<td>5</td>
+<td>testFailedSinceLastClear</td>
+<td>自上次清除以来发生过失败</td>
+</tr>
+<tr>
+<td>6</td>
+<td>testNotCompletedThisOperationCycle</td>
+<td>本操作循环测试尚未完成</td>
+</tr>
+<tr>
+<td>7</td>
+<td>warningIndicatorRequested</td>
+<td>请求告警指示</td>
+</tr>
+</tbody></table>
+<p>过滤关系一般写成 <code>status &amp; requestedMask &amp; availabilityMask != 0</code>。availability 为零的位不能解释成“该状态经过验证为 false”，它也可能是目标不支持报告。掩码包含多个 bit 时，不能误写成要求所有 bit 同时成立。</p>
+<p><code>19 01 mask</code> 读取的是符合条件的数量，响应还包含 DTC 格式标识和两字节计数；不能把它按 <code>19 02</code> 的四字节记录循环解析。读取 snapshot、extended data 的子功能又有各自的记录布局和外部数据定义。源码层面可对照 <a target="_blank" rel="noopener" href="https://udsoncan.readthedocs.io/en/latest/_modules/udsoncan/services/ReadDTCInformation.html">ReadDTCInformation</a> 与 <a target="_blank" rel="noopener" href="https://udsoncan.readthedocs.io/en/latest/_modules/udsoncan/common/dtc.html">DTC 状态定义</a>，尤其注意所选标准版本的子功能差异。</p>
+<p>这里故意把 DTC 显示为六位十六进制。目标的 DTCFormatIdentifier 与诊断描述确定了它如何映射到显示代码；不应该把三字节随便截成两字节再套 OBD 的 <code>P/C/B/U</code> 公式。</p>
+<h3 id="清除记录、停止设置和复位分别改变什么"><a href="#清除记录、停止设置和复位分别改变什么" class="headerlink" title="清除记录、停止设置和复位分别改变什么"></a>清除记录、停止设置和复位分别改变什么</h3><p><code>14</code> 使用三字节 DTC 分组等参数，最小肯定响应为 <code>54</code>；<code>85</code> 控制后续 DTC 设置行为，不能推断它会清掉已有记录；<code>11</code> 是 ECUReset，不能推断它会恢复出厂或擦除全部 NVM。三种请求可能在调试时一起出现，但它们的状态影响需要分别记录。</p>
+<p>对 <code>28 CommunicationControl</code>，还要解析 communicationType，区分请求作用于哪些类型的通信。看到 <code>68</code> 后网络流量减少，不等于物理 CAN 控制器彻底关闭；诊断通信是否仍然允许也应按目标配置验证。</p>
+<h2 id="0x31：请求启动与例程完成之间的区别"><a href="#0x31：请求启动与例程完成之间的区别" class="headerlink" title="0x31：请求启动与例程完成之间的区别"></a>0x31：请求启动与例程完成之间的区别</h2><p>用一个教学例程 RID=<code>F001</code> 举例，它只是为了说明字段，并非通用擦除或校验例程编号：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">31 01 F0 01 &lt;optionRecord&gt;    请求启动<br>71 01 F0 01 &lt;statusRecord&gt;    启动请求的肯定响应<br>31 03 F0 01                  请求结果（若该例程支持）<br>71 03 F0 01 &lt;resultRecord&gt;    结果记录<br></code></pre></td></tr></table></figure>
+
+<p><code>optionRecord</code>、<code>statusRecord</code>、<code>resultRecord</code> 的内容要由该 RID 的定义解释。有的实现收到启动请求后先返回 pending，再给最终结果；有的接受启动后返回状态，稍后通过 RequestRoutineResults 查询。客户端必须按目标约定处理，不能看到任意 <code>71</code> 就在界面标“校验通过”。</p>
+<p>服务 <code>31</code> 的顺序错误还可能来自例程正在运行、尚未启动或已经结束。要把时间线和 RID 一起记录，单独摘一条 <code>7F 31 24</code> 无法解释前因后果。</p>
+<h2 id="下载流程按字节算：4-KiB-是怎样传完的"><a href="#下载流程按字节算：4-KiB-是怎样传完的" class="headerlink" title="下载流程按字节算：4 KiB 是怎样传完的"></a>下载流程按字节算：4 KiB 是怎样传完的</h2><p>下面只讨论传输状态，不向设备写固件。教学模型在 Python 内存里保存数据；真实 ECU 的地址范围、会话、安全访问、擦除例程、签名和激活步骤都要由目标定义。</p>
+<h3 id="RequestDownload-的两个半字节"><a href="#RequestDownload-的两个半字节" class="headerlink" title="RequestDownload 的两个半字节"></a>RequestDownload 的两个半字节</h3><p>假设请求从地址 <code>0x00100000</code> 开始传输 <code>0x00001000</code>，即 4096 字节：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">34 00 44 00 10 00 00 00 00 10 00<br>│  │  │  └────┬────┘ └────┬────┘<br>│  │  │    address       size<br>│  │  └─ ALFI：大小占4字节，地址占4字节<br>│  └──── DFI：本例不压缩、不加密<br>└─────── SID<br></code></pre></td></tr></table></figure>
+
+<p>DFI 的高半字节描述压缩方法，低半字节描述加密方法；非零编码的具体算法不能凭编号猜测。ALFI 的高半字节是大小字段字节数，低半字节是地址字段字节数，两者特别容易写反。这个请求的 UDS 负载已经超过 7 字节，需要由 ISO-TP 分帧。</p>
+<p>假设肯定响应为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">74 20 01 02<br>   │  └───┘<br>   │    maxNumberOfBlockLength = 0x0102 = 258<br>   └─ 长度数值占2字节<br></code></pre></td></tr></table></figure>
+
+<p>258 是这次约定下一个 TransferData 请求的最大长度。按 <code>36 + blockSequenceCounter + data</code> 布局，两字节属于服务头，实际数据最多 256 字节。因此 4 KiB 恰好分成 16 个满块。原来 <code>74 20 04 00</code> 的例子也一样：最大请求长度 1024，数据容量为 1022，不能直接塞 1024 字节数据。</p>
+<p><img src="/mdimg/protocol-depth/uds-block-counters.svg" srcset="/img/loading.gif" lazyload alt="UDS 的块计数与每个块内部的 ISO-TP 连续帧计数独立推进"></p>
+<h3 id="两套计数器各管哪一层"><a href="#两套计数器各管哪一层" class="headerlink" title="两套计数器各管哪一层"></a>两套计数器各管哪一层</h3><p>第一块请求为 <code>36 01 &lt;256 bytes&gt;</code>，第二块为 <code>36 02 &lt;256 bytes&gt;</code>，本例一直到 <code>36 10 &lt;256 bytes&gt;</code>。UDS 的 blockSequenceCounter 为 8 bit，从第一块的 1 开始，超过 <code>FF</code> 后回到 <code>00</code>。</p>
+<p>但每一块 258 字节都要重新经历一次 ISO-TP 传输：FF 先带 6 字节，再用 <code>ceil((258−6)/7)=36</code> 个 CF 发完。CF 的 4 bit SN 在这一个块内部就会多次回绕。下一块又从 FF 开始，CF1 的 SN 又是 1。</p>
+<p>如果实现把这两个计数器合在一起，一到第 16 个 CF 就容易出错。故障表面上可能是 <code>wrongBlockSequenceCounter</code> 或 ISO-TP sequence mismatch，根因却来自不同层共享了错误的状态。</p>
+<h3 id="回应丢了，为什么不能直接发下一块"><a href="#回应丢了，为什么不能直接发下一块" class="headerlink" title="回应丢了，为什么不能直接发下一块"></a>回应丢了，为什么不能直接发下一块</h3><p>设客户端发出 <code>36 05 ...</code>，ECU 已经接受并写入，但是 <code>76 05</code> 没有到达客户端。客户端不知道执行结果，此时盲目发 <code>36 06 ...</code> 或重新开启下载事务都会带来额外风险。</p>
+<p>一个需要支持重发的实现应识别“最近刚接受的相同块号”，对相同数据重发返回相应确认，避免把同一块追加两次。本文模型还显式要求重发的数据与上一块完全一致；相同块号但数据改变时直接报错。这是模型采用的保护策略，实际 ECU 的具体校验和恢复规则仍需核对目标实现。</p>
+<p>更早的块号、未来块号、超过声明总长度的数据，都不属于“正常重发最后一块”。客户端也不能用无上限重试掩盖持续的 <code>73</code>。先确认双方当前事务和最后已确认块号，再决定恢复或重新开始。</p>
+<h3 id="本地模型实测"><a href="#本地模型实测" class="headerlink" title="本地模型实测"></a>本地模型实测</h3><p>附件依次提交 16 块，每块 256 字节，然后把每一块原样重发一次。模型实际运行后的输出是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">download: 4096 bytes, 16 blocks, 16 duplicate acknowledgements, exit=77<br></code></pre></td></tr></table></figure>
+
+<p>测试同时验证最终缓存只有 4096 字节、改变重复块内容会失败、257 字节数据超过这次协商容量、未传完不能 TransferExit，以及块号 <code>FF→00</code> 的回绕。它没有实现真实 Flash 写入、断电恢复、密钥算法或固件签名校验。</p>
+<h3 id="TransferExit-之后还没有结束的事"><a href="#TransferExit-之后还没有结束的事" class="headerlink" title="TransferExit 之后还没有结束的事"></a>TransferExit 之后还没有结束的事</h3><p><code>77</code> 可以说明相应退出服务得到肯定响应，不能独自证明固件可启动。真实流程可能还有数据完整性检查、签名验证、软件依赖校验、启动槽切换、复位和软件版本回读。这些步骤的组合与例程编号不是通用答案，应结合 bootloader 与 OEM 流程分析。</p>
+<p>这也是安全审计里需要追的路径：允许进入 <code>34</code> 与允许把任意镜像激活，是不同的检查点；传输过程加密和镜像签名也解决不同问题。只证明能发送数据，距离证明 ECU 会信任并运行它还差一整段证据。</p>
+<h2 id="把异常轨迹也跑一遍"><a href="#把异常轨迹也跑一遍" class="headerlink" title="把异常轨迹也跑一遍"></a>把异常轨迹也跑一遍</h2><p>下载 <a href="/downloads/protocol-labs/diagnostic_lab.py">diagnostic_lab.py</a> 与 <a href="/downloads/protocol-labs/diagnostic_trace.jsonl">diagnostic_trace.jsonl</a>。运行环境为 Python 3.10+，仅使用标准库：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">python3 diagnostic_lab.py --<span class="hljs-built_in">test</span><br>python3 diagnostic_lab.py --trace diagnostic_trace.jsonl<br></code></pre></td></tr></table></figure>
+
+<p>脚本覆盖多种长度的重组、两个目标交错、SN 回绕、缺少流控、流控块上限、序号错误、截断、传输超时、DID 边界、pending 总截止点以及下载重发。它按完整轨迹检查，遇到不完整记录就拒绝给出貌似正常的应用负载。</p>
+<p>在真实被动分析中，拒绝重组不等于认定发送者违规。抓包起点位于传输中途、分析仪过滤了 FC、时间戳精度不足或采集端丢帧，都可能产生相同现象。保留原始记录、采集配置与错误位置，才有条件区分总线问题、工具问题和 ECU 行为。</p>
+<p>如果接真实设备，优先使用成熟传输栈。以 Linux 为例，<code>CAN_ISOTP</code> socket 的用户空间读写对象是完整应用负载；内核负责相应 ISO-TP 处理。不要把已经包含 <code>03</code>、<code>10 xx</code> 的原始帧再写给期待 UDS PDU 的接口。这和 OBD 文章里 ELM 自动格式化的重复封装问题是同一种边界错误。</p>
 <h2 id="从抓包到结论"><a href="#从抓包到结论" class="headerlink" title="从抓包到结论"></a>从抓包到结论</h2><p>实际分析按这个顺序记录会更稳：先确认通道和地址格式，再按方向重组 ISO-TP，随后解释 SID、DID/RID 和 NRC，最后把报文放回会话、安全级别与操作流程。</p>
 <p>每个结论最好能落到一个具体请求、一个完整响应和对应时间。仅凭某条 <code>67</code>、<code>74</code> 或 <code>7F</code> 的出现，很容易把“进入流程”“等待结果”和“操作完成”混为一谈。</p>
 <h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><ul>

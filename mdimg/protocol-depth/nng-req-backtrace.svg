@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 650" role="img" aria-labelledby="t d">
+  <title id="t">REQ REP cooked backtrace 与重发</title>
+  <desc id="d">请求 ID 高位为一，转发节点在前方压入 peer ID，回复沿栈返回；重发可造成业务重复</desc>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10Z" fill="context-stroke"/></marker><style>.h{font:700 28px 'Microsoft YaHei',sans-serif;fill:#172033}.s{font:15px 'Microsoft YaHei',sans-serif;fill:#526071}.b{font:700 19px 'Microsoft YaHei',sans-serif;fill:#172033}.m{font:15px Consolas,monospace;fill:#334155}.l{font:600 15px 'Microsoft YaHei',sans-serif}</style></defs>
+  <rect width="1000" height="650" fill="#fff"/>
+  <text x="50" y="52" class="h">cooked REQ/REP 用 backtrace 把回复送回原 context</text>
+  <text x="50" y="82" class="s">下面的十六进制只用于解释字节布局；真实 request id 由 1.7.2 内部 ID map 分配</text>
+  <rect x="55" y="130" width="200" height="110" rx="14" fill="#eff6ff" stroke="#60a5fa"/>
+  <text x="155" y="169" text-anchor="middle" class="b">REQ context</text><text x="155" y="203" text-anchor="middle" class="m">[80 00 00 2A] body</text>
+  <rect x="400" y="130" width="200" height="110" rx="14" fill="#fffbeb" stroke="#fbbf24"/>
+  <text x="500" y="169" text-anchor="middle" class="b">raw forwarder</text><text x="500" y="203" text-anchor="middle" class="m">push peer id 00 00 00 07</text>
+  <rect x="745" y="130" width="200" height="110" rx="14" fill="#ecfdf5" stroke="#4ade80"/>
+  <text x="845" y="169" text-anchor="middle" class="b">REP context</text><text x="845" y="203" text-anchor="middle" class="m">保存 backtrace + pipe</text>
+  <path d="M255 185H400" stroke="#2563eb" stroke-width="4" marker-end="url(#a)"/><path d="M600 185H745" stroke="#2563eb" stroke-width="4" marker-end="url(#a)"/>
+  <text x="500" y="290" text-anchor="middle" class="m">wire request: [00 00 00 07] [80 00 00 2A] [payload]</text>
+  <path d="M745 330H255" stroke="#15803d" stroke-width="4" marker-end="url(#a)"/>
+  <text x="500" y="320" text-anchor="middle" class="l" fill="#15803d">reply 复用同一 backtrace；forwarder pop peer id</text>
+  <rect x="80" y="405" width="840" height="175" rx="16" fill="#fff1f2" stroke="#fda4af"/>
+  <text x="110" y="446" class="b">回复丢失后的时间线</text>
+  <text x="110" y="482" class="m">t0  REQ sends request id 0x8000002A</text>
+  <text x="110" y="512" class="m">t1  REP commits side effect; reply is lost</text>
+  <text x="110" y="542" class="m">t2  resend timer expires; the same logical request is sent again</text>
+  <text x="110" y="570" class="s">协议能匹配回复，不能替业务承诺 exactly-once；服务端仍需幂等键或结果表。</text>
+</svg>

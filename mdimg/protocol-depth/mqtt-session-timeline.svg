@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="850" viewBox="0 0 1200 850" role="img" aria-labelledby="title desc">
+  <title id="title">MQTT 会话、保留消息与 Keep Alive/Will 时间线</title>
+  <desc id="desc">区分持久会话、Broker 持久化、保留消息和遗嘱，并展示 Keep Alive 超时实验。</desc>
+  <defs>
+    <marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0 0L10 3L0 6Z" fill="#2c5ca8"/></marker>
+    <style>
+      .title{font:700 29px system-ui,'Microsoft YaHei',sans-serif;fill:#13213c}.h{font:700 20px system-ui,'Microsoft YaHei',sans-serif;fill:#17325f}.t{font:16px system-ui,'Microsoft YaHei',sans-serif;fill:#243752}.m{font:15px ui-monospace,Consolas,monospace;fill:#102b4e}.small{font:14px system-ui,'Microsoft YaHei',sans-serif;fill:#52647e}.axis{stroke:#6f86a9;stroke-width:2}.arr{stroke:#2c5ca8;stroke-width:2;marker-end:url(#a)}.session{fill:#edf4ff;stroke:#7295ca;stroke-width:2}.retain{fill:#f3edff;stroke:#866cbb;stroke-width:2}.will{fill:#fff3df;stroke:#d39734;stroke-width:2}.ok{fill:#e7f7ef;stroke:#3e9968;stroke-width:2}
+    </style>
+  </defs>
+  <rect width="1200" height="850" fill="#fff"/>
+  <text x="50" y="52" class="title">四类状态分开看：Connection、Session、Retained、Will</text>
+
+  <text x="55" y="105" class="h">A. Clean Session=0 的离线恢复（MQTT 3.1.1）</text>
+  <line x1="80" y1="190" x2="1120" y2="190" class="axis" marker-end="url(#a)"/>
+  <circle cx="150" cy="190" r="8" fill="#2c5ca8"/><text x="95" y="150" class="m">CONNECT</text><text x="82" y="172" class="small">Client ID=A, clean=0</text>
+  <circle cx="340" cy="190" r="8" fill="#2c5ca8"/><text x="288" y="150" class="m">SUBSCRIBE</text><text x="270" y="172" class="small">lab/deep/offline QoS 1</text>
+  <circle cx="530" cy="190" r="8" fill="#2c5ca8"/><text x="488" y="150" class="m">断开</text><text x="456" y="172" class="small">Session 仍由 Broker 保存</text>
+  <circle cx="720" cy="190" r="8" fill="#2c5ca8"/><text x="665" y="150" class="m">离线 PUBLISH</text><text x="660" y="172" class="small">消息进入会话队列</text>
+  <circle cx="930" cy="190" r="8" fill="#2c5ca8"/><text x="874" y="150" class="m">重连 clean=0</text><text x="850" y="172" class="small">CONNACK Session Present=1</text>
+  <rect x="840" y="215" width="250" height="58" rx="11" class="ok"/><text x="865" y="240" class="t">收到 payload=queued</text><text x="865" y="262" class="small">本地回环实验实测</text>
+
+  <rect x="70" y="305" width="325" height="130" rx="14" class="session"/>
+  <text x="95" y="338" class="h">Session State</text><text x="95" y="369" class="t">订阅、未完成 QoS 交换、</text><text x="95" y="395" class="t">离线待交付消息</text><text x="95" y="420" class="small">与 Client ID / 协议版本规则绑定</text>
+  <rect x="438" y="305" width="325" height="130" rx="14" class="retain"/>
+  <text x="463" y="338" class="h">Retained Store</text><text x="463" y="369" class="t">每个 Topic Name 的最后一条</text><text x="463" y="395" class="t">保留消息（不是历史队列）</text><text x="463" y="420" class="small">与某个订阅者 Session 无关</text>
+  <rect x="805" y="305" width="325" height="130" rx="14" class="will"/>
+  <text x="830" y="338" class="h">Will</text><text x="830" y="369" class="t">CONNECT 时登记的待发布消息</text><text x="830" y="395" class="t">异常断开等条件触发</text><text x="830" y="420" class="small">正常 DISCONNECT 会抑制它</text>
+
+  <text x="55" y="490" class="h">B. Keep Alive=2 s 的静默连接（Mosquitto 2.0.18 实测）</text>
+  <line x1="100" y1="590" x2="1110" y2="590" class="axis" marker-end="url(#a)"/>
+  <circle cx="160" cy="590" r="8" fill="#2c5ca8"/><text x="107" y="545" class="m">t=0</text><text x="88" y="568" class="small">CONNACK 后不再发包</text>
+  <line x1="160" y1="600" x2="160" y2="630" class="axis"/>
+  <circle cx="575" cy="590" r="8" fill="#d39734"/><text x="515" y="545" class="m">1.5 × Keep Alive</text><text x="470" y="568" class="small">规范要求服务器判定网络连接失败的阈值</text>
+  <line x1="575" y1="600" x2="575" y2="630" class="axis"/>
+  <circle cx="900" cy="590" r="9" fill="#c15d35"/><text x="840" y="545" class="m">t=4.714 s</text><text x="786" y="568" class="small">本次 Broker 检查周期触发关闭并发布 Will</text>
+  <line x1="900" y1="600" x2="900" y2="630" class="axis"/>
+  <rect x="760" y="650" width="300" height="65" rx="12" class="will"/><text x="787" y="678" class="t">PUBLISH lab/deep/will</text><text x="787" y="702" class="m">payload = timeout</text>
+
+  <rect x="70" y="750" width="1060" height="62" rx="12" class="session"/>
+  <text x="95" y="779" class="t">协议阈值不是“必须在 3.000 s 精确发 Will”的定时器承诺；实现的事件循环与检查粒度会影响观测时刻。</text>
+  <text x="95" y="801" class="small">同一实验中，客户端发送正常 DISCONNECT 后观察 2.0 s，Will 投递数为 0。</text>
+</svg>

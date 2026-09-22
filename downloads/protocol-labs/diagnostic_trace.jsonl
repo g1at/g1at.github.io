@@ -1,0 +1,5 @@
+{"t_us": 0, "link": "can0/11/7e0/7e8", "direction": "rx", "data": "10 14 49 02 01 4c 54 45"}
+{"t_us": 1000, "link": "can0/11/7e0/7e8", "direction": "tx", "data": "30 02 05 55 55 55 55 55"}
+{"t_us": 7000, "link": "can0/11/7e0/7e8", "direction": "rx", "data": "21 53 54 31 32 33 34 35"}
+{"t_us": 8000, "link": "can0/11/7e1/7e9", "direction": "rx", "data": "04 41 0c 1a f8 55 55 55"}
+{"t_us": 13000, "link": "can0/11/7e0/7e8", "direction": "rx", "data": "22 36 37 38 39 30 31 32"}

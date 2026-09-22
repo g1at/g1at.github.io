@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" role="img" aria-labelledby="t d">
+  <title id="t">NNG 连接角色与协议角色相互独立</title>
+  <desc id="d">REP 主动拨号到 REQ 监听端，连接后仍由 REQ 发请求、REP 发回复</desc>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10Z" fill="context-stroke"/></marker>
+    <style>.h{font:700 28px 'Microsoft YaHei',sans-serif;fill:#172033}.s{font:16px 'Microsoft YaHei',sans-serif;fill:#526071}.b{font:700 22px 'Microsoft YaHei',sans-serif;fill:#172033}.m{font:16px Consolas,monospace;fill:#334155}.l{font:600 16px 'Microsoft YaHei',sans-serif}</style>
+  </defs>
+  <rect width="1000" height="560" fill="#fff"/>
+  <text x="50" y="52" class="h">连接是谁发起的，不决定消息先后</text>
+  <text x="50" y="82" class="s">dial/listen 属于 endpoint；REQ/REP 属于 protocol</text>
+  <rect x="70" y="145" width="315" height="205" rx="16" fill="#eff6ff" stroke="#93c5fd" stroke-width="2"/>
+  <text x="100" y="188" class="b">REQ socket</text>
+  <text x="100" y="225" class="m">nng_req0_open()</text>
+  <text x="100" y="257" class="m">nng_listen(...:18891)</text>
+  <text x="100" y="305" class="s">协议动作：send request → recv reply</text>
+  <rect x="615" y="145" width="315" height="205" rx="16" fill="#ecfdf5" stroke="#86efac" stroke-width="2"/>
+  <text x="645" y="188" class="b">REP socket</text>
+  <text x="645" y="225" class="m">nng_rep0_open()</text>
+  <text x="645" y="257" class="m">nng_dial(...:18891)</text>
+  <text x="645" y="305" class="s">协议动作：recv request → send reply</text>
+  <path d="M615 165H385" stroke="#64748b" stroke-width="3" stroke-dasharray="9 7" marker-end="url(#a)"/>
+  <text x="500" y="151" text-anchor="middle" class="l" fill="#64748b">建立连接：REP → REQ</text>
+  <path d="M385 240H615" stroke="#2563eb" stroke-width="4" marker-end="url(#a)"/>
+  <text x="500" y="226" text-anchor="middle" class="l" fill="#2563eb">请求 ping</text>
+  <path d="M615 310H385" stroke="#15803d" stroke-width="4" marker-end="url(#a)"/>
+  <text x="500" y="296" text-anchor="middle" class="l" fill="#15803d">回复 pong</text>
+  <rect x="145" y="410" width="710" height="90" rx="14" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="500" y="447" text-anchor="middle" class="b">一个 socket 可以有多个 dialer / listener / pipe</text>
+  <text x="500" y="478" text-anchor="middle" class="s">换连接方向不会绕过 cooked REQ/REP 的状态机</text>
+</svg>

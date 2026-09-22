@@ -16,16 +16,16 @@
   <meta name="author" content="g0at">
   <meta name="keywords" content="">
   
-    <meta name="description" content="从调用身份、组件枚举到对照复测，整理 Drozer 的 Android IPC 安全测试方法。">
+    <meta name="description" content="保留旧版安装与模块笔记，补充 Python 3 环境、Sieve 验证、Binder 身份、Provider 权限和修复复测。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Drozer指北">
 <meta property="og:url" content="https://g1at.github.io/2024/01/27/Drozer/index.html">
 <meta property="og:site_name" content="g0at&#39;s Blog">
-<meta property="og:description" content="从调用身份、组件枚举到对照复测，整理 Drozer 的 Android IPC 安全测试方法。">
+<meta property="og:description" content="保留旧版安装与模块笔记，补充 Python 3 环境、Sieve 验证、Binder 身份、Provider 权限和修复复测。">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="https://g1at.github.io/mdimg/Drozer/Drozer.png">
 <meta property="article:published_time" content="2024-01-27T07:58:14.000Z">
-<meta property="article:modified_time" content="2026-09-22T09:38:47.000Z">
+<meta property="article:modified_time" content="2026-09-22T10:20:33.000Z">
 <meta property="article:author" content="g0at">
 <meta property="article:tag" content="IoV">
 <meta property="article:tag" content="Android">
@@ -259,7 +259,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          5.2k 字
+          27k 字
         
       </span>
     
@@ -270,7 +270,7 @@
         
         
         
-          43 分钟
+          229 分钟
         
       </span>
     
@@ -321,7 +321,7 @@
               <div class="markdown-body">
                 
                 <p>Drozer 适合回答一个很具体的问题：<strong>一个装在同一台手机上的普通应用，能通过 Android IPC 调用目标应用的哪些功能？</strong> Console 提供模块和交互界面，Agent 在手机上发起调用。这个分工决定了如何解读它的结果。</p>
-<p>这份笔记最早使用 Drozer 2.4.4 和 Python 2，那套安装路径只适合复原旧环境。下面按 Python 3 版本的官方说明整理，并用官方 Sieve 文档说明验证过程。本次没有在手机上重跑，因此只给出可复核的方法，不附终端实测结果。</p>
+<p>这份笔记最早使用 Drozer 2.4.4 和 Python 2。原来的安装日志、组件分类和命令速查都保留；新版环境与 Sieve 验证放在对应章节补充。新增分析没有在手机上重跑，旧终端输出与新增加的原理图分开标明。</p>
 <h2 id="先分清调用身份"><a href="#先分清调用身份" class="headerlink" title="先分清调用身份"></a>先分清调用身份</h2><p><img src="/mdimg/notes-2026/drozer-architecture.svg" srcset="/img/loading.gif" lazyload alt="Console 经过 ADB 转发连接 Agent，Agent 以自己的 UID 调用目标组件"></p>
 <p>Agent 和被测 App 通常处于不同 UID。发现导出组件后，它会尝试通过 Activity、Binder、ContentResolver 等系统接口访问目标；目标仍然可以用组件权限、签名权限和业务逻辑拒绝访问。</p>
 <p><code>adb shell am start</code> 的调用方是 shell，Drozer 发起的调用则来自 Agent。两种结果不能直接互换。尤其在检查自定义权限、系统权限、调用 UID 时，需要在报告中写明是谁发出的请求。Agent 自己也可能声明或获得权限，开始前应执行 <code>permissions</code>，不要笼统地把它当作“没有任何权限的 App”。</p>
@@ -339,6 +339,115 @@
 <figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">adb forward --remove tcp:31415<br></code></pre></td></tr></table></figure>
 
 <p>连接失败时按链路检查：adb 是否授权、Agent 服务是否启动、转发是否指向正确设备、宿主机端口是否被占用、Console 与 Agent 是否兼容。此时还没有开始测目标 App，不能把连接错误解释成目标的防护效果。</p>
+<h2 id="原来的-2-4-4-安装记录"><a href="#原来的-2-4-4-安装记录" class="headerlink" title="原来的 2.4.4 安装记录"></a>原来的 2.4.4 安装记录</h2><p>旧笔记的安装输出保留在这里，便于回查当时的依赖、报错和 Agent 连接过程。Python 2 已停止维护，这部分用于复原历史环境；新安装使用上一节的官方 Python 3 路径。</p>
+<p>原记录中有几处需要单独纠正：<code>#assume-yes</code> 不是 apt 的选项，正确形式是 <code>--assume-yes</code> 或 <code>-y</code>；<code>java -Version</code> 大小写错误，应为 <code>java -version</code>；帮助参数同样应写 <code>--help</code>。下方作为当时终端记录保留，不要把失败行当成推荐安装命令。</p>
+<h3 id="Linux-旧环境"><a href="#Linux-旧环境" class="headerlink" title="Linux 旧环境"></a>Linux 旧环境</h3><details>
+<summary>展开原始安装命令、依赖日志、报错与连接输出</summary>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br><span class="line">142</span><br><span class="line">143</span><br><span class="line">144</span><br><span class="line">145</span><br><span class="line">146</span><br><span class="line">147</span><br><span class="line">148</span><br><span class="line">149</span><br><span class="line">150</span><br><span class="line">151</span><br><span class="line">152</span><br><span class="line">153</span><br><span class="line">154</span><br><span class="line">155</span><br><span class="line">156</span><br><span class="line">157</span><br><span class="line">158</span><br><span class="line">159</span><br><span class="line">160</span><br><span class="line">161</span><br><span class="line">162</span><br><span class="line">163</span><br><span class="line">164</span><br><span class="line">165</span><br><span class="line">166</span><br><span class="line">167</span><br><span class="line">168</span><br><span class="line">169</span><br><span class="line">170</span><br><span class="line">171</span><br><span class="line">172</span><br><span class="line">173</span><br><span class="line">174</span><br><span class="line">175</span><br><span class="line">176</span><br><span class="line">177</span><br><span class="line">178</span><br><span class="line">179</span><br><span class="line">180</span><br><span class="line">181</span><br><span class="line">182</span><br><span class="line">183</span><br><span class="line">184</span><br><span class="line">185</span><br><span class="line">186</span><br><span class="line">187</span><br><span class="line">188</span><br><span class="line">189</span><br><span class="line">190</span><br><span class="line">191</span><br><span class="line">192</span><br><span class="line">193</span><br><span class="line">194</span><br><span class="line">195</span><br><span class="line">196</span><br><span class="line">197</span><br><span class="line">198</span><br><span class="line">199</span><br><span class="line">200</span><br><span class="line">201</span><br><span class="line">202</span><br><span class="line">203</span><br><span class="line">204</span><br><span class="line">205</span><br><span class="line">206</span><br><span class="line">207</span><br><span class="line">208</span><br><span class="line">209</span><br><span class="line">210</span><br><span class="line">211</span><br><span class="line">212</span><br><span class="line">213</span><br><span class="line">214</span><br><span class="line">215</span><br><span class="line">216</span><br><span class="line">217</span><br><span class="line">218</span><br><span class="line">219</span><br><span class="line">220</span><br><span class="line">221</span><br><span class="line">222</span><br><span class="line">223</span><br><span class="line">224</span><br><span class="line">225</span><br><span class="line">226</span><br><span class="line">227</span><br><span class="line">228</span><br><span class="line">229</span><br><span class="line">230</span><br><span class="line">231</span><br><span class="line">232</span><br><span class="line">233</span><br><span class="line">234</span><br><span class="line">235</span><br><span class="line">236</span><br><span class="line">237</span><br><span class="line">238</span><br></pre></td><td class="code"><pre><code class="hljs bash">┌──(g0at㉿kali)-[~/Desktop]<br>└─$ wget https://github.com/FSecureLABS/drozer/releases/download/2.4.4/drozer-2.4.4-py2-none-any.whl<br>      <br>      <br>┌──(g0at㉿kali)-[~/Desktop]<br>└─$ sudo apt-get <span class="hljs-comment">#assume-yes install python-pip                         </span><br>    <br>    <br>┌──(g0at㉿kali)-[~/Desktop]<br>└─$ pip2 install wheel<br>DEPRECATION: Python 2.7 reached the end of its life on January 1st, 2020. Please upgrade your Python as Python 2.7 is no longer maintained. pip 21.0 will drop support <span class="hljs-keyword">for</span> Python 2.7 <span class="hljs-keyword">in</span> January 2021. More details about Python 2 support <span class="hljs-keyword">in</span> pip can be found at https://pip.pypa.io/en/latest/development/release-process/<span class="hljs-comment">#python-2-support pip 21.0 will remove support for this functionality.</span><br>Defaulting to user installation because normal site-packages is not writeable<br>Requirement already satisfied: wheel <span class="hljs-keyword">in</span> /usr/local/lib/python2.7/dist-packages (0.37.1)<br>                                                                                                                                                                                                                   <br>┌──(g0at㉿kali)-[~/Desktop]<br>└─$ pip2 install pyyaml<br>DEPRECATION: Python 2.7 reached the end of its life on January 1st, 2020. Please upgrade your Python as Python 2.7 is no longer maintained. pip 21.0 will drop support <span class="hljs-keyword">for</span> Python 2.7 <span class="hljs-keyword">in</span> January 2021. More details about Python 2 support <span class="hljs-keyword">in</span> pip can be found at https://pip.pypa.io/en/latest/development/release-process/<span class="hljs-comment">#python-2-support pip 21.0 will remove support for this functionality.                                    </span><br>Defaulting to user installation because normal site-packages is not writeable<br>Collecting pyyaml<br>  Downloading PyYAML-5.4.1-cp27-cp27mu-manylinux1_x86_64.whl (574 kB)<br>     |████████████████████████████████| 574 kB 436 kB/s <br>Installing collected packages: pyyaml<br>Successfully installed pyyaml-5.4.1<br>                                                                                                                                                                                                                   <br>┌──(g0at㉿kali)-[~/Desktop]<br>└─$ pip2 install pyhamcrest<br>DEPRECATION: Python 2.7 reached the end of its life on January 1st, 2020. Please upgrade your Python as Python 2.7 is no longer maintained. pip 21.0 will drop support <span class="hljs-keyword">for</span> Python 2.7 <span class="hljs-keyword">in</span> January 2021. More details about Python 2 support <span class="hljs-keyword">in</span> pip can be found at https://pip.pypa.io/en/latest/development/release-process/<span class="hljs-comment">#python-2-support pip 21.0 will remove support for this functionality.                                    </span><br>Defaulting to user installation because normal site-packages is not writeable<br>Collecting pyhamcrest<br>  Downloading PyHamcrest-1.10.1.tar.gz (43 kB)<br>     |████████████████████████████████| 43 kB 252 kB/s <br>Collecting six<br>  Downloading six-1.16.0-py2.py3-none-any.whl (11 kB)<br>Building wheels <span class="hljs-keyword">for</span> collected packages: pyhamcrest<br>  Building wheel <span class="hljs-keyword">for</span> pyhamcrest (setup.py) ... <span class="hljs-keyword">done</span><br>  Created wheel <span class="hljs-keyword">for</span> pyhamcrest: filename=PyHamcrest-1.10.1-py2-none-any.whl size=48898 sha256=7d5493ff342fd5ea5ec10a6d8713f7519bfcf4cc98d1b101cb75039f15e76e43<br>  Stored <span class="hljs-keyword">in</span> directory: /home/g0at/.cache/pip/wheels/f5/8c/e2/f0cea19d340270166bbfd4a2e9d8b8c132e26ef7e1376a0890<br>Successfully built pyhamcrest<br>Installing collected packages: six, pyhamcrest<br>Successfully installed pyhamcrest-1.10.1 six-1.16.0<br>                                                                                                                                                                                                                   <br>┌──(g0at㉿kali)-[~/Desktop]<br>└─$ pip2 install protobuf<br>DEPRECATION: Python 2.7 reached the end of its life on January 1st, 2020. Please upgrade your Python as Python 2.7 is no longer maintained. pip 21.0 will drop support <span class="hljs-keyword">for</span> Python 2.7 <span class="hljs-keyword">in</span> January 2021. More details about Python 2 support <span class="hljs-keyword">in</span> pip can be found at https://pip.pypa.io/en/latest/development/release-process/<span class="hljs-comment">#python-2-support pip 21.0 will remove support for this functionality.                                    </span><br>Defaulting to user installation because normal site-packages is not writeable<br>Collecting protobuf<br>  Downloading protobuf-3.17.3-cp27-cp27mu-manylinux_2_5_x86_64.manylinux1_x86_64.whl (1.0 MB)<br>     |████████████████████████████████| 1.0 MB 349 kB/s <br>Requirement already satisfied: six&gt;=1.9 <span class="hljs-keyword">in</span> /home/g0at/.local/lib/python2.7/site-packages (from protobuf) (1.16.0)<br>Installing collected packages: protobuf<br>Successfully installed protobuf-3.17.3<br>                                                                                                                                                                                                                   <br>┌──(g0at㉿kali)-[~/Desktop]<br>└─$ pip2 install pyopenssl<br>DEPRECATION: Python 2.7 reached the end of its life on January 1st, 2020. Please upgrade your Python as Python 2.7 is no longer maintained. pip 21.0 will drop support <span class="hljs-keyword">for</span> Python 2.7 <span class="hljs-keyword">in</span> January 2021. More details about Python 2 support <span class="hljs-keyword">in</span> pip can be found at https://pip.pypa.io/en/latest/development/release-process/<span class="hljs-comment">#python-2-support pip 21.0 will remove support for this functionality.                                    </span><br>Defaulting to user installation because normal site-packages is not writeable<br>Collecting pyopenssl<br>  Downloading pyOpenSSL-21.0.0-py2.py3-none-any.whl (55 kB)<br>     |████████████████████████████████| 55 kB 304 kB/s <br>Collecting cryptography&gt;=3.3<br>  Downloading cryptography-3.3.2-cp27-cp27mu-manylinux2010_x86_64.whl (2.6 MB)<br>     |████████████████████████████████| 2.6 MB 686 kB/s <br>Requirement already satisfied: six&gt;=1.5.2 <span class="hljs-keyword">in</span> /home/g0at/.local/lib/python2.7/site-packages (from pyopenssl) (1.16.0)<br>Collecting cffi&gt;=1.12<br>  Downloading cffi-1.15.1-cp27-cp27mu-manylinux1_x86_64.whl (390 kB)<br>     |████████████████████████████████| 390 kB 4.8 MB/s <br>Collecting enum34; python_version &lt; <span class="hljs-string">&quot;3&quot;</span><br>  Downloading enum34-1.1.10-py2-none-any.whl (11 kB)<br>Collecting ipaddress; python_version &lt; <span class="hljs-string">&quot;3&quot;</span><br>  Downloading ipaddress-1.0.23-py2.py3-none-any.whl (18 kB)<br>Collecting pycparser<br>  Downloading pycparser-2.21-py2.py3-none-any.whl (118 kB)<br>     |████████████████████████████████| 118 kB 18.2 MB/s <br>Installing collected packages: pycparser, cffi, enum34, ipaddress, cryptography, pyopenssl<br>Successfully installed cffi-1.15.1 cryptography-3.3.2 enum34-1.1.10 ipaddress-1.0.23 pycparser-2.21 pyopenssl-21.0.0<br>                                                                                                                                                                                                                   <br>┌──(g0at㉿kali)-[~/Desktop]<br>└─$ pip2 install twisted<br>DEPRECATION: Python 2.7 reached the end of its life on January 1st, 2020. Please upgrade your Python as Python 2.7 is no longer maintained. pip 21.0 will drop support <span class="hljs-keyword">for</span> Python 2.7 <span class="hljs-keyword">in</span> January 2021. More details about Python 2 support <span class="hljs-keyword">in</span> pip can be found at https://pip.pypa.io/en/latest/development/release-process/<span class="hljs-comment">#python-2-support pip 21.0 will remove support for this functionality.                                    </span><br>Defaulting to user installation because normal site-packages is not writeable<br>Collecting twisted<br>  Downloading Twisted-20.3.0-cp27-cp27mu-manylinux1_x86_64.whl (3.2 MB)<br>     |████████████████████████████████| 3.2 MB 396 kB/s <br>Collecting zope.interface&gt;=4.4.2<br>  Downloading zope.interface-5.5.2.tar.gz (300 kB)<br>     |████████████████████████████████| 300 kB 2.5 MB/s <br>Collecting attrs&gt;=19.2.0<br>  Downloading attrs-21.4.0-py2.py3-none-any.whl (60 kB)<br>     |████████████████████████████████| 60 kB 3.8 MB/s <br>Collecting hyperlink&gt;=17.1.1<br>  Downloading hyperlink-21.0.0-py2.py3-none-any.whl (74 kB)<br>     |████████████████████████████████| 74 kB 1.0 MB/s <br>Collecting constantly&gt;=15.1<br>  Downloading constantly-15.1.0-py2.py3-none-any.whl (7.9 kB)<br>Collecting Automat&gt;=0.3.0<br>  Downloading Automat-22.10.0-py2.py3-none-any.whl (26 kB)<br>Requirement already satisfied: PyHamcrest!=1.10.0,&gt;=1.9.0 <span class="hljs-keyword">in</span> /home/g0at/.local/lib/python2.7/site-packages (from twisted) (1.10.1)<br>Collecting incremental&gt;=16.10.1<br>  Downloading incremental-22.10.0-py2.py3-none-any.whl (16 kB)<br>Requirement already satisfied: setuptools <span class="hljs-keyword">in</span> /usr/local/lib/python2.7/dist-packages (from zope.interface&gt;=4.4.2-&gt;twisted) (44.1.1)<br>Collecting idna&gt;=2.5<br>  Downloading idna-2.10-py2.py3-none-any.whl (58 kB)<br>     |████████████████████████████████| 58 kB 4.6 MB/s <br>Collecting typing; python_version &lt; <span class="hljs-string">&quot;3.5&quot;</span><br>  Downloading typing-3.10.0.0-py2-none-any.whl (26 kB)<br>Requirement already satisfied: six <span class="hljs-keyword">in</span> /home/g0at/.local/lib/python2.7/site-packages (from Automat&gt;=0.3.0-&gt;twisted) (1.16.0)<br>Building wheels <span class="hljs-keyword">for</span> collected packages: zope.interface<br>  Building wheel <span class="hljs-keyword">for</span> zope.interface (setup.py) ... <span class="hljs-keyword">done</span><br>  Created wheel <span class="hljs-keyword">for</span> zope.interface: filename=zope.interface-5.5.2-cp27-cp27mu-linux_x86_64.whl size=198975 sha256=c18b24a79ba85066a8b982b2f624c23b285a56618aae08f309f200f02383a5f2<br>  Stored <span class="hljs-keyword">in</span> directory: /home/g0at/.cache/pip/wheels/8f/60/b0/736e361327f969f38ad9ee2e24132600a82fac63ab43b7082e<br>Successfully built zope.interface<br>Installing collected packages: zope.interface, attrs, idna, typing, hyperlink, constantly, Automat, incremental, twisted<br>  WARNING: The script automat-visualize is installed <span class="hljs-keyword">in</span> <span class="hljs-string">&#x27;/home/g0at/.local/bin&#x27;</span> <span class="hljs-built_in">which</span> is not on PATH.<br>  Consider adding this directory to PATH or, <span class="hljs-keyword">if</span> you prefer to suppress this warning, use <span class="hljs-comment">#no-warn-script-location.                                                                                                </span><br>  WARNING: The scripts cftp, ckeygen, conch, mailmail, pyhtmlizer, tkconch, trial, twist and twistd are installed <span class="hljs-keyword">in</span> <span class="hljs-string">&#x27;/home/g0at/.local/bin&#x27;</span> <span class="hljs-built_in">which</span> is not on PATH.<br>  Consider adding this directory to PATH or, <span class="hljs-keyword">if</span> you prefer to suppress this warning, use <span class="hljs-comment">#no-warn-script-location.                                                                                                </span><br>Successfully installed Automat-22.10.0 attrs-21.4.0 constantly-15.1.0 hyperlink-21.0.0 idna-2.10 incremental-22.10.0 twisted-20.3.0 typing-3.10.0.0 zope.interface-5.5.2<br>                                                                                                                                                                                                                   <br>┌──(g0at㉿kali)-[~/Desktop]<br>└─$ pip2 install service_identity<br>DEPRECATION: Python 2.7 reached the end of its life on January 1st, 2020. Please upgrade your Python as Python 2.7 is no longer maintained. pip 21.0 will drop support <span class="hljs-keyword">for</span> Python 2.7 <span class="hljs-keyword">in</span> January 2021. More details about Python 2 support <span class="hljs-keyword">in</span> pip can be found at https://pip.pypa.io/en/latest/development/release-process/<span class="hljs-comment">#python-2-support pip 21.0 will remove support for this functionality.                                    </span><br>Defaulting to user installation because normal site-packages is not writeable<br>Collecting service_identity<br>  Downloading service_identity-21.1.0-py2.py3-none-any.whl (12 kB)<br>Collecting pyasn1-modules<br>  Downloading pyasn1_modules-0.3.0-py2.py3-none-any.whl (181 kB)<br>     |████████████████████████████████| 181 kB 456 kB/s <br>Collecting pyasn1<br>  Downloading pyasn1-0.5.1-py2.py3-none-any.whl (84 kB)<br>     |████████████████████████████████| 84 kB 3.5 MB/s <br>Requirement already satisfied: cryptography <span class="hljs-keyword">in</span> /home/g0at/.local/lib/python2.7/site-packages (from service_identity) (3.3.2)<br>Requirement already satisfied: six <span class="hljs-keyword">in</span> /home/g0at/.local/lib/python2.7/site-packages (from service_identity) (1.16.0)<br>Requirement already satisfied: attrs&gt;=19.1.0 <span class="hljs-keyword">in</span> /home/g0at/.local/lib/python2.7/site-packages (from service_identity) (21.4.0)<br>Requirement already satisfied: ipaddress; python_version &lt; <span class="hljs-string">&quot;3.3&quot;</span> <span class="hljs-keyword">in</span> /home/g0at/.local/lib/python2.7/site-packages (from service_identity) (1.0.23)<br>Requirement already satisfied: cffi&gt;=1.12 <span class="hljs-keyword">in</span> /home/g0at/.local/lib/python2.7/site-packages (from cryptography-&gt;service_identity) (1.15.1)<br>Requirement already satisfied: enum34; python_version &lt; <span class="hljs-string">&quot;3&quot;</span> <span class="hljs-keyword">in</span> /home/g0at/.local/lib/python2.7/site-packages (from cryptography-&gt;service_identity) (1.1.10)<br>Requirement already satisfied: pycparser <span class="hljs-keyword">in</span> /home/g0at/.local/lib/python2.7/site-packages (from cffi&gt;=1.12-&gt;cryptography-&gt;service_identity) (2.21)<br>Installing collected packages: pyasn1, pyasn1-modules, service-identity<br>Successfully installed pyasn1-0.5.1 pyasn1-modules-0.3.0 service-identity-21.1.0<br>                                                                                                                                                                                                                                                                                                                                                                                                                                  <br>┌──(g0at㉿kali)-[~/Desktop]<br>└─$ sudo apt-get install <span class="hljs-comment">#assume-yes openjdk-8-jdk-headless</span><br>正在读取软件包列表... 完成<br>正在分析软件包的依赖关系树... 完成<br>正在读取状态信息... 完成                 <br>E: 无法定位软件包 openjdk-8-jdk-headless<br>                                                                                                                                                                                                                                                                                                                                                                                                                                 <br>┌──(g0at㉿kali)-[~/Desktop]<br>└─$ java -Version<br>Picked up _JAVA_OPTIONS: -Dawt.useSystemAAFontSettings=on -Dswing.aatext=<span class="hljs-literal">true</span><br>Unrecognized option: -Version<br>Error: Could not create the Java Virtual Machine.<br>Error: A fatal exception has occurred. Program will <span class="hljs-built_in">exit</span>.<br>                                                                                                                                                                                                                   <br>┌──(g0at㉿kali)-[~/Desktop]<br>└─$ javac -version<br>Picked up _JAVA_OPTIONS: -Dawt.useSystemAAFontSettings=on -Dswing.aatext=<span class="hljs-literal">true</span><br>javac 17.0.8<br>                                                                                                                                                                                                                                                                                                                                                                                                                                    <br>┌──(g0at㉿kali)-[~/Desktop]<br>└─$ sudo pip2 install drozer-2.4.4-py2-none-any.whl         <br>DEPRECATION: Python 2.7 reached the end of its life on January 1st, 2020. Please upgrade your Python as Python 2.7 is no longer maintained. pip 21.0 will drop support <span class="hljs-keyword">for</span> Python 2.7 <span class="hljs-keyword">in</span> January 2021. More details about Python 2 support <span class="hljs-keyword">in</span> pip can be found at https://pip.pypa.io/en/latest/development/release-process/<span class="hljs-comment">#python-2-support pip 21.0 will remove support for this functionality.                                    </span><br>Processing ./drozer-2.4.4-py2-none-any.whl<br>Collecting pyyaml&gt;=3.11<br>  Downloading PyYAML-5.4.1-cp27-cp27mu-manylinux1_x86_64.whl (574 kB)<br>     |████████████████████████████████| 574 kB 466 kB/s <br>Collecting protobuf&gt;=2.6.1<br>  Downloading protobuf-3.17.3-cp27-cp27mu-manylinux_2_5_x86_64.manylinux1_x86_64.whl (1.0 MB)<br>     |████████████████████████████████| 1.0 MB 6.3 MB/s <br>Collecting pyopenssl&gt;=16.2<br>  Downloading pyOpenSSL-21.0.0-py2.py3-none-any.whl (55 kB)<br>     |████████████████████████████████| 55 kB 2.2 MB/s <br>Collecting six&gt;=1.9<br>  Downloading six-1.16.0-py2.py3-none-any.whl (11 kB)<br>Collecting cryptography&gt;=3.3<br>  Downloading cryptography-3.3.2-cp27-cp27mu-manylinux2010_x86_64.whl (2.6 MB)<br>     |████████████████████████████████| 2.6 MB 2.3 MB/s <br>Collecting cffi&gt;=1.12<br>  Downloading cffi-1.15.1-cp27-cp27mu-manylinux1_x86_64.whl (390 kB)<br>     |████████████████████████████████| 390 kB 22.1 MB/s <br>Collecting enum34; python_version &lt; <span class="hljs-string">&quot;3&quot;</span><br>  Downloading enum34-1.1.10-py2-none-any.whl (11 kB)<br>Collecting ipaddress; python_version &lt; <span class="hljs-string">&quot;3&quot;</span><br>  Downloading ipaddress-1.0.23-py2.py3-none-any.whl (18 kB)<br>Collecting pycparser<br>  Downloading pycparser-2.21-py2.py3-none-any.whl (118 kB)<br>     |████████████████████████████████| 118 kB 9.4 MB/s <br>Installing collected packages: pyyaml, six, protobuf, pycparser, cffi, enum34, ipaddress, cryptography, pyopenssl, drozer<br>Successfully installed cffi-1.15.1 cryptography-3.3.2 drozer-2.4.4 enum34-1.1.10 ipaddress-1.0.23 protobuf-3.17.3 pycparser-2.21 pyopenssl-21.0.0 pyyaml-5.4.1 six-1.16.0<br>                                                                                                                                                                                                                   <br>┌──(g0at㉿kali)-[~/Desktop]<br>└─$ drozer<br>usage: drozer [COMMAND]<br><br>Run `drozer [COMMAND] <span class="hljs-comment">#help` for more usage information.</span><br><br>Commands:<br>          console  start the drozer Console<br>           module  manage drozer modules<br>           server  start a drozer Server<br>              ssl  manage drozer SSL key material<br>          exploit  generate an exploit to deploy drozer<br>            agent  create custom drozer Agents<br>          payload  generate payloads to deploy droze<br><br>┌──(g0at㉿kali)-[~/Desktop]<br>└─$ adb install drozer-agent-2.3.4.apk   <span class="hljs-comment">#安装完APP后需要在Android侧打开drozer                       </span><br>Performing Streamed Install<br>Success<br>                                                                        <br>┌──(g0at㉿kali)-[~/Desktop]<br>└─$ adb forward tcp:31415 tcp:31415   <span class="hljs-comment">#设置端口转发</span><br>31415<br>                                                                        <br>┌──(g0at㉿kali)-[~/Desktop]<br>└─$ drozer console connect         <span class="hljs-comment">#启动Drozer</span><br>/home/g0at/.local/lib/python2.7/site-packages/OpenSSL/crypto.py:14: CryptographyDeprecationWarning: Python 2 is no longer supported by the Python core team. Support <span class="hljs-keyword">for</span> it is now deprecated <span class="hljs-keyword">in</span> cryptography, and will be removed <span class="hljs-keyword">in</span> the next release.<br>  from cryptography import utils, x509<br>Selecting 2abfc75c6bf43736 (Qualcomm Zeekr DHU <span class="hljs-keyword">for</span> arm64 12)<br><br>            ..                    ..:.<br>           ..o..                  .r..<br>            ..a..  . ....... .  ..nd<br>              ro..idsnemesisand..pr<br>              .otectorandroidsneme.<br>           .,sisandprotectorandroids+.<br>         ..nemesisandprotectorandroidsn:.<br>        .emesisandprotectorandroidsnemes..<br>      ..isandp,..,rotectorandro,..,idsnem.<br>      .isisandp..rotectorandroid..snemisis.<br>      ,andprotectorandroidsnemisisandprotec.<br>     .torandroidsnemesisandprotectorandroid.<br>     .snemisisandprotectorandroidsnemesisan:<br>     .dprotectorandroidsnemesisandprotector.<br><br>drozer Console (v2.4.4)<br>dz&gt; <br><br></code></pre></td></tr></table></figure>
+
+<p>报错及相应的解决方案：<a target="_blank" rel="noopener" href="https://blog.csdn.net/Jession_Ding/article/details/82528142">https://blog.csdn.net/Jession_Ding/article/details/82528142</a></p>
+</details>
+
+<h3 id="Windows-旧环境"><a href="#Windows-旧环境" class="headerlink" title="Windows 旧环境"></a>Windows 旧环境</h3><p>下面是原笔记中 Drozer 2.4.4 的 Windows 安装方式，不适用于当前 Python 3 版本。旧环境使用 Python 2.7，安装时选择自动添加环境变量，安装drozer时指定Python2安装路径，drozer 成功安装后，软件位于 Python 2.7 下的 Scripts 目录下。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">pip2 install protobuf -i https://pypi.tuna.tsinghua.edu.cn/simple<br>pip2 install pyopenssl -i https://pypi.tuna.tsinghua.edu.cn/simple<br>pip2 install pyyaml -i https://pypi.tuna.tsinghua.edu.cn/simple<br>pip2 install twisted -i https://pypi.tuna.tsinghua.edu.cn/simple<br>pip2 install service_identity -i https://pypi.tuna.tsinghua.edu.cn/simple<br></code></pre></td></tr></table></figure>
+
+<p>后面具体运行就和Linux一样了，更推荐在Linux下运行。</p>
+<h2 id="四大组件：保留原来的风险分类"><a href="#四大组件：保留原来的风险分类" class="headerlink" title="四大组件：保留原来的风险分类"></a>四大组件：保留原来的风险分类</h2><p>原笔记没有公开实际目标的测试流程，下面保留当时整理的组件风险类别。具体复现使用后面的 Sieve 教学例子；表格描述的是可能的问题类型，不是看到 exported 就确认存在的漏洞。</p>
+<h3 id="Activity"><a href="#Activity" class="headerlink" title="Activity"></a>Activity</h3><table>
+<thead>
+<tr>
+<th align="center">漏洞种类</th>
+<th align="center">危害</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">越权绕过</td>
+<td align="center">Activity 用户界面绕过会造成用户信息窃取</td>
+</tr>
+<tr>
+<td align="center">拒绝服务</td>
+<td align="center">通过 Intent 给 Activity 传输畸形数据使得程序崩溃从而影响用户体验</td>
+</tr>
+<tr>
+<td align="center">Activity 劫持</td>
+<td align="center">组件导出导致钓鱼欺诈，Activity 界面被劫持产生欺诈等安全事件</td>
+</tr>
+<tr>
+<td align="center">隐式启动 Intent 包含敏感数据</td>
+<td align="center">敏感信息泄露</td>
+</tr>
+</tbody></table>
+<h3 id="Content-Provider"><a href="#Content-Provider" class="headerlink" title="Content Provider"></a>Content Provider</h3><p>数据共享组件，用于向其他组件乃至其他应用共享数据，所以该组件漏洞与数据相关。</p>
+<table>
+<thead>
+<tr>
+<th align="center"><strong>漏洞种类</strong></th>
+<th align="center"><strong>危害</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">信息泄露</td>
+<td align="center">查看组件数据信息</td>
+</tr>
+<tr>
+<td align="center">SQL注入</td>
+<td align="center">注入获取相关数据</td>
+</tr>
+<tr>
+<td align="center">目录遍历</td>
+<td align="center">访问任意可读文件</td>
+</tr>
+</tbody></table>
+<h3 id="Broadcast-Receiver"><a href="#Broadcast-Receiver" class="headerlink" title="Broadcast Receiver"></a>Broadcast Receiver</h3><table>
+<thead>
+<tr>
+<th align="center"><strong>漏洞种类</strong></th>
+<th align="center"><strong>危害</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">敏感信息泄露</td>
+<td align="center">发送的intent没有明确指定接收者，而是简单的通过action进行匹配，恶意应用便可以注册一个广播接收者嗅探拦截到这个广播，如果这个广播存在敏感数据，就被恶意应用窃取了。</td>
+</tr>
+<tr>
+<td align="center">权限绕过</td>
+<td align="center">可以通过两种方式注册广播接收器，一种是在AndroidManifest.xml文件中通过 <code>&lt;receiver&gt;</code> 标签静态注册，另一种是通过Context.registerReceiver()动态注册，指定相应的intentFilter参数，运行时注册的导出行为需要结合系统版本、targetSdk 和注册标志判断，如果导出的BroadcastReceiver没有做权限控制，导致BroadcastReceiver组件可以接收一个外部可控的url、或者其他命令，导致攻击者可以越权利用应用的一些特定功能，比如发送恶意广播、伪造消息、任意应用下载安装、打开钓鱼网站等</td>
+</tr>
+<tr>
+<td align="center">消息伪造</td>
+<td align="center">暴露的Receiver对外接收Intent，如果构造恶意的消息放在Intent中传输，被调用的Receiver接收可能产生安全隐患</td>
+</tr>
+<tr>
+<td align="center">拒绝服务</td>
+<td align="center">如果敏感的BroadcastReceiver没有设置相应的权限保护，很容易受到攻击。最常见的是拒绝服务攻击。拒绝服务攻击指的是，传递恶意畸形的intent数据给广播接收器，广播接收器无法处理异常导致crash。 拒绝服务攻击的危害视具体业务场景而定，比如一个安全防护产品的拒绝服务、锁屏应用的拒绝服务、支付进程的拒绝服务等危害就是巨大的。</td>
+</tr>
+</tbody></table>
+<h3 id="Service"><a href="#Service" class="headerlink" title="Service"></a>Service</h3><p>Service(服务)是一个一种可以在后台执行长时间运行操作而没有用户界面的应用组件。服务可由其他应用组件启动（如Activity），其生命周期可以独立于启动它的 Activity，但并不保证永久存活；进程回收、后台执行限制与停止条件都要考虑。 此外，组件可以绑定到服务，以与之进行交互，甚至是执行进程间通信 (IPC)。</p>
+<table>
+<thead>
+<tr>
+<th align="center"><strong>漏洞种类</strong></th>
+<th align="center"><strong>危害</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">权限提升</td>
+<td align="center">当 Service 对外导出，却未对调用者做有效权限和身份检查，那么恶意构造的APP都可以对此Service传入恰当的参数进行调用，导致恶意行为发生比如调用具有system权限的删除卸载服务删除卸载其他应用。</td>
+</tr>
+<tr>
+<td align="center">service劫持</td>
+<td align="center">旧式隐式 Service 调用存在解析歧义；现代 Android 对相关调用有明确限制，应使用显式目标，不能假设由安装先后保证安全</td>
+</tr>
+<tr>
+<td align="center">消息伪造</td>
+<td align="center">暴露的Service对外接收Intent，如果构造恶意的消息放在Intent中传输，被调用的Service接收可能产生安全隐患</td>
+</tr>
+<tr>
+<td align="center">拒绝服务</td>
+<td align="center">Service的拒绝服务主要来源于Service启动时对接收的Intent等没有做异常情况下的处理，导致程序崩溃</td>
+</tr>
+</tbody></table>
 <h2 id="用-Sieve-走一遍组件验证"><a href="#用-Sieve-走一遍组件验证" class="headerlink" title="用 Sieve 走一遍组件验证"></a>用 Sieve 走一遍组件验证</h2><p><a target="_blank" rel="noopener" href="https://github.com/ReversecLabs/sieve">Sieve</a> 是配套的故意脆弱应用。以下采用当前官方指南中的包名 <code>com.withsecure.example.sieve</code>；旧材料可能使用 MWR 包名，组件路径也会不同，应先枚举安装包，不能只替换字符串就假定命令适用。</p>
 <h3 id="1-列包，再读攻击面"><a href="#1-列包，再读攻击面" class="headerlink" title="1. 列包，再读攻击面"></a>1. 列包，再读攻击面</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">run app.package.list -f sieve<br>run app.package.info -a com.withsecure.example.sieve<br>run app.package.attacksurface com.withsecure.example.sieve<br>run app.package.manifest com.withsecure.example.sieve<br></code></pre></td></tr></table></figure>
 
@@ -388,58 +497,142 @@
 <p>Receiver 要同时看静态声明和运行时注册，关注 action、permission、export 标志，以及收到 extras 后触发的操作。能伪造一个 action，并不意味着接收器会执行敏感动作；缺失字段导致崩溃，也需要确认影响范围与可重复性。</p>
 <p>Service 则先判断它通过启动 Intent、Messenger 还是 AIDL/Binder 暴露能力。<code>app.service.send</code> 适合它支持的消息交互方式，并不是任意 AIDL 接口的通用调用器。遇到自定义接口，应根据接口定义编写最小测试客户端，并记录调用者 UID 和权限。</p>
 <p>新版 Android 对后台执行、导出声明、运行时 Receiver 注册都有版本条件，详见 <a href="/2024/02/18/Android-App-Security-Vulnerabilities/">Android 安全笔记</a>。旧系统上的成功路径不能直接外推到新版本。</p>
+<h2 id="从一条模块命令追到-Android-API"><a href="#从一条模块命令追到-Android-API" class="headerlink" title="从一条模块命令追到 Android API"></a>从一条模块命令追到 Android API</h2><p>理解 Drozer 不必一上来读完整框架。先挑自己正在使用的一个模块，沿着三步往下追：参数怎样解析、Console 向 Agent 请求什么、目标 App 最终收到什么 Android 调用。</p>
+<p>以 <code>app.provider.query</code> 为例，URI、projection、selection、selectionArgs 和 sortOrder 最终对应 ContentResolver 查询的几个独立参数。模块输出表格是返回 Cursor 的一种显示方式，表格为空不等于系统拒绝了调用：可能查询成功但没有匹配记录，也可能 Provider 自己返回空 Cursor。异常、空 Cursor、null 返回值和无响应要分别保存。</p>
+<p>再看 <code>app.provider.info</code>。它读取 PackageManager 返回的 ProviderInfo，显示 authority、读写权限、URI grant 与 path-permission 等元数据。这些数据很有用，但它没有替你执行 Provider 的每一种操作，更不会自动证明某条 <code>query()</code>、<code>openFile()</code> 分支有业务鉴权。<code>info</code> 与实际调用回答的是两个不同问题。</p>
+<p>这两个模块可直接在 <a target="_blank" rel="noopener" href="https://github.com/ReversecLabs/drozer/blob/develop/src/drozer/modules/app/provider.py">官方 provider.py</a> 中对照。阅读时先检查 <code>add_arguments()</code>，再看 <code>execute()</code>；不需要根据网上的命令截图猜参数位置。本节核对的是 2026-09-22 官方 develop 源码，安装其他版本时仍应以本机 <code>help</code> 为准。</p>
+<h3 id="模块声明的权限是什么"><a href="#模块声明的权限是什么" class="headerlink" title="模块声明的权限是什么"></a>模块声明的权限是什么</h3><p>源码中的 <code>permissions = [...]</code> 用来描述模块与 Agent 能力之间的要求，不是向目标 App 临时申请一个同名业务权限。Android 在实际 IPC 发生时仍然检查调用身份、组件配置及当前授权。</p>
+<p>因此记录“Agent 的权限”时，至少区分 Manifest 声明、系统实际授予、临时 URI grant 和目标自己的账户状态。只把源码中的权限字符串复制进报告，无法说明这次调用究竟拥有什么能力。</p>
+<h2 id="调用身份：检查发生在哪个线程，结果就可能不同"><a href="#调用身份：检查发生在哪个线程，结果就可能不同" class="headerlink" title="调用身份：检查发生在哪个线程，结果就可能不同"></a>调用身份：检查发生在哪个线程，结果就可能不同</h2><p>权限分析不能只看一个 <code>getCallingUid()</code> 函数名。Binder 服务在正在处理的入站事务内读取调用 UID，才有对应远端调用者的意义；如果把工作排进线程池，之后才读取，看到的可能已经是服务自身 UID。</p>
+<p>下面是一个只展示检查顺序的 AIDL 服务端片段，<code>enforceCallerMayRead</code> 和 <code>readOwnedRecord</code> 是应用自己的策略函数，不是可以直接复制运行的 Android API：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> String <span class="hljs-title function_">readRecord</span><span class="hljs-params">(<span class="hljs-type">long</span> recordId)</span> &#123;<br>    <span class="hljs-keyword">final</span> <span class="hljs-type">int</span> <span class="hljs-variable">uid</span> <span class="hljs-operator">=</span> Binder.getCallingUid();<br>    enforceCallerMayRead(uid, recordId);   <span class="hljs-comment">// 仍在入站事务内做授权</span><br>    <span class="hljs-keyword">return</span> readOwnedRecord(uid, recordId);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>若确实需要异步执行，应把经过验证的主体和资源范围显式传给后台任务，并在实际操作前考虑授权状态是否已经改变。不要把未经验证的 <code>callerPackage</code> extra 当成 UID 证明；它只是调用方能填写的数据。</p>
+<p><img src="/mdimg/protocol-depth/drozer-caller-identity.svg" srcset="/img/loading.gif" lazyload alt="Binder 入口先确定调用主体，再授权并传递给后台工作"></p>
+<p><code>Binder.clearCallingIdentity()</code> 又会改变当前线程的身份上下文。审计时查看它之前是否已经完成授权，结束后是否用 <code>finally</code> 恢复；不能用“调用 clear 后权限检查通过”来证明原始外部调用者具有权限。UID/PID 的具体语义见 <a target="_blank" rel="noopener" href="https://developer.android.com/reference/android/os/Binder">Binder API</a>。PID 会复用，并且某些事务下拿不到可靠值，不适合作为持久授权凭据。</p>
+<p>这也解释了为什么 Drozer 和 <code>adb shell</code> 结果不同不一定是工具故障。两者的调用身份、授予权限、用户/profile 和启动环境都可能不同，应该分别记录，不能拿 shell 成功替普通 App 成功。</p>
+<h2 id="Activity：把认证状态做成一组对照"><a href="#Activity：把认证状态做成一组对照" class="headerlink" title="Activity：把认证状态做成一组对照"></a>Activity：把认证状态做成一组对照</h2><p>直接启动 Activity 的实验，先定义“原本不该允许什么”。以 Sieve 的教学页面为例，目标可以是未解锁状态下读取一条自己创建的 marker。仅仅出现页面或组件启动日志，不能替代数据访问证据。</p>
+<p>我会把同一个入口在下面几种状态下分别记录：</p>
+<table>
+<thead>
+<tr>
+<th>前置状态</th>
+<th>相同输入下要观察的结果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>从未登录/解锁</td>
+<td>页面是否自行转回认证入口，数据是否仍能加载</td>
+</tr>
+<tr>
+<td>已解锁</td>
+<td>正常合法流程能否继续</td>
+</tr>
+<tr>
+<td>主动退出后</td>
+<td>旧页面、缓存、Intent extras 是否还能恢复受限数据</td>
+</tr>
+<tr>
+<td>进程被重新创建后</td>
+<td>状态恢复是否跳过了必要检查</td>
+</tr>
+</tbody></table>
+<p>这些状态不是所有 App 都有，但一旦存在，就应明确是哪一种。Activity 生命周期重入、<code>onNewIntent()</code> 与首次 <code>onCreate()</code> 可能走不同分支；只修首次启动的判断，未必覆盖再次收到 Intent 的路径。</p>
+<p>修复位置也要放对。页面入口可以拒绝未授权启动，但真正返回敏感数据的 repository/service 仍需要按主体检查资源归属。否则换一个导出入口调用相同后端，问题依旧存在。</p>
+<h2 id="Provider：把-authority、路径与操作方法拆开验证"><a href="#Provider：把-authority、路径与操作方法拆开验证" class="headerlink" title="Provider：把 authority、路径与操作方法拆开验证"></a>Provider：把 authority、路径与操作方法拆开验证</h2><p>一个 Provider 可以有多条 URI 路径、不同方法和不同权限。<code>query</code> 被拒绝，不表示 <code>openFile</code> 一定也被拒绝；读取需要权限，不表示更新自然拥有相同保护。</p>
+<p>下面是一份适用于自建教学 Provider 的设计矩阵，URI 是说明用占位地址，不是 Sieve 的实际接口：</p>
+<table>
+<thead>
+<tr>
+<th>URI / 操作</th>
+<th>路由意图</th>
+<th>应记录的边界</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>content://lab.provider/public</code> + query</td>
+<td>公开教学信息</td>
+<td>只返回白名单列，不连带账户私有列</td>
+</tr>
+<tr>
+<td><code>content://lab.provider/records/7</code> + query</td>
+<td>单条记录</td>
+<td>调用者是否有权限读取 id=7</td>
+</tr>
+<tr>
+<td>同一路径 + update</td>
+<td>修改记录</td>
+<td>写权限、资源归属与可修改列分别检查</td>
+</tr>
+<tr>
+<td><code>content://lab.provider/files/demo.txt</code> + openFile</td>
+<td>共享指定文件</td>
+<td>URI grant、打开模式与最终文件位置</td>
+</tr>
+</tbody></table>
+<p>不能只在 URI 层检查路径，而在 selection 中允许把查询范围重新扩成全部记录。对于多账户数据，合法记录 ID 和已授权记录 ID 也不是同一个集合。</p>
+<h3 id="精确路径和路径前缀"><a href="#精确路径和路径前缀" class="headerlink" title="精确路径和路径前缀"></a>精确路径和路径前缀</h3><p>Android 的 <code>path</code> 表示完整路径匹配，<code>pathPrefix</code> 表示前缀匹配，<code>pathPattern</code> 使用特定模式规则；它不是完整的 PCRE 正则表达式。比如 <code>path=&quot;/Keys&quot;</code> 与 <code>/Keys/</code> 的关系，需要同时对照系统权限匹配和 Provider 内部路由，不能只看两者“长得差不多”。定义见 <a target="_blank" rel="noopener" href="https://developer.android.com/guide/topics/manifest/path-permission-element">path-permission 文档</a>。</p>
+<p><img src="/mdimg/protocol-depth/drozer-provider-path.svg" srcset="/img/loading.gif" lazyload alt="Provider 的路径权限判断与内部 URI 路由必须指向相同的受保护数据"></p>
+<p>某个权限规则没有匹配，不自动等于访问被允许；还可能有 Provider 全局权限、临时 URI grant 和方法内检查。真正有问题的是这些检查组合后留下了一条未授权可达的数据路径。反过来，单纯把 <code>path</code> 改成更宽的 prefix，也要检查是否把本来公开的数据一并封住。</p>
+<h3 id="SQL-值绑定只解决其中一层"><a href="#SQL-值绑定只解决其中一层" class="headerlink" title="SQL 值绑定只解决其中一层"></a>SQL 值绑定只解决其中一层</h3><p><code>selectionArgs</code> 能把输入作为值绑定，避免它变成 SQL 语法，但列名、表名和排序结构不能这样处理。即使查询全部参数化，如果调用者可以选择本不应公开的 <code>password_hash</code> 列，依然可能泄露信息。</p>
+<p>在测试版数据集里，可以先建立一条公开 marker 和一条受保护 marker，分别验证：合法条件只能读到公开行；不合法列名被拒绝；排序值在限定列表内；空条件不会意外变成整个数据库的查询。选择 SQL 报错作为线索时，保留 Provider 抛出的异常类型及参数位置，别只截一个“扫描发现 injection”标题。</p>
+<p>修复通常是组合措施：固定或白名单化投影与排序，值用绑定参数，业务层强制追加调用者的资源范围，写入字段逐项校验。某个扫描器不再报错，不能替代这些输入维度的回归检查。</p>
+<h3 id="文件-Provider-的读取路径"><a href="#文件-Provider-的读取路径" class="headerlink" title="文件 Provider 的读取路径"></a>文件 Provider 的读取路径</h3><p>文件型 Provider 常见的调用链是 URI→匹配规则→文件相对名→后端文件→文件描述符。前面的名称校验通过后，还要看路径规范化、可用目录、打开模式以及符号链接等文件系统语义。</p>
+<p>一次成功读取公开系统文件，只能说明那条路径可读。要证明超出允许目录，应在自己控制的测试目录中放置非敏感 marker，并同时做“允许目录内可读、允许目录外不可读”的对照。报告的影响范围应以目标进程身份实际可读的资源为界，不能从任意一个 read 成功推导出“全文件系统读取”。</p>
+<h2 id="Service：Started、Messenger-和-AIDL-分别看"><a href="#Service：Started、Messenger-和-AIDL-分别看" class="headerlink" title="Service：Started、Messenger 和 AIDL 分别看"></a>Service：Started、Messenger 和 AIDL 分别看</h2><table>
+<thead>
+<tr>
+<th>服务接口</th>
+<th>Android 入口</th>
+<th>Drozer 的作用与边界</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Started Service</td>
+<td><code>startService</code> 等入口</td>
+<td>构造 Intent，验证输入与启动约束</td>
+</tr>
+<tr>
+<td>Messenger</td>
+<td>Binder 上的 Message</td>
+<td>在模块支持的消息格式下设置 what/args/Bundle 并观察回复</td>
+</tr>
+<tr>
+<td>AIDL / 自定义 Binder</td>
+<td>约定接口、事务与序列化</td>
+<td>通常需要按接口定义准备最小测试客户端</td>
+</tr>
+</tbody></table>
+<p><code>app.service.send</code> 不是“任意 Service 都能发一条字符串”的通用接口。报文格式、响应方式与线程模型都由服务实现决定。绑定成功也不等于方法级授权通过，必须继续追到实际业务方法。</p>
+<p>Messenger 的 Handler 把消息排到队列中执行；AIDL 则可能在 Binder 线程池中并发进入。两者的共享状态、身份来源和锁设计不能照抄。官方 <a target="_blank" rel="noopener" href="https://developer.android.com/develop/background-work/services/bound-services">绑定服务说明</a> 与 <a target="_blank" rel="noopener" href="https://developer.android.com/develop/background-work/services/aidl">AIDL 文档</a>对这两种模型分别说明。</p>
+<p>对于需要测试自定义接口的场景，我会先写只完成一个方法调用的客户端，并把参数固定为测试记录，而不是先尝试自动枚举所有事务。这样更容易复核访问权限，也能分清反序列化失败和业务拒绝。</p>
+<h2 id="Receiver：静态枚举看不见的部分"><a href="#Receiver：静态枚举看不见的部分" class="headerlink" title="Receiver：静态枚举看不见的部分"></a>Receiver：静态枚举看不见的部分</h2><p>Manifest 中没有某个 Receiver，不代表运行时一定不存在。注册可能发生在登录后、某个 Activity 可见时、后台服务启动后，并在生命周期结束时注销。复现要记录注册条件和应用状态。</p>
+<p>发送端限制接收者、接收端限制发送者是两条不同方向的控制。敏感广播应确认谁能接收；带敏感动作的 Receiver 则应确认谁能发送并触发。只看 action 字符串是否独特，不构成调用者认证。</p>
+<p>还要把系统版本与 targetSdk 写出来。Android 14 对符合条件、target 34+ 的运行时注册要求显式指定导出行为，并存在仅接收系统广播等例外。不能继续沿用“所有动态 Receiver 默认都导出”的笼统结论。<a target="_blank" rel="noopener" href="https://developer.android.com/about/versions/14/behavior-changes-14#runtime-receivers-exported">Android 14 的运行时 Receiver 变更</a>给出了适用条件。</p>
+<p>收到广播后没出现动作，可能是未注册、权限拒绝、action/type/data 不匹配、参数检查失败或后台限制。测试结果要定位到其中一层，不能只有“命令已发送，所以安全/不安全”。</p>
+<h2 id="为什么-scanner-阴性结果不能结束审计"><a href="#为什么-scanner-阴性结果不能结束审计" class="headerlink" title="为什么 scanner 阴性结果不能结束审计"></a>为什么 scanner 阴性结果不能结束审计</h2><p>自动模块只覆盖它知道的输入和可以观察到的对象。目标动态生成 URI、自定义 AIDL、按账户状态切换组件，都会让静态枚举或通用扫描遗漏入口。受包可见性和平台限制影响，Agent 看到的清单也可能不完整。</p>
+<p>最有效的补充通常来自静态代码：把公开入口对应到 <code>onCreate/onNewIntent</code>、<code>onReceive</code>、<code>onStartCommand/onBind</code>、Provider 的 CRUD/openFile 等处理点，然后检查跨进程输入到敏感操作之间是否有完整授权。扫描器用于缩小范围，代码与对照实验用于解释范围内发生了什么。</p>
+<p>复测时保留同一个 Agent 身份、同一个用户/profile、同一组前置状态和测试记录。否则修改前来自普通 App、修改后改用 shell，结果即使不同，也无法单独归因于修复。</p>
+<h2 id="一份可直接使用的实验记录"><a href="#一份可直接使用的实验记录" class="headerlink" title="一份可直接使用的实验记录"></a>一份可直接使用的实验记录</h2><p>可以下载 <a href="/downloads/protocol-labs/drozer-audit-template.md">Drozer 组件验证记录模板</a>。模板把“命令执行结果”和“允许得出的结论”分开，避免扫描输出直接变成漏洞标题。</p>
+<p>每个发现至少保留三份记录：合法流程、原始异常路径、修复后相同输入。对于数据访问，记录资源 ID 与非敏感 marker；对于写入，记录修改前后状态和还原方式；对于崩溃，记录实际发生异常的进程和可重复条件。不要用同一段“有风险”覆盖这些不同结果。</p>
+<p>本次补充依据公开 API、模块源码和教学应用流程整理，没有在用户手机上执行 Drozer，也没有新增冒充设备操作的截图。文章中的旧安装终端输出是原始笔记保留下来的记录；新增图用来解释进程身份、URI 权限与调用路径。</p>
 <h2 id="把模块输出落到组件结论"><a href="#把模块输出落到组件结论" class="headerlink" title="把模块输出落到组件结论"></a>把模块输出落到组件结论</h2><p><img src="/mdimg/notes-2026/drozer-evidence.svg" srcset="/img/loading.gif" lazyload alt="入口枚举、最小调用、结果对照、代码定位与修复复测的证据链"></p>
 <p>我更愿意按下面的粒度记录一个发现，而不是只贴整屏扫描结果：</p>
 <figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">环境：系统版本 / target SDK / APK 哈希 / Console 与 Agent 版本<br>身份：Agent 的 UID 与已授予权限<br>入口：组件完整名称或精确 URI<br>前置状态：未登录；测试账户 A；已有一条 marker 记录<br>输入：完整模块名与参数<br>观察：是否成功，返回哪些非敏感字段，是否发生状态变化<br>对照：正常授权流程；缺少权限或不同用户时的结果<br>根因：Manifest 配置与实际代码中的检查位置<br>复测：相同输入被拒绝，合法流程仍通过<br></code></pre></td></tr></table></figure>
 
 <p>例如“Provider 可导出”只描述配置；“Agent 未获得目标读取权限，仍能通过某个 URI 查询到测试账户的 marker 行”才说明访问边界被越过。结论越具体，复测时越容易分辨修复是否覆盖了同一条路径。</p>
-<h2 id="模块速查"><a href="#模块速查" class="headerlink" title="模块速查"></a>模块速查</h2><p>模块是否可用以及参数形式，以所安装版本的 <code>list</code> 和 <code>help</code> 为准。</p>
-<table>
-<thead>
-<tr>
-<th>目的</th>
-<th>常用模块</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>包与配置</td>
-<td><code>app.package.list</code>、<code>app.package.info</code>、<code>app.package.manifest</code>、<code>app.package.attacksurface</code></td>
-</tr>
-<tr>
-<td>构建属性</td>
-<td><code>app.package.debuggable</code>、<code>app.package.backup</code>、<code>app.package.native</code>、<code>app.package.shareduid</code></td>
-</tr>
-<tr>
-<td>Activity</td>
-<td><code>app.activity.info</code>、<code>app.activity.start</code>、<code>app.activity.forintent</code>、<code>scanner.activity.browsable</code></td>
-</tr>
-<tr>
-<td>Provider 元数据与查询</td>
-<td><code>app.provider.info</code>、<code>app.provider.finduri</code>、<code>app.provider.columns</code>、<code>app.provider.query</code></td>
-</tr>
-<tr>
-<td>Provider 文件</td>
-<td><code>app.provider.read</code>、<code>app.provider.download</code></td>
-</tr>
-<tr>
-<td>Provider 写入</td>
-<td><code>app.provider.insert</code>、<code>app.provider.update</code>、<code>app.provider.delete</code></td>
-</tr>
-<tr>
-<td>Provider 扫描</td>
-<td><code>scanner.provider.finduris</code>、<code>scanner.provider.injection</code>、<code>scanner.provider.sqltables</code>、<code>scanner.provider.traversal</code></td>
-</tr>
-<tr>
-<td>Service</td>
-<td><code>app.service.info</code>、<code>app.service.start</code>、<code>app.service.stop</code>、<code>app.service.send</code></td>
-</tr>
-<tr>
-<td>Receiver</td>
-<td><code>app.broadcast.info</code>、<code>app.broadcast.send</code>、<code>app.broadcast.sniff</code></td>
-</tr>
-</tbody></table>
-<p>涉及写入、删除或执行业务动作的模块，应放在准备好测试数据与还原方式之后使用。</p>
-<p>Drozer 最有用的地方，是把外部 App 的调用路径变成可以重复的输入。扫描器适合发现线索，组件代码、权限模型和对照结果负责解释线索。</p>
+<h2 id="模块说明与原命令速查"><a href="#模块说明与原命令速查" class="headerlink" title="模块说明与原命令速查"></a>模块说明与原命令速查</h2><p>以下保留原笔记的完整模块分类和命令。模块是否存在、是否支持相同参数，以当前安装版的 <code>list</code>、<code>help</code> 为准；下方删除、更新、插入等模块会改变数据。</p>
+<h3 id="模块说明"><a href="#模块说明" class="headerlink" title="模块说明"></a>模块说明</h3><h4 id="Activity-1"><a href="#Activity-1" class="headerlink" title="Activity"></a>Activity</h4><figure class="highlight crmsh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs crmsh">app.activity.forintent <span class="hljs-comment"># 找到可以处理已指定的包</span><br>app.activity.<span class="hljs-literal">inf</span>o <span class="hljs-comment"># 获取activity组件信息</span><br>app.activity.<span class="hljs-literal">start</span> <span class="hljs-comment"># 开启activity组件</span><br>scanner.activity.browsable <span class="hljs-comment"># 获取可从web浏览器调用的所有可浏览的activity组件</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="Service-1"><a href="#Service-1" class="headerlink" title="Service"></a>Service</h4><figure class="highlight livecodeserver"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs livecodeserver">app.service.info <span class="hljs-comment"># 获取service组件信息</span><br>app.service.<span class="hljs-built_in">send</span> <span class="hljs-comment"># 向服务组件发送消息并显示答复</span><br>app.service.<span class="hljs-built_in">start</span> <span class="hljs-comment"># 开启service组件</span><br>app.service.<span class="hljs-built_in">stop</span> <span class="hljs-comment"># 停止service组件</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="Content-Provider-1"><a href="#Content-Provider-1" class="headerlink" title="Content Provider"></a>Content Provider</h4><figure class="highlight mipsasm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs mipsasm">app.provider.columns <span class="hljs-comment"># 在内容提供程序中列出列</span><br>app.provider.delete <span class="hljs-comment"># 在内容提供程序中删除</span><br>app.provider.download <span class="hljs-comment"># 在内容提供程序中下载支持文件</span><br>app.provider.finduri <span class="hljs-comment"># 在包中查找引用的内容URIS</span><br>app.provider.info <span class="hljs-comment"># 获取Content Provider组件信息</span><br>app.provider.<span class="hljs-keyword">insert </span><span class="hljs-comment"># 插入到Content Provider组件中</span><br>app.provider.query <span class="hljs-comment"># 查询Content Provider组件</span><br>app.provider.read <span class="hljs-comment"># 从支持文件的Content Provider读取</span><br>app.provider.update <span class="hljs-comment"># 更新Content Provider的记录</span><br><span class="hljs-keyword">scanner.provider.finduris </span><span class="hljs-comment"># 搜索可从上下文中查询的Content Provider</span><br><span class="hljs-keyword">scanner.provider.injection </span><span class="hljs-comment"># 测试Content Provider的注入漏洞</span><br><span class="hljs-keyword">scanner.provider.sqltables </span><span class="hljs-comment"># 查找可通过SQL注入漏洞访问的表</span><br><span class="hljs-keyword">scanner.provider.traversal </span><span class="hljs-comment"># 测试Content Provider的基本目录遍历漏洞</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="Broadcast-Receivers"><a href="#Broadcast-Receivers" class="headerlink" title="Broadcast Receivers"></a>Broadcast Receivers</h4><figure class="highlight mipsasm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs mipsasm">app.<span class="hljs-keyword">broadcast.info </span><span class="hljs-comment"># 获取有关广播接收器的信息</span><br>app.<span class="hljs-keyword">broadcast.send </span><span class="hljs-comment"># 带目的发送广播</span><br>app.<span class="hljs-keyword">broadcast.sniff </span><span class="hljs-comment"># 注册一个能嗅出特定意图的广播接收器</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="获取APP包信息"><a href="#获取APP包信息" class="headerlink" title="获取APP包信息"></a>获取APP包信息</h4><figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs stylus">app<span class="hljs-selector-class">.package</span><span class="hljs-selector-class">.attacksurface</span> #获取包攻击面<br>app<span class="hljs-selector-class">.package</span><span class="hljs-selector-class">.backup</span> #列出使用备份API的包(在标记“允许备份”时返回true)<br>app<span class="hljs-selector-class">.package</span><span class="hljs-selector-class">.debuggable</span> #查找可调试包<br>app<span class="hljs-selector-class">.package</span><span class="hljs-selector-class">.info</span> #获取有关已安装软件包的信息<br>app<span class="hljs-selector-class">.package</span><span class="hljs-selector-class">.launchintent</span> #获取包的启动意图<br>app<span class="hljs-selector-class">.package</span><span class="hljs-selector-class">.list</span> #列出程序包<br>app<span class="hljs-selector-class">.package</span><span class="hljs-selector-class">.manifest</span> #获取包的AndroidManifest<span class="hljs-selector-class">.xml</span><br>app<span class="hljs-selector-class">.package</span><span class="hljs-selector-class">.native</span> #查找嵌入在应用程序中的本地库<br>app<span class="hljs-selector-class">.package</span><span class="hljs-selector-class">.shareduid</span> #查找具有共享uid的包<br></code></pre></td></tr></table></figure>
+
+<h3 id="原笔记命令速查"><a href="#原笔记命令速查" class="headerlink" title="原笔记命令速查"></a>原笔记命令速查</h3><p><strong>通过app.package.list模块获取要检测的app的包名</strong><br><code>dz&gt; run app.package.list -f filter_str</code><br><strong>查看指定 apk 信息（版本，数据库存储目录，权限信息等）</strong><br><code>dz&gt; run app.package.info -a &lt;package_name&gt;</code><br><strong>使用app.package.attacksurface模块识别攻击面</strong><br><code>dz&gt; run app.package.attacksurface &lt;package_name&gt;</code><br><strong>使用app.activity.info模块查看activity组件信息</strong><br><code>dz&gt; run app.activity.info -a &lt;package_name&gt;</code><br><strong>使用app.provider.info模块查看content provider组件信息</strong><br><code>dz&gt; run app.provider.info -a &lt;package_name&gt;</code><br><strong>使用app.service.info模块查看service组件信息</strong><br><code>dz&gt; run app.service.info -a &lt;package_name&gt;</code><br><strong>使用scanner.provider.injection 扫描是否有 sql 注入</strong><br><code>dz&gt; run scanner.provider.injection -a &lt;package_name&gt;</code><br><strong>使用scanner.provider.finduris扫描访问 content provider 的URI（数据泄露）</strong><br><code>dz&gt; run scanner.provider.finduris -a &lt;package_name&gt;</code><br><strong>获取指定应用的导出组件</strong><br><code>dz&gt; run app.activity.info -a &lt;package_name&gt;</code><br><code>dz&gt; run app.service.info -a &lt;package_name&gt;</code><br><code>dz&gt; run app.broadcast.info -a &lt;package_name&gt;</code><br><code>dz&gt; run scanner.provider.finduris -a &lt;package_name&gt;</code></p>
 <h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><ul>
 <li><a target="_blank" rel="noopener" href="https://github.com/ReversecLabs/drozer">Drozer 仓库与安装说明</a></li>
 <li><a target="_blank" rel="noopener" href="https://github.com/ReversecLabs/drozer/blob/develop/documentation/drozer-guide.md">官方 Drozer Guide：Sieve 示例与组件模块</a></li>

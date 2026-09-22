@@ -16,16 +16,16 @@
   <meta name="author" content="g0at">
   <meta name="keywords" content="">
   
-    <meta name="description" content="从报文格式、QoS 状态机到会话与权限模型，用原始字节实验理解 MQTT。">
+    <meta name="description" content="从 TCP 字节流分帧、CONNECT 与 Packet Identifier，追到 QoS 重连状态机、会话恢复、MQTT 5 属性和业务去重。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="MQTT协议">
 <meta property="og:url" content="https://g1at.github.io/2023/08/09/MQTT/index.html">
 <meta property="og:site_name" content="g0at&#39;s Blog">
-<meta property="og:description" content="从报文格式、QoS 状态机到会话与权限模型，用原始字节实验理解 MQTT。">
+<meta property="og:description" content="从 TCP 字节流分帧、CONNECT 与 Packet Identifier，追到 QoS 重连状态机、会话恢复、MQTT 5 属性和业务去重。">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="https://g1at.github.io/mdimg/mqtt1/1.png">
 <meta property="article:published_time" content="2023-08-09T12:57:56.000Z">
-<meta property="article:modified_time" content="2026-09-22T09:38:47.000Z">
+<meta property="article:modified_time" content="2026-09-22T10:20:33.000Z">
 <meta property="article:author" content="g0at">
 <meta property="article:tag" content="IoT">
 <meta name="twitter:card" content="summary_large_image">
@@ -258,7 +258,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          3.6k 字
+          16k 字
         
       </span>
     
@@ -269,7 +269,7 @@
         
         
         
-          31 分钟
+          131 分钟
         
       </span>
     
@@ -319,22 +319,147 @@
             
               <div class="markdown-body">
                 
-                <p>分析 IoT、车机流量时，MQTT 很常见。端口连上以后能收到 JSON，并不代表已经看懂了协议：同一条消息为什么又来了，设备重连后为什么还能收到离线数据，刚订阅为什么立刻弹出一条旧状态，都要回到 MQTT 的会话与投递规则。</p>
-<p>下面从客户端、Broker、Topic 和 QoS 讲到逐字节解析与本地实验。<strong>字节示例与实验均采用 MQTT 3.1.1，Broker 使用 Mosquitto 2.0.18</strong>；MQTT 5.0 的差异单独说明。</p>
-<h2 id="什么是-MQTT？"><a href="#什么是-MQTT？" class="headerlink" title="什么是 MQTT？"></a>什么是 MQTT？</h2><p>MQTT 是基于发布订阅模型的应用层消息协议。客户端可以既发布又订阅，Broker 负责接收连接、保存订阅并按主题转发消息。它通常建立在 TCP 上，使用 TLS 时提供传输加密和相应认证能力。</p>
+                <p>分析 IoT、车机或者边缘网关流量时，MQTT 经常以一种很“好懂”的样子出现：主题像路径，负载像 JSON，抓包里还能直接看到 PUBLISH。真正麻烦的部分在连接断掉以后。同一条业务消息可能换一个 Packet Identifier 再出现；Broker 可以恢复订阅，却未必能跨进程重启恢复；<code>DUP=0</code> 也不能证明应用从未见过这条数据。</p>
+<p>这篇文章从字节流开始，把 MQTT 3.1.1 的分帧、CONNECT、QoS 1/2、Session、Retained Message、Will 串成一套可以实际验证的模型。后半部分再单独分析 MQTT 5.0 的 Properties、Clean Start、Receive Maximum、Subscription Options 和 Shared Subscription。</p>
+<p>文中的在线实验只绑定 <code>127.0.0.1:18891</code>，Broker 为 <strong>Mosquitto 2.0.18</strong>，客户端脚本只使用 Python 标准库并直接构造 MQTT 报文。MQTT 5 的十六进制报文是明确标注的合成样例，用于校验字段长度，没有伪装成网络抓包。</p>
+<h2 id="先建立一张协议地图"><a href="#先建立一张协议地图" class="headerlink" title="先建立一张协议地图"></a>先建立一张协议地图</h2><p>MQTT 是 Client/Server 发布订阅协议。客户端主动连接 Broker；一个客户端可以同时发布和订阅；Broker 保存订阅关系，并把 Application Message 转发给匹配的会话。MQTT 只把 payload 视为字节串，JSON、Protobuf 或图片格式都属于应用约定。</p>
 <p><img src="/mdimg/notes-2026/mqtt-topology.svg" srcset="/img/loading.gif" lazyload alt="传感器、Broker、应用之间的发布订阅关系"></p>
-<p><em>发布者与订阅者可以相互不知道地址，但两者都要与 Broker 建立连接。</em></p>
-<h3 id="MQTT-与-HTTP、XMPP-怎么比较"><a href="#MQTT-与-HTTP、XMPP-怎么比较" class="headerlink" title="MQTT 与 HTTP、XMPP 怎么比较"></a>MQTT 与 HTTP、XMPP 怎么比较</h3><p>对持续上报遥测、下发控制消息的场景，MQTT 的主题路由和会话规则很方便。HTTP 则围绕请求、响应与资源语义展开，也能通过流式响应、SSE 等方式推送数据；重试和恢复同样可以在其上实现。选型时应比较应用需要维护的状态和交互模型，不能归纳成“HTTP 只能轮询”。</p>
-<p>“MQTT 最小报文 2 字节”说的是 PINGREQ 等控制报文的协议长度，不包含 TCP/IP、TLS 和链路层开销。一个带主题、Packet Identifier 和 payload 的 PUBLISH 自然更长。它也不意味着 MQTT 会取代所有 XMPP 或 HTTP 应用。</p>
-<h2 id="MQTT-的工作原理"><a href="#MQTT-的工作原理" class="headerlink" title="MQTT 的工作原理"></a>MQTT 的工作原理</h2><h3 id="客户端与-Broker"><a href="#客户端与-Broker" class="headerlink" title="客户端与 Broker"></a>客户端与 Broker</h3><p>一个简化的连接过程是：TCP 建连，客户端发 CONNECT，Broker 回 CONNACK，客户端再订阅或发布。认证结果、订阅是否成功、发布的投递确认分别处在不同步骤。</p>
-<p><strong>Client ID 是会话标识，不应被当作已经验证过的身份。</strong> 当另一个连接使用相同 Client ID 时，原连接会受到影响；认证与授权仍应由 Broker 的策略决定。分析“设备掉线”时也要排查 Client ID 冲突。</p>
-<h3 id="Topic-Name-与-Topic-Filter"><a href="#Topic-Name-与-Topic-Filter" class="headerlink" title="Topic Name 与 Topic Filter"></a>Topic Name 与 Topic Filter</h3><p>发布使用 Topic Name；订阅使用 Topic Filter。两者大小写敏感，<code>/</code> 划分层级，通配符只能出现在订阅过滤器里。</p>
+<p>一次业务发布通常经过两段 MQTT 交换：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">publisher  -- MQTT exchange A --&gt;  broker  -- MQTT exchange B --&gt;  subscriber<br></code></pre></td></tr></table></figure>
+
+<p>这两段可以使用不同 QoS、不同 Packet Identifier 和不同重传状态。发布者收到 Broker 的 PUBACK，只能确认第一段完成；订阅者是否在线、是否处理成功，要由第二段和应用协议回答。<a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html">MQTT 3.1.1 §4.3</a>给出的 QoS 流程也是按一对发送方/接收方描述的。</p>
+<p>MQTT 最小控制报文确实只有两个字节，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">C0 00    PINGREQ<br>D0 00    PINGRESP<br>E0 00    DISCONNECT（MQTT 3.1.1）<br></code></pre></td></tr></table></figure>
+
+<p>这只是 MQTT 协议长度，没有算 TCP、IP、TLS 和链路层开销。带主题、属性和 payload 的 PUBLISH 自然会长得多。</p>
+<h2 id="TCP-字节流怎样切出-MQTT-报文"><a href="#TCP-字节流怎样切出-MQTT-报文" class="headerlink" title="TCP 字节流怎样切出 MQTT 报文"></a>TCP 字节流怎样切出 MQTT 报文</h2><h3 id="固定头的“一字节加变长整数”"><a href="#固定头的“一字节加变长整数”" class="headerlink" title="固定头的“一字节加变长整数”"></a>固定头的“一字节加变长整数”</h3><p>每个 MQTT Control Packet 先出现一个固定头首字节。高四位是报文类型，低四位是该类型的 flags。紧随其后的是 Remaining Length，它表示“固定头之后还有多少字节”，编码为一至四字节的 base-128 变长整数。</p>
+<p>每个长度字节的低七位贡献数值，最高位说明后面是否还有长度字节：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">value = Σ ((byte[i] &amp; 0x7f) × 128^i)<br></code></pre></td></tr></table></figure>
+
 <table>
 <thead>
 <tr>
-<th>订阅过滤器</th>
-<th>匹配例子</th>
-<th>不匹配例子</th>
+<th align="right">Remaining Length</th>
+<th>编码</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="right">0</td>
+<td><code>00</code></td>
+</tr>
+<tr>
+<td align="right">127</td>
+<td><code>7f</code></td>
+</tr>
+<tr>
+<td align="right">128</td>
+<td><code>80 01</code></td>
+</tr>
+<tr>
+<td align="right">16,383</td>
+<td><code>ff 7f</code></td>
+</tr>
+<tr>
+<td align="right">16,384</td>
+<td><code>80 80 01</code></td>
+</tr>
+<tr>
+<td align="right">268,435,455</td>
+<td><code>ff ff ff 7f</code></td>
+</tr>
+</tbody></table>
+<p>四个字节已经是协议上限。第四个长度字节仍带 continuation bit 时，解析器面对的是畸形报文，而不是“继续读第五字节”。规范的字段定义和最大值见 <a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html">MQTT 3.1.1 §2.2.3 Remaining Length</a>。</p>
+<h3 id="TCP-会拆，也会合"><a href="#TCP-会拆，也会合" class="headerlink" title="TCP 会拆，也会合"></a>TCP 会拆，也会合</h3><p>TCP 提供有序字节流，不保留应用报文边界。下面两个情况都很正常：</p>
+<ul>
+<li>第一次 <code>recv()</code> 只得到固定头和 Remaining Length 的第一个字节；</li>
+<li>一次 <code>recv()</code> 同时得到 <code>PINGREQ || DISCONNECT</code> 两个完整 MQTT 报文。</li>
+</ul>
+<p><img src="/mdimg/protocol-depth/mqtt-tcp-framing.svg" srcset="/img/loading.gif" lazyload alt="TCP 拆分、合并与 MQTT 增量解析"></p>
+<p>实验中的合成 PUBLISH 有 128 字节正文，因此开头是 <code>30 80 01</code>。脚本把 131 字节完整报文按 <code>2 / 15 / 114</code> 拆成三次 <code>feed()</code>；前两次不能产出报文，第三次才返回一个完整 packet。另一个输入 <code>c0 00 e0 00</code> 则必须一次解析出两个 packet。</p>
+<p>解析循环至少需要三个限制：</p>
+<ol>
+<li>Remaining Length 只能占一至四字节；</li>
+<li><code>fixed_header + RL_bytes + body</code> 全部到齐后才交给报文解析器；</li>
+<li>在分配大缓冲区之前先检查本地 <code>maximum_packet_size</code>。</li>
+</ol>
+<p>核心逻辑可以缩成这样：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><code class="hljs python"><span class="hljs-keyword">def</span> <span class="hljs-title function_">feed</span>(<span class="hljs-params">chunk</span>):<br>    buffer.extend(chunk)<br>    packets = []<br>    <span class="hljs-keyword">while</span> <span class="hljs-built_in">len</span>(buffer) &gt;= <span class="hljs-number">2</span>:<br>        value, multiplier, end = <span class="hljs-number">0</span>, <span class="hljs-number">1</span>, <span class="hljs-literal">None</span><br>        <span class="hljs-keyword">for</span> index <span class="hljs-keyword">in</span> <span class="hljs-built_in">range</span>(<span class="hljs-number">1</span>, <span class="hljs-built_in">min</span>(<span class="hljs-number">5</span>, <span class="hljs-built_in">len</span>(buffer))):<br>            digit = buffer[index]<br>            value += (digit &amp; <span class="hljs-number">0x7f</span>) * multiplier<br>            <span class="hljs-keyword">if</span> <span class="hljs-keyword">not</span> digit &amp; <span class="hljs-number">0x80</span>:<br>                end = index + <span class="hljs-number">1</span><br>                <span class="hljs-keyword">break</span><br>            multiplier *= <span class="hljs-number">128</span><br>        <span class="hljs-keyword">if</span> end <span class="hljs-keyword">is</span> <span class="hljs-literal">None</span>:<br>            <span class="hljs-keyword">if</span> <span class="hljs-built_in">len</span>(buffer) &gt;= <span class="hljs-number">5</span>:<br>                <span class="hljs-keyword">raise</span> ValueError(<span class="hljs-string">&quot;malformed Remaining Length&quot;</span>)<br>            <span class="hljs-keyword">break</span><br>        total = end + value<br>        <span class="hljs-keyword">if</span> total &gt; MAX_PACKET_SIZE:<br>            <span class="hljs-keyword">raise</span> ValueError(<span class="hljs-string">&quot;packet too large&quot;</span>)<br>        <span class="hljs-keyword">if</span> <span class="hljs-built_in">len</span>(buffer) &lt; total:<br>            <span class="hljs-keyword">break</span><br>        packets.append(<span class="hljs-built_in">bytes</span>(buffer[:total]))<br>        <span class="hljs-keyword">del</span> buffer[:total]<br>    <span class="hljs-keyword">return</span> packets<br></code></pre></td></tr></table></figure>
+
+<p>真实客户端还要限制累计缓冲区、连接空闲时间和单连接并发状态。只检查 Remaining Length 的理论上限仍然可能允许对端声明 256 MiB 级报文。</p>
+<h2 id="CONNECT：连接参数都在这里定下来"><a href="#CONNECT：连接参数都在这里定下来" class="headerlink" title="CONNECT：连接参数都在这里定下来"></a>CONNECT：连接参数都在这里定下来</h2><h3 id="一条最小的-MQTT-3-1-1-CONNECT"><a href="#一条最小的-MQTT-3-1-1-CONNECT" class="headerlink" title="一条最小的 MQTT 3.1.1 CONNECT"></a>一条最小的 MQTT 3.1.1 CONNECT</h3><p>客户端 <code>lab-a</code>、Clean Session=1、Keep Alive=30 秒的报文可以写成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">10 11<br>00 04 4d 51 54 54   # Protocol Name = &quot;MQTT&quot;<br>04                  # Protocol Level = 4，即 MQTT 3.1.1<br>02                  # Connect Flags：Clean Session=1<br>00 1e               # Keep Alive = 30<br>00 05 6c 61 62 2d 61<br></code></pre></td></tr></table></figure>
+
+<p><code>10</code> 是 CONNECT 固定头，<code>11</code> 表示后面有 17 字节。本文客户端先等成功 CONNACK，再继续实验。注意这是一种明确处理连接结果的实现选择：MQTT 3.1.1 允许客户端在发出 CONNECT 后、不等 CONNACK 就继续发送控制报文；若 CONNECT 被拒绝，服务器不得处理其后的数据。服务器发给客户端的首个报文则必须是 CONNACK。<a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html">MQTT 3.1.1 §3.1.4 与 §3.2</a>分别规定了这两条方向不同的规则。</p>
+<h3 id="Connect-Flags-不是随意组合的位图"><a href="#Connect-Flags-不是随意组合的位图" class="headerlink" title="Connect Flags 不是随意组合的位图"></a>Connect Flags 不是随意组合的位图</h3><table>
+<thead>
+<tr>
+<th align="right">位</th>
+<th>字段</th>
+<th>约束</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="right">7</td>
+<td>User Name Flag</td>
+<td>为 1 时 payload 中包含用户名字段</td>
+</tr>
+<tr>
+<td align="right">6</td>
+<td>Password Flag</td>
+<td>为 1 时包含密码字段；3.1.1 下用户名位为 0 时它也必须为 0</td>
+</tr>
+<tr>
+<td align="right">5</td>
+<td>Will Retain</td>
+<td>Will Flag=0 时必须为 0</td>
+</tr>
+<tr>
+<td align="right">4–3</td>
+<td>Will QoS</td>
+<td>只能为 0、1、2；Will Flag=0 时必须为 0</td>
+</tr>
+<tr>
+<td align="right">2</td>
+<td>Will Flag</td>
+<td>在 Broker 上登记 Will Message</td>
+</tr>
+<tr>
+<td align="right">1</td>
+<td>Clean Session</td>
+<td>决定是否丢弃旧会话并在断开后丢弃本次会话</td>
+</tr>
+<tr>
+<td align="right">0</td>
+<td>Reserved</td>
+<td>必须为 0</td>
+</tr>
+</tbody></table>
+<p>CONNECT payload 的字段顺序由这些 flags 决定：Client ID、Will Topic、Will Message、User Name、Password。抓包解析器如果不先验证 flags，就可能从错误偏移读取后续字段。</p>
+<h3 id="MQTT-UTF-8-字符串还有协议约束"><a href="#MQTT-UTF-8-字符串还有协议约束" class="headerlink" title="MQTT UTF-8 字符串还有协议约束"></a>MQTT UTF-8 字符串还有协议约束</h3><p>MQTT 的 UTF-8 Encoded String 以两字节大端长度开头，长度是编码后的字节数，不是字符数。MQTT 3.1.1 强制禁止 U+0000、surrogate 区间和不合法 UTF-8；对列出的控制字符及 Unicode 非字符，使用的是 SHOULD NOT，接收方可以关闭连接。不能把这些推荐限制全部写成相同的强制禁用规则。<a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html">MQTT 3.1.1 §1.5.3</a>列出了具体约束。</p>
+<p>因此，一个稳妥的解码器需要依次检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">长度前缀是否完整<br>→ 字节数是否在当前报文范围内<br>→ UTF-8 编码是否合法<br>→ MQTT 禁止的码点是否出现<br>→ 再交给主题、Client ID 等字段自己的规则<br></code></pre></td></tr></table></figure>
+
+<p>用户名和密码在 MQTT 3.1.1 中并不具有相同的数据类型：User Name 是 UTF-8 Encoded String，Password 是带两字节长度的二进制数据。把密码强制按 UTF-8 解码会改变协议允许的输入空间。</p>
+<h3 id="Client-ID-标识会话，不自动证明身份"><a href="#Client-ID-标识会话，不自动证明身份" class="headerlink" title="Client ID 标识会话，不自动证明身份"></a>Client ID 标识会话，不自动证明身份</h3><p>Client ID 用来把网络连接关联到 Session。两个客户端使用同一个 Client ID 时，Broker 会关闭原来的连接；现场出现周期性掉线时，Client ID 冲突应进入排查列表。</p>
+<p>认证结果来自 Broker 的认证配置、证书或插件。若 ACL 使用 <code>%c</code> 绑定 Client ID，那是部署策略主动赋予它授权意义，仍需保证攻击者不能随意抢用这个 ID。</p>
+<h2 id="Packet-Identifier-的所有权与复用"><a href="#Packet-Identifier-的所有权与复用" class="headerlink" title="Packet Identifier 的所有权与复用"></a>Packet Identifier 的所有权与复用</h2><p>Packet Identifier 是 16 位非零整数。它出现在 QoS 1/2 PUBLISH 和 SUBSCRIBE、UNSUBSCRIBE 及相关确认中；QoS 0 PUBLISH 没有这个字段。</p>
+<p>发送方不能在前一个交换完成前，为另一条需要 Packet Identifier 的未完成交换复用同一个标识符。相应交换完成后，它可以立即重用。规范在 <a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html">MQTT 3.1.1 §2.3.1</a>定义了“in use”和释放条件。</p>
+<p>这个编号有三个边界：</p>
+<ul>
+<li>属于某个 Client—Server Session 中一个方向上的未完成协议交换；</li>
+<li>恢复同一持久 Session 时，未完成 PUBLISH/PUBREL 继续使用原编号；</li>
+<li>两个传输方向拥有各自的编号空间；</li>
+<li>Broker 转发时会为下游交换分配自己的编号。</li>
+</ul>
+<p>例如发布者到 Broker 使用 <code>0x1234</code>，Broker 发给订阅者时完全可以使用 <code>0x0001</code>。拿 Packet Identifier 做跨设备、跨重连的订单号，会在编号复用后制造错误去重。</p>
+<p>后面的回环实验先让 <code>0x1234</code> 完成 QoS 2 的 PUBCOMP，再用同一个编号发送 payload <code>after-reuse</code>。Mosquitto 接受了第二个新交换，说明编号生命周期已经结束。</p>
+<h2 id="Topic-Name、Topic-Filter-与订阅结果"><a href="#Topic-Name、Topic-Filter-与订阅结果" class="headerlink" title="Topic Name、Topic Filter 与订阅结果"></a>Topic Name、Topic Filter 与订阅结果</h2><p>PUBLISH 携带 Topic Name；SUBSCRIBE 携带 Topic Filter。Topic Name 不能含 <code>+</code> 或 <code>#</code>，Filter 才能使用通配符。</p>
+<table>
+<thead>
+<tr>
+<th>Filter</th>
+<th>匹配</th>
+<th>不匹配</th>
 </tr>
 </thead>
 <tbody><tr>
@@ -353,39 +478,67 @@
 <td><code>car/1/status</code></td>
 </tr>
 </tbody></table>
-<p><code>+</code> 占一个完整层级；<code>#</code> 占剩余层级且必须位于末尾。空层级也有意义，例如 <code>a//b</code> 不能随手规范化成 <code>a/b</code>。此外，以 <code>$</code> 开头的主题有特殊匹配规则，订阅 <code>#</code> 并不自动覆盖 <code>$SYS/...</code>。规则可对照 <a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718106">MQTT 3.1.1 的 Topic Names and Topic Filters</a>。</p>
-<h3 id="QoS-保证到了哪一段"><a href="#QoS-保证到了哪一段" class="headerlink" title="QoS 保证到了哪一段"></a>QoS 保证到了哪一段</h3><table>
+<p><code>+</code> 占一个完整层级；<code>#</code> 覆盖剩余层级并且必须放在末尾。空层级同样参与匹配，所以 <code>a//b</code> 与 <code>a/b</code> 是两个不同主题。以 <code>$</code> 开头的主题有单独规则：不以 <code>$</code> 开头的通配符 Filter 不会匹配 <code>$SYS/...</code>。<a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html">MQTT 3.1.1 §4.7</a>给出了精确匹配要求。</p>
+<p>SUBSCRIBE 中写的 QoS 是请求上限。Broker 在 SUBACK 中逐项返回授予的 QoS 或 <code>0x80</code> 失败码。后续转发等级不会超过发布消息的 QoS 与订阅授予值中较低的一方。</p>
+<p>主题树最好同时表达租户和资源边界：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">devices/42/telemetry/temperature<br>devices/42/status/online<br>devices/42/commands/reboot<br></code></pre></td></tr></table></figure>
+
+<p>应用不能只从 payload 的 <code>device_id</code> 决定权限。Broker 已认证为设备 42 的连接，应在 ACL 层就无法发布 <code>devices/43/...</code>。</p>
+<h2 id="QoS-0、1、2-到底保证什么"><a href="#QoS-0、1、2-到底保证什么" class="headerlink" title="QoS 0、1、2 到底保证什么"></a>QoS 0、1、2 到底保证什么</h2><p><img src="/mdimg/notes-2026/mqtt-qos.svg" srcset="/img/loading.gif" lazyload alt="QoS 1 和 QoS 2 的确认时序"></p>
+<table>
 <thead>
 <tr>
 <th>QoS</th>
-<th>交换过程</th>
-<th>接收端需要考虑什么</th>
+<th>单段交换</th>
+<th>发送端需要保存到何时</th>
+<th>接收语义</th>
 </tr>
 </thead>
 <tbody><tr>
 <td>0</td>
 <td>PUBLISH</td>
-<td>没有协议级确认，消息可能丢失</td>
+<td>写入网络后无需协议状态</td>
+<td>至多一次，可能丢失</td>
 </tr>
 <tr>
 <td>1</td>
 <td>PUBLISH → PUBACK</td>
-<td>可能重复交付，需要考虑幂等</td>
+<td>收到匹配 PUBACK</td>
+<td>至少一次，可能重复</td>
 </tr>
 <tr>
 <td>2</td>
 <td>PUBLISH → PUBREC → PUBREL → PUBCOMP</td>
-<td>协议在相应发送方与接收方之间处理一次交付语义</td>
+<td>收到匹配 PUBCOMP</td>
+<td>该协议交换一次交付</td>
 </tr>
 </tbody></table>
-<p><img src="/mdimg/notes-2026/mqtt-qos.svg" srcset="/img/loading.gif" lazyload alt="QoS 1 和 QoS 2 的确认时序"></p>
-<p><em>发布者到 Broker、Broker 到订阅者是两段独立投递。图中的箭头描述一段协议交换。</em></p>
-<p>QoS 2 不是整个业务流程的“只执行一次事务”。设备收到命令后执行动作、写数据库、回结果，依然可能在应用崩溃或自身重试时遇到重复操作。带副作用的业务消息通常还需要 <code>request_id</code>、去重记录以及明确的过期策略。</p>
-<p>订阅者实际收到的 QoS 还受原始发布等级和 Broker 授予的订阅等级约束。Packet Identifier 也有作用域和复用规则，不适合直接充当永久业务流水号。</p>
-<h2 id="一条-PUBLISH-到底长什么样"><a href="#一条-PUBLISH-到底长什么样" class="headerlink" title="一条 PUBLISH 到底长什么样"></a>一条 PUBLISH 到底长什么样</h2><p>实验把 <code>23.5</code> 发布到 <code>lab/temp</code>，使用 QoS 1 并设置 RETAIN：</p>
+<h3 id="QoS-0：没有协议确认"><a href="#QoS-0：没有协议确认" class="headerlink" title="QoS 0：没有协议确认"></a>QoS 0：没有协议确认</h3><p>QoS 0 的 PUBLISH 不含 Packet Identifier，也没有 PUBACK。TCP 成功写入只表示数据进入本端网络栈；连接在传输途中失败时，应用无法从 MQTT 确认对端是否接收。</p>
+<p>它适合下一条数据很快覆盖上一条的高频遥测，也可能适合应用本身已有批次确认的场景。是否可以丢，取决于业务数据而不是“设备性能弱”这个标签。</p>
+<h3 id="QoS-1：PUBACK-丢失会制造重复"><a href="#QoS-1：PUBACK-丢失会制造重复" class="headerlink" title="QoS 1：PUBACK 丢失会制造重复"></a>QoS 1：PUBACK 丢失会制造重复</h3><p>发送方保存未确认的 PUBLISH。连接恢复并继续同一 Session 时，未确认的 QoS 1 PUBLISH 要以 <code>DUP=1</code> 重发；接收方可能已经处理过第一次发送，只是 PUBACK 没能返回。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs text">Client                         Broker<br>  | PUBLISH d0 q1 id=7           |<br>  |-----------------------------&gt;|  Broker 接收并可能转发<br>  |       PUBACK id=7（丢失）    |<br>  |&lt;--------------X--------------|<br>  |          网络断开            |<br>  | CONNECT clean=0              |<br>  |-----------------------------&gt;|<br>  | PUBLISH d1 q1 id=7           |<br>  |-----------------------------&gt;|  同一 MQTT packet 的重传<br>  | PUBACK id=7                  |<br>  |&lt;-----------------------------|<br></code></pre></td></tr></table></figure>
+
+<p><code>DUP=1</code> 表示当前发送方可能在重发这个 PUBLISH Packet。Broker 把 Application Message 转发给另一个连接时，不复制上游 DUP 位，而是按下游交换的状态设置。因此订阅端可能看到 <code>DUP=0</code> 的业务重复：例如发布者重建了一个全新交换，或应用主动重发并获得了新编号。规范在 <a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html">MQTT 3.1.1 §3.3.1.1</a>明确指出 DUP 不会由 Broker 原样传播。</p>
+<p>MQTT 3.1.1 的重传要求与 Session 重连关联。实现不应仅凭一个任意的应用定时器，在仍然连接时反复发送相同未确认 packet；库通常会根据其协议版本和状态机处理恢复。</p>
+<h3 id="QoS-2：四步交换消除一次协议事务内的重复交付"><a href="#QoS-2：四步交换消除一次协议事务内的重复交付" class="headerlink" title="QoS 2：四步交换消除一次协议事务内的重复交付"></a>QoS 2：四步交换消除一次协议事务内的重复交付</h3><p>QoS 2 的接收方在第一次 PUBLISH 后取得消息所有权、保存足够的去重状态并回复 PUBREC。发送方收到 PUBREC 后可以丢弃原始 Application Message，但要保存 PUBREL 状态。规范允许接收方采用两种方法：保存完整消息直到 PUBREL，或较早向后续接收者推进并保存 Packet Identifier；两种方法都必须保证同一交换不会因重复 PUBLISH 再次向后投递。收到 PUBREL 后，接收方释放对应状态并回复 PUBCOMP。</p>
+<p>若 PUBLISH/PUBREC 阶段断线，恢复同一 Session 后发送方重发 <code>PUBLISH DUP=1</code>。若 PUBREL/PUBCOMP 阶段断线，则重发 PUBREL。两条路径都依赖双方保留状态。</p>
+<p><img src="/mdimg/protocol-depth/mqtt-qos2-state.svg" srcset="/img/loading.gif" lazyload alt="QoS 2 两段独立状态机与重复 PUBLISH"></p>
+<p>回环脚本故意执行下面的上游序列：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">34 ... 12 34 ...    PUBLISH, DUP=0, QoS=2, PID=0x1234<br>50 02 12 34         PUBREC<br>3c ... 12 34 ...    同内容 PUBLISH, DUP=1, QoS=2, PID=0x1234<br>50 02 12 34         PUBREC<br>62 02 12 34         PUBREL<br>70 02 12 34         PUBCOMP<br></code></pre></td></tr></table></figure>
+
+<p>Mosquitto 对重复 PUBLISH 再次回复 PUBREC，但订阅端只收到一次 payload。Broker 转发时使用自己的出站 PID，并与订阅端完成另一条 QoS 2 状态机。<a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html">MQTT 3.1.1 §4.3.3</a>描述了两种允许的接收端处理方法及其状态要求。</p>
+<h3 id="QoS-2-仍然不是业务事务"><a href="#QoS-2-仍然不是业务事务" class="headerlink" title="QoS 2 仍然不是业务事务"></a>QoS 2 仍然不是业务事务</h3><p>假设设备收到 <code>commands/open</code> 后做三步：驱动继电器、写数据库、发布结果。MQTT QoS 2 约束的是某一段协议交换；以下情况仍会让业务动作重复：</p>
+<ul>
+<li>生产者以新 Packet Identifier 再发布一次同一个命令；</li>
+<li>Broker 集群、桥接或应用网关重新生成一条消息；</li>
+<li>消费进程完成外部动作后，在记录处理结果之前崩溃；</li>
+<li>操作员或补偿任务主动重发历史请求。</li>
+</ul>
+<p>需要“只扣款一次”或“只开锁一次”时，应用要有稳定的业务标识和原子去重记录，不能拿 QoS 2 的四个报文代替数据库事务。</p>
+<h2 id="DUP-与-RETAIN-的作用域"><a href="#DUP-与-RETAIN-的作用域" class="headerlink" title="DUP 与 RETAIN 的作用域"></a>DUP 与 RETAIN 的作用域</h2><p>原先的逐字节例子把 <code>23.5</code> 以 QoS 1、RETAIN=1 发布到 <code>lab/temp</code>：</p>
 <figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">33 10 00 08 6c 61 62 2f 74 65 6d 70 00 01 32 33 2e 35<br></code></pre></td></tr></table></figure>
 
-<p><img src="/mdimg/notes-2026/mqtt-packet.svg" srcset="/img/loading.gif" lazyload alt="MQTT PUBLISH 的固定头、主题、Packet Identifier 与负载"></p>
+<p><img src="/mdimg/notes-2026/mqtt-packet.svg" srcset="/img/loading.gif" lazyload alt="MQTT 3.1.1 PUBLISH 的固定头、主题、Packet Identifier 与负载"></p>
 <table>
 <thead>
 <tr>
@@ -395,15 +548,15 @@
 </thead>
 <tbody><tr>
 <td><code>33</code></td>
-<td>高四位 <code>3</code> 是 PUBLISH；DUP=0、QoS=1、RETAIN=1</td>
+<td>PUBLISH；DUP=0、QoS=1、RETAIN=1</td>
 </tr>
 <tr>
 <td><code>10</code></td>
-<td>Remaining Length=16，覆盖后面的可变头与 payload</td>
+<td>Remaining Length=16</td>
 </tr>
 <tr>
 <td><code>00 08</code></td>
-<td>主题的 UTF-8 编码占 8 字节</td>
+<td>Topic Name 的 UTF-8 字节数</td>
 </tr>
 <tr>
 <td><code>6c ... 70</code></td>
@@ -411,64 +564,251 @@
 </tr>
 <tr>
 <td><code>00 01</code></td>
-<td>本次 QoS 1 发布的 Packet Identifier=1</td>
+<td>Packet Identifier=1</td>
 </tr>
 <tr>
 <td><code>32 33 2e 35</code></td>
-<td>应用负载 <code>23.5</code></td>
+<td>payload <code>23.5</code></td>
 </tr>
 </tbody></table>
-<p>这里 MQTT 只把负载视为字节；它不会因为长得像数字就自动转换，也不会验证某个 JSON 字段是否有权执行。</p>
-<p>Remaining Length 使用 base-128 变长编码，最多四个字节。它不是固定的一个字节：每字节低 7 位贡献数值，最高位表示是否还有后续字节。解析器既要限制长度字段本身，也要限制接受的消息大小，不能按对端声明无限分配内存。</p>
-<h2 id="Retained-Message、Session-和-Will"><a href="#Retained-Message、Session-和-Will" class="headerlink" title="Retained Message、Session 和 Will"></a>Retained Message、Session 和 Will</h2><p>这三个概念最容易被混到一起：</p>
-<table>
+<p>客户端发给 Broker 的 RETAIN=1 要求 Broker 更新该主题的保留存储。向已有订阅转发这次实时发布时，MQTT 3.1.1 的 Broker 把 RETAIN 设为 0；以后新建的匹配订阅收到保留副本时，RETAIN 才是 1。</p>
+<p>这正是回环实验的结果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">retain scope: established=0 new-subscription=1<br></code></pre></td></tr></table></figure>
+
+<p>向同一主题发送 <code>RETAIN=1</code> 且 payload 长度为 0 的 PUBLISH，会删除保留消息。零长度 payload 在这里是协议操作，不等同于存储一条普通空值历史记录。完整动作见 <a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html">MQTT 3.1.1 §3.3.1.3</a>。</p>
+<h2 id="Connection、Session、持久化、Retained-与-Will"><a href="#Connection、Session、持久化、Retained-与-Will" class="headerlink" title="Connection、Session、持久化、Retained 与 Will"></a>Connection、Session、持久化、Retained 与 Will</h2><h3 id="五个概念各自保存什么"><a href="#五个概念各自保存什么" class="headerlink" title="五个概念各自保存什么"></a>五个概念各自保存什么</h3><table>
 <thead>
 <tr>
-<th>机制</th>
-<th>保存/表达的是什么</th>
-<th>典型用途</th>
+<th>概念</th>
+<th>生命周期与内容</th>
 </tr>
 </thead>
 <tbody><tr>
+<td>Network Connection</td>
+<td>一条当前 TCP/TLS/WebSocket 连接</td>
+</tr>
+<tr>
+<td>Session</td>
+<td>订阅、未完成 QoS 状态、符合规则的待交付消息</td>
+</tr>
+<tr>
+<td>Broker persistence</td>
+<td>Broker 是否把内存状态落盘并在自身重启后恢复</td>
+</tr>
+<tr>
 <td>Retained Message</td>
-<td>某个主题最后保存的保留消息</td>
-<td>新订阅者立即得到当前状态</td>
+<td>某 Topic Name 的最后一条保留消息</td>
 </tr>
 <tr>
-<td>Persistent Session</td>
-<td>与 Client ID 关联的订阅及协议规定的待交付状态</td>
-<td>断线后恢复会话</td>
-</tr>
-<tr>
-<td>Will Message</td>
-<td>非正常断开等条件下由 Broker 发布的遗嘱消息</td>
-<td>标记设备离线</td>
+<td>Will</td>
+<td>CONNECT 时登记、在异常断开条件下由 Broker 发布的消息</td>
 </tr>
 </tbody></table>
-<p>保留消息不是历史消息列表。MQTT 3.1.1 中，向主题发布 <strong>RETAIN=1 且零长度 payload</strong> 的消息可清除该主题的保留消息；新订阅者随后不会再因这条已清除的记录收到旧值。</p>
-<p>持久会话需要使用相同 Client ID，并设置 <code>Clean Session=0</code>。重连 CONNACK 中的 Session Present 帮助判断服务器是否恢复了已有会话。它与 Broker 是否把状态写入磁盘也不同：内存中的会话能支持连接重建，但 Broker 重启后能否恢复，还要看持久化配置。</p>
-<p>MQTT 5.0 把这部分拆成 Clean Start 与 Session Expiry Interval，并提供 Message Expiry Interval 等属性。分析时先确认协议版本，再解释字段。参见 <a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html">MQTT 5.0 标准</a>。</p>
-<h2 id="本地实验：新订阅与离线恢复"><a href="#本地实验：新订阅与离线恢复" class="headerlink" title="本地实验：新订阅与离线恢复"></a>本地实验：新订阅与离线恢复</h2><p>实验只用本机回环地址。创建 <code>mosquitto-lab.conf</code>：</p>
-<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">listener 18884 127.0.0.1<br>allow_anonymous true<br>persistence false<br></code></pre></td></tr></table></figure>
+<p>MQTT 3.1.1 使用 Clean Session：</p>
+<ul>
+<li><code>Clean Session=1</code>：连接建立时丢弃与 Client ID 关联的旧 Session；本次连接结束后也不保留；</li>
+<li><code>Clean Session=0</code>：请求恢复或创建可跨网络连接存在的 Session；</li>
+<li>CONNACK 的 Session Present 告诉客户端是否恢复了已有 Session。</li>
+</ul>
+<p>当客户端预期恢复会话，却收到 Session Present=0，应重建订阅和本地未完成状态。盲目假设 Broker 一定保存过订阅，会造成“连接成功但收不到消息”。Session 状态的规范列表见 <a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html">MQTT 3.1.1 §4.1</a>。协议会话跨连接存在，不代表跨 Broker 进程重启存在；Mosquitto 的 <code>persistence</code>、<code>persistence_location</code> 和自动保存配置决定磁盘恢复，集群产品还会加入复制规则。当前实验配置明确写了 <code>persistence false</code>，只验证同一 Broker 进程内的断线恢复。</p>
+<h3 id="离线队列如何回来"><a href="#离线队列如何回来" class="headerlink" title="离线队列如何回来"></a>离线队列如何回来</h3><p>实验流程如下：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Client ID=mqtt-depth-session, clean=0<br>→ SUBSCRIBE lab/deep/offline QoS 1<br>→ 正常断开网络连接，但保留 Session<br>→ publisher 发布 payload=queued<br>→ 相同 Client ID 以 clean=0 重连<br>→ CONNACK Session Present=1<br>→ 收到 queued<br></code></pre></td></tr></table></figure>
 
-<p>启动 Broker，然后在另一个终端运行 <a href="/downloads/notes-2026/mqtt_wire.py">mqtt_wire.py</a>：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mosquitto -c mosquitto-lab.conf -v<br></code></pre></td></tr></table></figure>
+<p>Mosquitto 2.0.18 的实测输出是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">session restore: present=1 payload=queued<br></code></pre></td></tr></table></figure>
 
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">python3 mqtt_wire.py<br></code></pre></td></tr></table></figure>
+<p>是否排队、排多少、保存多久还受 QoS、Broker 配置和资源限制影响。MQTT 3.1.1 没有每条消息的标准化到期属性；MQTT 5 才加入 Message Expiry Interval。</p>
+<h3 id="Keep-Alive-与-Will-的失败时间线"><a href="#Keep-Alive-与-Will-的失败时间线" class="headerlink" title="Keep Alive 与 Will 的失败时间线"></a>Keep Alive 与 Will 的失败时间线</h3><p>Keep Alive 是客户端声明的最大控制报文发送间隔。只要期间没有别的 MQTT Control Packet，客户端就应发送 PINGREQ；服务器收到后回复 PINGRESP。如果服务器在 Keep Alive 的 1.5 倍时间内没有收到客户端控制报文，必须把网络连接视为失败并断开。<a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html">MQTT 3.1.1 §3.1.2.10</a>给出了这个 1.5 倍规则。</p>
+<p>Will Topic、payload、QoS 和 RETAIN 在 CONNECT 时交给 Broker。I/O 错误、协议错误、Keep Alive 超时等异常结束会触发 Will；客户端发送正常 DISCONNECT 时，Broker 删除 Will 而不发布。</p>
+<p><img src="/mdimg/protocol-depth/mqtt-session-timeline.svg" srcset="/img/loading.gif" lazyload alt="会话恢复、状态边界与 Keep Alive/Will 时间线"></p>
+<p>本地实验让 Will 客户端声明 Keep Alive=2 秒，收到 CONNACK 后完全静默。最终记录的实际运行在 <strong>4.714 秒</strong>观察到 <code>payload=timeout</code>。3 秒是服务器判定失败的规范阈值，不是要求实现必须在 3.000 秒精确发布的实时定时器；Mosquitto 的事件循环检查粒度会影响最终观察值。</p>
+<p>同一脚本随后建立另一个带 Will 的连接，立即发送 DISCONNECT。观察 2.0 秒没有收到 Will：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">keepalive Will: payload=timeout elapsed=4.714s<br>graceful DISCONNECT: Will packets=0 during 2.0s observation<br></code></pre></td></tr></table></figure>
 
-<p>脚本只依赖 Python 标准库，直接构造 MQTT 3.1.1 报文，分别验证两件事：先发布保留消息，再创建订阅；先建立持久订阅并断开，再发布消息并恢复会话。本地输出：</p>
-<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">retained PUBLISH: 33 10 00 08 6c 61 62 2f 74 65 6d 70 00 01 32 33 2e 35<br>new subscriber: (&#x27;lab/temp&#x27;, b&#x27;23.5&#x27;, True)<br>resumed session: 1 (&#x27;lab/temp&#x27;, b&#x27;offline&#x27;, False)<br></code></pre></td></tr></table></figure>
+<h2 id="完整回环实验"><a href="#完整回环实验" class="headerlink" title="完整回环实验"></a>完整回环实验</h2><p>下载以下三个文件：</p>
+<ul>
+<li><a href="/downloads/protocol-labs/mqtt_deep_lab.py">mqtt_deep_lab.py</a></li>
+<li><a href="/downloads/protocol-labs/mqtt-mosquitto.conf">mqtt-mosquitto.conf</a></li>
+<li><a href="/downloads/protocol-labs/mqtt-README.md">mqtt-README.md</a></li>
+</ul>
+<p>配置只监听本地回环地址：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">listener 18891 127.0.0.1<br>allow_anonymous true<br>persistence false<br>connection_messages true<br>log_type all<br></code></pre></td></tr></table></figure>
 
-<p>新订阅拿到的 <code>23.5</code> 是 retained 数据；重连时的 <code>offline</code> 来自离线期间的持久订阅，Session Present 为 1。正常完成时，脚本会清理其建立的保留消息和会话；若中途因断言或网络错误退出，重启这个 <code>persistence false</code> 的隔离 Broker 即可清空实验状态。实验期间不要让其他客户端共用这些 Client ID，以免相互踢线。</p>
-<p>抓包时可使用 <code>mqtt</code> 显示过滤器；端口不在解析器默认识别范围内时，需要 Decode As MQTT。对照 CONNECT 的 Clean Session、CONNACK 的 Session Present、PUBLISH 的 RETAIN/QoS 和确认报文，便能把上面的输出对应回网络流量。</p>
-<h2 id="从安全测试角度怎么读这些字段"><a href="#从安全测试角度怎么读这些字段" class="headerlink" title="从安全测试角度怎么读这些字段"></a>从安全测试角度怎么读这些字段</h2><p>在测试环境中，先建立两个权限不同的客户端账户，分别验证“能连接”“能订阅”“能收到”“能发布”“能引发操作”。成功 CONNECT 只能说明连接认证通过。</p>
-<p>一个设备账户可以只读 <code>devices/42/cmd</code>、只写 <code>devices/42/status</code>。检查时既要试具体主题，也要试通配符、其他设备编号、保留消息读取以及持久会话恢复。ACL 的行为应以所用 Broker 版本与插件为准；Mosquitto 的主题访问规则见 <a target="_blank" rel="noopener" href="https://mosquitto.org/man/mosquitto-conf-5.html">配置手册</a>。</p>
-<p>应用端再核对命令是否绑定已认证身份，而不是相信 payload 里的 <code>device_id</code>。控制类主题尤其要考虑：旧 retained 命令会不会在设备上线时被再次执行？离线队列里的命令是否已经过期？收到重复 QoS 1 消息时是否重复开锁或重复写配置？这些问题要沿着实际业务流程验证，单看 TLS 和用户名密码还不够。</p>
-<h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><ul>
-<li><a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html">MQTT 3.1.1 标准</a></li>
-<li><a target="_blank" rel="noopener" href="https://mosquitto.org/man/mosquitto_pub-1.html">Mosquitto 发布客户端参数</a></li>
-<li><a target="_blank" rel="noopener" href="https://mosquitto.org/man/mosquitto_sub-1.html">Mosquitto 订阅客户端参数</a></li>
-<li><a target="_blank" rel="noopener" href="https://www.emqx.com/zh/blog/advanced-features-of-mqtt-topics">最初笔记使用的 EMQX 主题说明</a></li>
+<p>这份匿名配置只为隔离实验准备，不应复制到对外监听器。启动 Broker：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mosquitto -c mqtt-mosquitto.conf -v<br></code></pre></td></tr></table></figure>
+
+<p>在另一个终端运行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">python3 mqtt_deep_lab.py<br></code></pre></td></tr></table></figure>
+
+<p>脚本使用 <code>lab/deep/</code> 主题前缀和 <code>mqtt-depth-</code> Client ID。它先跑不联网的分帧合成测试，再连接本机 Broker。Mosquitto 2.0.18 上的完整输出为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">framing: RL(128)=80 01; split=2/15/114 bytes -&gt; 1 packet; coalesced -&gt; 2 packets<br>mqtt5 fixture: remaining=25 properties=12 total=27 bytes<br>retained wire: 33 17 00 0f 6c 61 62 2f 64 65 65 70 2f 72 65 74 61 69 6e 00 01 32 33 2e 35<br>retain scope: established=0 new-subscription=1<br>session restore: present=1 payload=queued<br>qos2 duplicate: publish=34 duplicate=3c subscriber-deliveries=1<br>packet-id reuse after PUBCOMP: payload=after-reuse<br>keepalive Will: payload=timeout elapsed=4.714s<br>graceful DISCONNECT: Will packets=0 during 2.0s observation<br>all checks passed<br></code></pre></td></tr></table></figure>
+
+<p>测试中的 QoS 2 重复不是把应用函数调用两次后比较结果。脚本先发送 <code>DUP=0</code> 的 PUBLISH，收到 PUBREC 后，在 PUBREL 前再次发送相同 PID 和 payload、但把 DUP 置 1，最后才完成 PUBREL/PUBCOMP。订阅端只接受到一个 <code>one-transaction</code>。</p>
+<p>Broker 日志也能看到状态顺序：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Received PUBLISH ... (d0, q2, r0, m4660, &#x27;lab/deep/qos2&#x27;, ...)<br>Sending PUBREC ... (m4660, rc0)<br>Received PUBLISH ... (d1, q2, r0, m4660, &#x27;lab/deep/qos2&#x27;, ...)<br>Sending PUBREC ... (m4660, rc0)<br>Received PUBREL ... (Mid: 4660)<br>Sending PUBLISH ... qos2-sub (d0, q2, r0, m1, ...)<br>Sending PUBCOMP ... (m4660)<br></code></pre></td></tr></table></figure>
+
+<p>日志中的上游十进制 <code>m4660</code> 就是 <code>0x1234</code>；下游使用 <code>m1</code>。这同时验证了重复处理和两个方向独立分配 Packet Identifier。</p>
+<h2 id="MQTT-5-0：先读-Properties-Length"><a href="#MQTT-5-0：先读-Properties-Length" class="headerlink" title="MQTT 5.0：先读 Properties Length"></a>MQTT 5.0：先读 Properties Length</h2><p>MQTT 5 保留了固定头和 Remaining Length，在多种控制报文的 Variable Header 中加入 Properties。Properties 区域自身先用一个 Variable Byte Integer 表示长度；解析器必须先限定整个报文，再限定 Properties 子区域，最后按报文类型验证允许出现的属性、数据类型和重复次数。</p>
+<h3 id="一条精确的-MQTT-5-PUBLISH"><a href="#一条精确的-MQTT-5-PUBLISH" class="headerlink" title="一条精确的 MQTT 5 PUBLISH"></a>一条精确的 MQTT 5 PUBLISH</h3><p>下面是合成并经过脚本长度断言的 QoS 1 PUBLISH：Topic=<code>lab/v5</code>，PID=<code>0x0010</code>，Message Expiry Interval=60，Content Type=<code>text</code>，payload=<code>ok</code>。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">32 19                         # PUBLISH q1；Remaining Length=25<br>00 06 6c 61 62 2f 76 35       # Topic Name = lab/v5<br>00 10                         # Packet Identifier<br>0c                            # Properties Length = 12<br>02 00 00 00 3c                # Message Expiry Interval = 60<br>03 00 04 74 65 78 74          # Content Type = &quot;text&quot;<br>6f 6b                         # payload = &quot;ok&quot;<br></code></pre></td></tr></table></figure>
+
+<p>长度核算：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Topic field 8 + PID 2 + Properties-Length field 1<br>+ Properties 12 + payload 2 = Remaining Length 25<br>fixed header 2 + 25 = total 27 bytes<br></code></pre></td></tr></table></figure>
+
+<p>这段 fixture 没有发送给 Broker；它只验证编码和长度。MQTT 5 Properties 的类型、出现位置和重复限制以 <a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html">MQTT 5.0 OASIS 标准</a>各报文小节为准。</p>
+<h3 id="Clean-Start-与-Session-Expiry-Interval"><a href="#Clean-Start-与-Session-Expiry-Interval" class="headerlink" title="Clean Start 与 Session Expiry Interval"></a>Clean Start 与 Session Expiry Interval</h3><p>MQTT 5 把 MQTT 3.1.1 的 Clean Session 拆成两个维度：</p>
+<table>
+<thead>
+<tr>
+<th align="right">Clean Start</th>
+<th align="right">Session Expiry</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="right">1</td>
+<td align="right">0</td>
+<td>丢弃旧 Session；新 Session 在连接结束时到期</td>
+</tr>
+<tr>
+<td align="right">1</td>
+<td align="right">大于 0</td>
+<td>丢弃旧 Session；创建的新 Session 可在断开后保留</td>
+</tr>
+<tr>
+<td align="right">0</td>
+<td align="right">0</td>
+<td>尝试恢复旧 Session；本次断开后立即到期</td>
+</tr>
+<tr>
+<td align="right">0</td>
+<td align="right">大于 0</td>
+<td>尝试恢复旧 Session，并按间隔继续保留</td>
+</tr>
+</tbody></table>
+<p>Clean Start=0 不保证一定存在旧 Session；CONNACK 的 Session Present 仍然是判断依据。Session Expiry Interval 未出现在 CONNECT 时默认为 0。客户端还可以在 DISCONNECT 中调整到期时间，但不能把它从 CONNECT 时的 0 增大为非零。<a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html">MQTT 5.0 §3.1.2.11.2</a>定义了这些组合。</p>
+<h3 id="Receive-Maximum-控制在途-QoS-1-2-PUBLISH"><a href="#Receive-Maximum-控制在途-QoS-1-2-PUBLISH" class="headerlink" title="Receive Maximum 控制在途 QoS 1/2 PUBLISH"></a>Receive Maximum 控制在途 QoS 1/2 PUBLISH</h3><p>CONNECT 与 CONNACK 都可以携带 Receive Maximum。发送端据此建立额度，每发一个 QoS 1/2 PUBLISH 消耗一份；收到 PUBACK 或 PUBCOMP 后归还，收到失败原因码不小于 <code>0x80</code> 的 PUBREC 时也归还。成功 PUBREC <strong>不会</strong>归还 QoS 2 的额度，所以进入 PUBREL/PUBCOMP 阶段仍占用窗口。值 0 是 Protocol Error，QoS 0 不消耗这个额度。</p>
+<p>若客户端在 CONNECT 声明 Receive Maximum=10，Broker 最多让 10 个下行 QoS 1/2 PUBLISH 同时处于未完成状态。它不是离线队列上限，也不是每秒消息数限制。把 Receive Maximum 设成 1 可以串行化在途确认，却不会自动让应用处理也变成串行事务。</p>
+<p>还要区分两个方向：客户端声明的是自己愿意接收多少，服务器在 CONNACK 声明的是服务器愿意从客户端并发接收多少。额度在每次新网络连接时重新初始化，不属于跨连接保存的 Session 状态。相关属性与归还规则见 <a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html">MQTT 5.0 §3.1.2.11.4、§3.2.2.3.2 与 §4.9</a>。</p>
+<h3 id="Subscription-Options-的一个字节"><a href="#Subscription-Options-的一个字节" class="headerlink" title="Subscription Options 的一个字节"></a>Subscription Options 的一个字节</h3><p>MQTT 5 每个订阅 Filter 后有 Subscription Options：</p>
+<table>
+<thead>
+<tr>
+<th align="right">位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="right">1–0</td>
+<td>Maximum QoS</td>
+</tr>
+<tr>
+<td align="right">2</td>
+<td>No Local</td>
+</tr>
+<tr>
+<td align="right">3</td>
+<td>Retain As Published</td>
+</tr>
+<tr>
+<td align="right">5–4</td>
+<td>Retain Handling</td>
+</tr>
+<tr>
+<td align="right">7–6</td>
+<td>保留，必须为 0</td>
+</tr>
+</tbody></table>
+<p>例如 <code>0x2d = 0010 1101b</code> 表示 Maximum QoS=1、No Local=1、Retain As Published=1、Retain Handling=2（建立订阅时不发送 retained message）。No Local 不能用于 Shared Subscription。</p>
+<p>Retain As Published=0 时，正常转发把 RETAIN 清零；值为 1 时保留发布时的 RETAIN。无论该位如何，因建立普通订阅而发送的 retained message 都带 RETAIN=1。Retain Handling 决定建立或替换订阅时是否补发保留消息。<a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html">MQTT 5.0 §3.8.3.1</a>列出了位级定义。</p>
+<h3 id="Shared-Subscription-的标准语义"><a href="#Shared-Subscription-的标准语义" class="headerlink" title="Shared Subscription 的标准语义"></a>Shared Subscription 的标准语义</h3><p>MQTT 5 标准共享订阅的 Filter 格式是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">$share/&#123;ShareName&#125;/&#123;filter&#125;<br></code></pre></td></tr></table></figure>
+
+<p>例如两个 worker 都订阅：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">$share/image-workers/jobs/image/+<br></code></pre></td></tr></table></figure>
+
+<p>每条匹配发布只选择组内一个 Session，而普通非共享订阅会给每个匹配 Session 各发一份。服务器可以自行选择组内成员，跨多个消费者不承诺全局顺序。共享订阅建立时不发送 retained messages；组中最后一个 Session 离开后，共享订阅及其未交付消息结束。<a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html">MQTT 5.0 §4.8.2</a>给出了这些约束。</p>
+<p>MQTT 3.1.1 标准没有 <code>$share/...</code>。一些 Broker 在 3.1.1 连接上提供同名扩展，部署时应查对应产品与版本文档，不能从抓到 <code>$share</code> 就推断协议协商级别一定是 5。</p>
+<h3 id="Message-Expiry-与-Will-Delay"><a href="#Message-Expiry-与-Will-Delay" class="headerlink" title="Message Expiry 与 Will Delay"></a>Message Expiry 与 Will Delay</h3><p>Message Expiry Interval 让发布者声明消息剩余寿命。Broker 转发时要把剩余秒数更新，过期消息不再交付。它很适合离线队列中的时效命令，例如“十秒内开门”，但应用仍应校验自己的 <code>expires_at</code>，因为跨系统桥接和旧协议节点可能改变路径。</p>
+<p>Will Delay Interval 允许 Broker 在网络断开后等待一段时间再发布 Will，使短暂重连不必马上广播离线。若 Session Expiry 先到期，Will 会在会话结束时发布，因此配置时要一起考虑两个间隔。该属性属于 MQTT 5；本文 3.1.1 回环实验没有 Will Delay。</p>
+<h2 id="ACL：主题树就是授权边界"><a href="#ACL：主题树就是授权边界" class="headerlink" title="ACL：主题树就是授权边界"></a>ACL：主题树就是授权边界</h2><p>下面是 Mosquitto <code>acl_file</code> 的一个精确例子。假设设备用户名就是设备编号 <code>42</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">pattern write devices/%u/telemetry/#<br>pattern write devices/%u/status/#<br>pattern read  devices/%u/commands/#<br>pattern read  devices/%u/config<br><br>user backend<br>topic read  devices/+/telemetry/#<br>topic read  devices/+/status/#<br>topic write devices/+/commands/#<br>topic write devices/+/config<br></code></pre></td></tr></table></figure>
+
+<p><code>%u</code> 必须独占一个主题层级；<code>%c</code> 可绑定 Client ID。<code>user backend</code> 后的规则按认证用户名匹配，不是按 Client ID。Mosquitto 的 <code>deny</code> 规则会先于允许规则处理，完整语法以当前 <a target="_blank" rel="noopener" href="https://mosquitto.org/man/mosquitto-conf-5.html">mosquitto.conf 官方手册</a>为准。</p>
+<p>对应 Broker 配置至少包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">listener 8883<br>allow_anonymous false<br>password_file /etc/mosquitto/passwd<br>acl_file /etc/mosquitto/acl<br></code></pre></td></tr></table></figure>
+
+<p>生产环境还要配置 TLS 服务器证书、客户端的服务器身份校验和凭据轮换。TLS 解决传输机密性与端点认证的一部分；哪个身份能读写哪个 Topic，仍由 ACL 或授权插件决定。</p>
+<p>安全测试时可以把检查拆成六个独立问题：</p>
+<ol>
+<li>未认证连接是否成功；</li>
+<li>已认证身份能否订阅自己的主题；</li>
+<li>通配符是否意外扩大到其他设备；</li>
+<li>能否向其他设备的命令主题发布；</li>
+<li>是否能读取历史 retained 数据或恢复旧 Session；</li>
+<li>payload 中伪造 <code>device_id</code> 能否绕过应用层对象授权。</li>
+</ol>
+<p>一个 CONNECT 成功只说明连接认证通过。SUBACK、实际转发、PUBLISH 确认和业务动作分别需要自己的证据。</p>
+<h2 id="应用去重：把副作用放进事务边界"><a href="#应用去重：把副作用放进事务边界" class="headerlink" title="应用去重：把副作用放进事务边界"></a>应用去重：把副作用放进事务边界</h2><p>控制消息可以采用稳定的业务信封：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;schema&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">3</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;producer&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;control-plane-a&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;request_id&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;01J8...&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;issued_at&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;2026-09-22T10:00:00Z&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;expires_at&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;2026-09-22T10:00:30Z&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;operation&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;unlock&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;resource&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;door-42&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>消费者数据库建立唯一键：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">create</span> <span class="hljs-keyword">table</span> command_inbox (<br>    tenant_id    text <span class="hljs-keyword">not</span> <span class="hljs-keyword">null</span>,<br>    producer     text <span class="hljs-keyword">not</span> <span class="hljs-keyword">null</span>,<br>    request_id   text <span class="hljs-keyword">not</span> <span class="hljs-keyword">null</span>,<br>    payload_hash bytea <span class="hljs-keyword">not</span> <span class="hljs-keyword">null</span>,<br>    state        text <span class="hljs-keyword">not</span> <span class="hljs-keyword">null</span>,<br>    <span class="hljs-keyword">result</span>       jsonb,<br>    created_at   timestamptz <span class="hljs-keyword">not</span> <span class="hljs-keyword">null</span>,<br>    <span class="hljs-keyword">primary</span> key (tenant_id, producer, request_id)<br>);<br></code></pre></td></tr></table></figure>
+
+<p>处理流程应让去重记录和数据库副作用处于同一事务：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">BEGIN<br>→ INSERT inbox；唯一键冲突时读取已有结果<br>→ 校验 resource 是否属于已认证租户<br>→ 检查 expires_at 与 schema<br>→ 执行业务状态变更<br>→ 写 outbox/result<br>→ 标记 inbox completed<br>COMMIT<br></code></pre></td></tr></table></figure>
+
+<p>若副作用是无法纳入数据库事务的物理动作，可以让设备状态机按 <code>request_id</code> 保存执行记录，并把“已接受”“执行中”“已完成”设计成可恢复状态。简单地先开锁、再写去重表，会在两步之间崩溃时留下重复窗口。</p>
+<p>去重记录保留时间至少覆盖系统可能重放消息的最长窗口：Session Expiry、离线队列保存时间、桥接积压、生产者重试和业务补偿周期。MQTT 5 Message Expiry 可以缩短传输层窗口，但不能替代消费者的业务规则。</p>
+<p>Retained Message 通常适合“当前状态”，不适合具有一次性副作用的命令。若业务确实通过 retained 命令驱动设备，上线后的首次订阅会重新拿到它；应用必须检查 request_id 和过期时间，并在协议设计中明确由谁清除 retained 数据。</p>
+<h2 id="抓包与故障定位顺序"><a href="#抓包与故障定位顺序" class="headerlink" title="抓包与故障定位顺序"></a>抓包与故障定位顺序</h2><p>Wireshark 可以使用 <code>mqtt</code> 显示过滤器。非默认端口未自动识别时，通过 Decode As 指定 MQTT。排查一条“重复消息”时，我会按这个顺序记录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">协议版本与连接五元组<br>→ Client ID、Clean Session/Clean Start、Session Present<br>→ PUBLISH 的方向、Topic、QoS、DUP、RETAIN、Packet Identifier<br>→ 对应 ACK 是否在断线前出现<br>→ 重连后 Session 是否恢复<br>→ Broker 是否为下游分配了不同 Packet Identifier<br>→ payload 中是否存在稳定 request_id<br>→ 应用去重表和副作用提交时间<br></code></pre></td></tr></table></figure>
+
+<p>几个常见现象可以快速映射到协议层：</p>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>优先检查</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>连接后立刻挤掉另一台设备</td>
+<td>Client ID 冲突</td>
+</tr>
+<tr>
+<td>重连成功但不再收到消息</td>
+<td>Session Present=0 后没有重订阅</td>
+</tr>
+<tr>
+<td>新订阅立刻收到旧值</td>
+<td>retained message 与 RETAIN=1</td>
+</tr>
+<tr>
+<td>QoS 1 偶发重复</td>
+<td>PUBACK 丢失、Session 恢复、应用主动重发</td>
+</tr>
+<tr>
+<td>离线消息在 Broker 重启后消失</td>
+<td>persistence 配置与磁盘保存</td>
+</tr>
+<tr>
+<td>Keep Alive 设置很小却延迟离线</td>
+<td>Broker 检查粒度、网络路径、Will Delay（MQTT 5）</td>
+</tr>
+<tr>
+<td>两个 shared worker 都处理同一业务请求</td>
+<td>重叠共享组、同时存在普通订阅、应用层重发</td>
+</tr>
+</tbody></table>
+<h2 id="结语"><a href="#结语" class="headerlink" title="结语"></a>结语</h2><p>MQTT 的主题模型确实简单，可靠性语义则建立在几组严格的局部状态上：TCP 流需要增量分帧；Packet Identifier 只属于当前交换；QoS 分别运行在发布者—Broker和 Broker—订阅者两段；Session、Broker 磁盘持久化、Retained Message、Will 各自保存不同内容。</p>
+<p>把这些边界画清楚后，很多抓包现象就能直接解释。最后一道边界仍在应用：消息传输完成，不等于副作用已经以幂等方式提交。稳定的 request_id、授权绑定、过期策略和事务内 inbox/outbox，才是控制类 MQTT 系统真正的可靠性基础。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html">OASIS MQTT Version 3.1.1</a></li>
+<li><a target="_blank" rel="noopener" href="https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html">OASIS MQTT Version 5.0</a></li>
+<li><a target="_blank" rel="noopener" href="https://mosquitto.org/man/mosquitto-conf-5.html">Eclipse Mosquitto configuration manual</a></li>
+<li><a target="_blank" rel="noopener" href="https://mosquitto.org/man/mosquitto_pub-1.html">Eclipse Mosquitto mosquitto_pub manual</a></li>
+<li><a target="_blank" rel="noopener" href="https://mosquitto.org/man/mosquitto_sub-1.html">Eclipse Mosquitto mosquitto_sub manual</a></li>
 </ul>
 
                 

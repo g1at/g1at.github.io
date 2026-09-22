@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" role="img" aria-labelledby="t d">
+  <title id="t">NNG 异步发送的消息所有权</title>
+  <desc id="d">AIO 发送成功后库拥有消息，失败取消或超时后应用从 AIO 取回消息</desc>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10Z" fill="context-stroke"/></marker>
+    <style>.h{font:700 28px 'Microsoft YaHei',sans-serif;fill:#172033}.s{font:16px 'Microsoft YaHei',sans-serif;fill:#526071}.b{font:700 20px 'Microsoft YaHei',sans-serif;fill:#172033}.m{font:15px Consolas,monospace;fill:#334155}.l{font:600 15px 'Microsoft YaHei',sans-serif}</style>
+  </defs>
+  <rect width="1000" height="620" fill="#fff"/>
+  <text x="50" y="52" class="h">AIO 完成结果决定消息由谁清理</text>
+  <text x="50" y="82" class="s">提交后先不要碰 msg；进入回调再读 result 与 aio 上的 msg</text>
+  <rect x="55" y="135" width="260" height="125" rx="14" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="80" y="175" class="b">应用拥有 msg</text>
+  <text x="80" y="207" class="m">nng_aio_set_msg(aio, msg)</text>
+  <text x="80" y="235" class="m">nng_ctx_send(ctx, aio)</text>
+  <path d="M315 198H450" stroke="#2563eb" stroke-width="4" marker-end="url(#a)"/>
+  <text x="382" y="183" text-anchor="middle" class="l" fill="#2563eb">异步进行中</text>
+  <rect x="450" y="130" width="250" height="135" rx="14" fill="#f8fafc" stroke="#94a3b8"/>
+  <text x="475" y="170" class="b">callback</text>
+  <text x="475" y="204" class="m">rv = nng_aio_result(aio)</text>
+  <text x="475" y="234" class="m">left = nng_aio_get_msg(aio)</text>
+  <path d="M700 178H805V150" fill="none" stroke="#15803d" stroke-width="4" marker-end="url(#a)"/>
+  <text x="755" y="163" class="l" fill="#15803d">rv == 0</text>
+  <rect x="790" y="105" width="170" height="105" rx="14" fill="#ecfdf5" stroke="#86efac"/>
+  <text x="875" y="144" text-anchor="middle" class="b">NNG 拥有</text>
+  <text x="875" y="175" text-anchor="middle" class="s">应用不得访问</text>
+  <path d="M700 230H805V300" fill="none" stroke="#dc2626" stroke-width="4" marker-end="url(#a)"/>
+  <text x="742" y="250" class="l" fill="#dc2626">rv != 0</text>
+  <rect x="760" y="300" width="200" height="125" rx="14" fill="#fff1f2" stroke="#fda4af"/>
+  <text x="860" y="340" text-anchor="middle" class="b">应用仍拥有</text>
+  <text x="860" y="372" text-anchor="middle" class="m">left != NULL</text>
+  <text x="860" y="400" text-anchor="middle" class="s">释放或重新提交</text>
+  <rect x="75" y="365" width="600" height="175" rx="14" fill="#fffbeb" stroke="#fbbf24"/>
+  <text x="105" y="405" class="b">关闭顺序</text>
+  <text x="105" y="443" class="m">stopping = true;</text>
+  <text x="105" y="473" class="m">for each aio: nng_aio_stop(aio);</text>
+  <text x="105" y="503" class="m">close contexts; nng_aio_free(aio); free owner;</text>
+  <text x="105" y="530" class="s">stop 会等待操作及回调退出；先 stop 全部，再释放共享状态。</text>
+</svg>

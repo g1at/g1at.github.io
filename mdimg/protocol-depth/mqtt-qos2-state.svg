@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" role="img" aria-labelledby="title desc">
+  <title id="title">MQTT QoS 2 的两个独立交换和重复 PUBLISH</title>
+  <desc id="desc">发布者到 Broker 与 Broker 到订阅者是两条独立 QoS 2 状态机，Packet Identifier 也分别分配。</desc>
+  <defs>
+    <marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0 0L10 3L0 6Z" fill="#2c5ca8"/></marker>
+    <style>
+      .title{font:700 29px system-ui,'Microsoft YaHei',sans-serif;fill:#13213c}.h{font:700 19px system-ui,'Microsoft YaHei',sans-serif;fill:#17325f}.t{font:16px system-ui,'Microsoft YaHei',sans-serif;fill:#243752}.m{font:15px ui-monospace,Consolas,monospace;fill:#102b4e}.small{font:14px system-ui,'Microsoft YaHei',sans-serif;fill:#52647e}.lane{stroke:#93a8c6;stroke-width:2;stroke-dasharray:6 7}.arr{stroke:#2c5ca8;stroke-width:2;marker-end:url(#a)}.dup{stroke:#c47423;stroke-width:2.4;marker-end:url(#a)}.state{fill:#eff5ff;stroke:#7a9aca;stroke-width:1.7}.note{fill:#fff4df;stroke:#d49a38;stroke-width:1.8}.ok{fill:#e7f7ef;stroke:#3e9968;stroke-width:1.8}
+    </style>
+  </defs>
+  <rect width="1200" height="900" fill="#fff"/>
+  <text x="50" y="52" class="title">QoS 2：端到端消息经过两条独立状态机</text>
+  <text x="145" y="100" class="h">Publisher</text><text x="510" y="100" class="h">Broker</text><text x="930" y="100" class="h">Subscriber</text>
+  <line x1="200" y1="120" x2="200" y2="790" class="lane"/><line x1="575" y1="120" x2="575" y2="790" class="lane"/><line x1="985" y1="120" x2="985" y2="790" class="lane"/>
+
+  <line x1="205" y1="160" x2="568" y2="160" class="arr"/><text x="260" y="150" class="m">PUBLISH d0 q2, PID=0x1234</text>
+  <rect x="600" y="132" width="245" height="56" rx="10" class="state"/><text x="620" y="157" class="t">保存入站 QoS 2 状态</text><text x="620" y="178" class="m">key=(connection, 0x1234)</text>
+  <line x1="568" y1="215" x2="205" y2="215" class="arr"/><text x="350" y="205" class="m">PUBREC 0x1234</text>
+
+  <line x1="205" y1="272" x2="568" y2="272" class="dup"/><text x="245" y="260" class="m">PUBLISH d1 q2, PID=0x1234（重传）</text>
+  <line x1="568" y1="320" x2="205" y2="320" class="dup"/><text x="350" y="310" class="m">PUBREC 0x1234（再次确认）</text>
+  <rect x="600" y="250" width="245" height="86" rx="10" class="note"/><text x="620" y="276" class="t">仍是同一入站交换</text><text x="620" y="300" class="t">不能再次提交应用消息</text><text x="620" y="322" class="small">DUP 描述本连接上的报文重传</text>
+
+  <line x1="205" y1="380" x2="568" y2="380" class="arr"/><text x="365" y="370" class="m">PUBREL 0x1234</text>
+  <line x1="568" y1="430" x2="205" y2="430" class="arr"/><text x="350" y="420" class="m">PUBCOMP 0x1234</text>
+  <rect x="600" y="360" width="245" height="88" rx="10" class="ok"/><text x="620" y="388" class="t">入站交换完成</text><text x="620" y="414" class="t">0x1234 可用于新交换</text><text x="620" y="438" class="small">标识符不是永久业务 ID</text>
+
+  <line x1="582" y1="500" x2="978" y2="500" class="arr"/><text x="665" y="488" class="m">PUBLISH d0 q2, PID=0x0001</text>
+  <rect x="350" y="472" width="205" height="56" rx="10" class="state"/><text x="368" y="496" class="t">Broker 新分配出站 PID</text><text x="385" y="518" class="m">0x0001 ≠ 0x1234</text>
+  <line x1="978" y1="555" x2="582" y2="555" class="arr"/><text x="730" y="545" class="m">PUBREC 0x0001</text>
+  <line x1="582" y1="610" x2="978" y2="610" class="arr"/><text x="740" y="600" class="m">PUBREL 0x0001</text>
+  <line x1="978" y1="665" x2="582" y2="665" class="arr"/><text x="725" y="655" class="m">PUBCOMP 0x0001</text>
+
+  <rect x="75" y="715" width="1050" height="115" rx="14" class="note"/>
+  <text x="100" y="748" class="h">三个容易误读的位</text>
+  <text x="100" y="778" class="t">DUP：当前发送方是否在重传这个 MQTT PUBLISH；Broker 不把入站 DUP 原样传给订阅者。</text>
+  <text x="100" y="806" class="t">RETAIN：描述保留存储/新订阅投递语义；Packet Identifier：只在一条连接、一个未完成交换内有意义。</text>
+  <text x="50" y="872" class="small">本图对应 mqtt_deep_lab.py 的 Mosquitto 2.0.18 回环测试：重复 0x1234 只产生一次订阅端投递，完成后同一 PID 被新消息复用。</text>
+</svg>

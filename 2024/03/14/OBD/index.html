@@ -16,16 +16,16 @@
   <meta name="author" content="g0at">
   <meta name="keywords" content="">
   
-    <meta name="description" content="分清 DLC、CAN、ISO-TP 与诊断服务，并以转速 PID 和故障码拆解 OBD-II 报文。">
+    <meta name="description" content="从 CAN 寻址、PID 位图与 DTC 编码，到多 ECU 重组、ELM327 格式与采样预算，逐字节分析 OBD 诊断。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="OBD诊断">
 <meta property="og:url" content="https://g1at.github.io/2024/03/14/OBD/index.html">
 <meta property="og:site_name" content="g0at&#39;s Blog">
-<meta property="og:description" content="分清 DLC、CAN、ISO-TP 与诊断服务，并以转速 PID 和故障码拆解 OBD-II 报文。">
+<meta property="og:description" content="从 CAN 寻址、PID 位图与 DTC 编码，到多 ECU 重组、ELM327 格式与采样预算，逐字节分析 OBD 诊断。">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="https://g1at.github.io/mdimg/OBD/OBD.jpg">
 <meta property="article:published_time" content="2024-03-13T16:04:34.000Z">
-<meta property="article:modified_time" content="2026-09-22T09:38:47.000Z">
+<meta property="article:modified_time" content="2026-09-22T10:20:33.000Z">
 <meta property="article:author" content="g0at">
 <meta property="article:tag" content="IoV">
 <meta name="twitter:card" content="summary_large_image">
@@ -258,7 +258,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          2.9k 字
+          9.1k 字
         
       </span>
     
@@ -269,7 +269,7 @@
         
         
         
-          25 分钟
+          76 分钟
         
       </span>
     
@@ -510,6 +510,193 @@
 
 <p>解析先使用 ISO-TP 的长度得到 <code>41 0C 1A F8</code>，再检查服务和 PID，最后计算物理量。不能先把所有 <code>00</code> 删掉再解析：零可能是合法数据，也可能是字段的一部分。</p>
 <p>附件还包含 UDS 多帧重组例子。它只接受已经按连接与方向筛选好的经典 CAN 正常寻址数据，不负责从混合流量里识别会话，也不是可以直接发往车辆的诊断栈。</p>
+<h2 id="一次功能请求为什么会出现多个答案"><a href="#一次功能请求为什么会出现多个答案" class="headerlink" title="一次功能请求为什么会出现多个答案"></a>一次功能请求为什么会出现多个答案</h2><p><code>7DF</code> 请求的是一类诊断能力，并不指定“发动机控制器”。一条 <code>01 00</code> 可能同时收到 <code>7E8</code>、<code>7E9</code> 等响应。它们可以有不同的支持位图、响应时间和故障记录。工具如果只保存一个全局 <code>supported_pid</code> 集合，后面很容易向错误的 ECU 查询数据，或者把来自变速箱的回复标成发动机数据。</p>
+<p>在本文的 11 位配置中，常见的对应关系如下。实际项目仍以网络配置为准。</p>
+<table>
+<thead>
+<tr>
+<th>用途</th>
+<th>请求 CAN ID</th>
+<th>响应 CAN ID</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>功能请求</td>
+<td><code>7DF</code></td>
+<td>多个相关 ECU 分别回复</td>
+</tr>
+<tr>
+<td>物理请求，示例 ECU A</td>
+<td><code>7E0</code></td>
+<td><code>7E8</code></td>
+</tr>
+<tr>
+<td>物理请求，示例 ECU B</td>
+<td><code>7E1</code></td>
+<td><code>7E9</code></td>
+</tr>
+</tbody></table>
+<p>长响应还有一个容易漏掉的细节：原来的请求虽然通过 <code>7DF</code> 发出，接下来给某个 ECU 的 FC 仍要发到它对应的物理接收地址。不能把所有 ECU 的流控都当作 <code>7DF</code> 广播。</p>
+<p><img src="/mdimg/protocol-depth/obd-multiplex.svg" srcset="/img/loading.gif" lazyload alt="两个 ECU 的数据交错到达，按地址对分别保存 ISO-TP 状态"></p>
+<p>这张图中的两个连接分别维护自己的传输状态。<code>7E9</code> 的单帧插在 <code>7E8</code> 的 CF1 与 CF2 之间，也不会改变连接 A 的缓存、总长度或下一 SN。如果两个连接都在发送多帧消息，各自的 CF1 都可以使用 <code>21</code>，因为 SN 只在各自这次 ISO-TP 传输内有意义。</p>
+<h3 id="29-位-ID-怎么看"><a href="#29-位-ID-怎么看" class="headerlink" title="29 位 ID 怎么看"></a>29 位 ID 怎么看</h3><p>对一种常见的正常固定寻址配置，诊断仪源地址为 <code>F1</code>，ECU 地址为 <code>10</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">功能请求：18DB33F1<br>物理请求：18DA10F1<br>物理响应：18DAF110<br>                 └─ 源地址<br>               └─── 目标地址<br></code></pre></td></tr></table></figure>
+
+<p><code>18DA&lt;TA&gt;&lt;SA&gt;</code> 把目标、源地址放在 CAN ID 中。这个例子里的 <code>33</code> 是相应功能目标地址，不能替换成随便一个 ECU 地址就认为语义相同。</p>
+<p>“29 位扩展 CAN 帧”和“ISO-TP 扩展寻址”是两个概念。后者还可能在 CAN 数据场里使用额外地址字节，使 PCI 起点和有效载荷容量发生变化。一个解析器只根据 <code>len(can_id) &gt; 3</code> 就跳过数据场第一个字节，必然会把部分合法报文解析错。地址模式的具体配置可以对照 <a target="_blank" rel="noopener" href="https://can-isotp.readthedocs.io/en/latest/isotp/addressing.html">python-can-isotp addressing</a>。</p>
+<h2 id="PID-支持位图：从位序到逐-ECU-建表"><a href="#PID-支持位图：从位序到逐-ECU-建表" class="headerlink" title="PID 支持位图：从位序到逐 ECU 建表"></a>PID 支持位图：从位序到逐 ECU 建表</h2><p>前面的单 bit 示例足够验证位序，但采集器需要处理完整位图和后续范围。令当前范围起点为 <code>base</code>，返回的四字节大端整数为 <code>M</code>，其中 <code>i</code> 取 1～32：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">PID = base + i<br>supported(PID) = (M &amp; (1 &lt;&lt; (32 - i))) != 0<br></code></pre></td></tr></table></figure>
+
+<p>因此 <code>01 00</code> 的最高位是 PID <code>01</code>，最低位是 PID <code>20</code>；<code>01 20</code> 的最高位是 PID <code>21</code>，最低位是 PID <code>40</code>。范围末尾的位同时告诉工具相应的下一组支持信息是否可查询，不能把它当成普通传感器值读取。</p>
+<p>下面采用人工位图 <code>BE 3E B8 13</code>，避免只挑“恰好一种 PID”掩盖位序错误：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">请求：01 00<br>响应：41 00 BE 3E B8 13<br><br>支持项：01 03 04 05 06 07 0B 0C 0D 0E 0F 11 13 14 15 1C 1F 20<br></code></pre></td></tr></table></figure>
+
+<p><img src="/mdimg/protocol-depth/obd-bitmap.svg" srcset="/img/loading.gif" lazyload alt="PID 位图的高低位顺序，以及 00、20 两个范围如何衔接"></p>
+<p>可以写成下面这个小函数，输入严格要求四字节，输出保留 PID 编号：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs python"><span class="hljs-keyword">def</span> <span class="hljs-title function_">supported_pids</span>(<span class="hljs-params">base, data</span>):<br>    <span class="hljs-keyword">if</span> <span class="hljs-built_in">len</span>(data) != <span class="hljs-number">4</span>:<br>        <span class="hljs-keyword">raise</span> ValueError(<span class="hljs-string">&quot;bitmap must contain four bytes&quot;</span>)<br>    bitmap = <span class="hljs-built_in">int</span>.from_bytes(data, <span class="hljs-string">&quot;big&quot;</span>)<br>    <span class="hljs-keyword">return</span> [base + i <span class="hljs-keyword">for</span> i <span class="hljs-keyword">in</span> <span class="hljs-built_in">range</span>(<span class="hljs-number">1</span>, <span class="hljs-number">33</span>)<br>            <span class="hljs-keyword">if</span> bitmap &amp; (<span class="hljs-number">1</span> &lt;&lt; (<span class="hljs-number">32</span> - i))]<br></code></pre></td></tr></table></figure>
+
+<p>实际采集时按 <code>(通道, ECU 地址, 服务号, 范围起点)</code> 保存结果。<code>01</code> 的支持情况不能代替 <code>09</code> 的车辆信息支持情况，刚连接时的超时也不能立即写成“不支持”。区分主动否定、没有响应、响应格式错误，后面分析才有意义。</p>
+<h2 id="物理量的公式为什么不能只写一个通用解码器"><a href="#物理量的公式为什么不能只写一个通用解码器" class="headerlink" title="物理量的公式为什么不能只写一个通用解码器"></a>物理量的公式为什么不能只写一个通用解码器</h2><p>不同 PID 的数据长度、偏移和比例不相同。下面几个最常用的例子，足以覆盖容易写错的三类转换：大端整数、带偏移的无符号量和比例换算。</p>
+<table>
+<thead>
+<tr>
+<th>PID</th>
+<th>参数</th>
+<th>数据字节</th>
+<th>换算</th>
+<th>范围或单位</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>04</code></td>
+<td>计算负荷</td>
+<td>A</td>
+<td><code>100 × A / 255</code></td>
+<td>%</td>
+</tr>
+<tr>
+<td><code>05</code></td>
+<td>冷却液温度</td>
+<td>A</td>
+<td><code>A − 40</code></td>
+<td>°C</td>
+</tr>
+<tr>
+<td><code>06</code> / <code>07</code></td>
+<td>Bank 1 短期 / 长期燃油修正</td>
+<td>A</td>
+<td><code>(A − 128) × 100 / 128</code></td>
+<td>%</td>
+</tr>
+<tr>
+<td><code>0C</code></td>
+<td>发动机转速</td>
+<td>A、B</td>
+<td><code>(256A + B) / 4</code></td>
+<td>rpm</td>
+</tr>
+<tr>
+<td><code>0D</code></td>
+<td>车速</td>
+<td>A</td>
+<td><code>A</code></td>
+<td>km/h</td>
+</tr>
+<tr>
+<td><code>10</code></td>
+<td>空气流量</td>
+<td>A、B</td>
+<td><code>(256A + B) / 100</code></td>
+<td>g/s</td>
+</tr>
+<tr>
+<td><code>11</code></td>
+<td>节气门位置</td>
+<td>A</td>
+<td><code>100 × A / 255</code></td>
+<td>%</td>
+</tr>
+</tbody></table>
+<p>三个边界值值得亲手算一次：温度 <code>00</code> 是 −40 °C；燃油修正 <code>80</code> 是 0%；<code>FF</code> 是 99.21875%，并不是整整 100%。修正值的编码是以 128 为零点的偏移编码，不能先做 <code>int8</code> 有符号转换。</p>
+<p>解码顺序也有要求。收到 <code>41 0D 1A F8</code> 时，即使后两个字节能算出一个转速，也不能接受为 PID <code>0C</code> 的回复。至少检查以下三个条件再转换：响应 SID 与请求服务对应；PID 与正在等待的请求一致；参数长度符合该 PID 定义。</p>
+<p>本文的附件把长度、单位和转换函数放在同一个表里，验证也由同一入口执行。以后增加一个 PID，应同时添加正常值、边界值和错误长度的样例。这样扩展的是数据字典，不是在调用端到处增加临时 <code>if</code>。</p>
+<h3 id="数据刷新率与查询频率不是一回事"><a href="#数据刷新率与查询频率不是一回事" class="headerlink" title="数据刷新率与查询频率不是一回事"></a>数据刷新率与查询频率不是一回事</h3><p>诊断工具每秒查询 20 次，并不代表 ECU 每秒重新采样 20 次。返回值可能来自内部周期更新的缓存，而且不同 ECU 的周期不同。连续出现相同字节，既可能是数值稳定，也可能是重复读取同一次内部采样。</p>
+<p>保存 CSV 时，建议同时保留 <code>request_time</code>、<code>response_time</code>、ECU、原始字节和解码值。只保存“2026-xx-xx，1726 rpm”会丢失请求延迟和来源；把回复时间当作传感器精确采样时刻，也会制造不存在的时间精度。</p>
+<h2 id="故障码：编码、状态与故障条件"><a href="#故障码：编码、状态与故障条件" class="headerlink" title="故障码：编码、状态与故障条件"></a>故障码：编码、状态与故障条件</h2><p>两个字节的 OBD DTC 可以按位直接展开。设第一个字节为 A、第二个字节为 B：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">A: b7 b6 | b5 b4 | b3 b2 b1 b0<br>   系统类   第二位   第三位<br>B: b7 b6 b5 b4 | b3 b2 b1 b0<br>      第四位        第五位<br><br>系统类：00=P，01=C，10=B，11=U<br></code></pre></td></tr></table></figure>
+
+<p><code>01 33</code> 展开为 <code>P0133</code>，<code>C1 23</code> 展开为 <code>U0123</code>。后三个位置按十六进制显示；第二个位置由两 bit 得到 0～3。不要把整个两字节整数转成十进制，再往前拼一个 P。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs python"><span class="hljs-keyword">def</span> <span class="hljs-title function_">obd_dtc</span>(<span class="hljs-params">a, b</span>):<br>    group = <span class="hljs-string">&quot;PCBU&quot;</span>[a &gt;&gt; <span class="hljs-number">6</span>]<br>    <span class="hljs-keyword">return</span> <span class="hljs-string">f&quot;<span class="hljs-subst">&#123;group&#125;</span><span class="hljs-subst">&#123;(a &gt;&gt; <span class="hljs-number">4</span>) &amp; <span class="hljs-number">3</span>&#125;</span><span class="hljs-subst">&#123;a &amp; <span class="hljs-number">15</span>:X&#125;</span><span class="hljs-subst">&#123;b:02X&#125;</span>&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>一条构造的服务 <code>03</code> 响应可以是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">ISO-TP 数据场：07 43 01 33 C1 23 00 00<br>应用负载    ：   43 01 33 C1 23 00 00<br>DTC 记录    ：      P0133 U0123 空记录<br></code></pre></td></tr></table></figure>
+
+<p>这里要分清两种“零”：ISO-TP 长度之外的是 CAN 填充；负载内完整的 <code>00 00</code> DTC 记录按相应格式解释为空记录。绝对不能把所有值为零的字节删掉，否则 <code>01 00</code> 这种合法记录也会被破坏。</p>
+<h3 id="Stored、pending、permanent-的差别"><a href="#Stored、pending、permanent-的差别" class="headerlink" title="Stored、pending、permanent 的差别"></a>Stored、pending、permanent 的差别</h3><table>
+<thead>
+<tr>
+<th>读取服务</th>
+<th>肯定响应 SID</th>
+<th>分析含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>03</code></td>
+<td><code>43</code></td>
+<td>读取相应已存储/确认的排放相关故障记录</td>
+</tr>
+<tr>
+<td><code>07</code></td>
+<td><code>47</code></td>
+<td>读取相应当前或上一驾驶循环的 pending 信息</td>
+</tr>
+<tr>
+<td><code>0A</code></td>
+<td><code>4A</code></td>
+<td>读取永久状态的相关 DTC</td>
+</tr>
+</tbody></table>
+<p>同一个代码出现在两种列表里，不是简单的“数据库重复”。它反映诊断监测状态。清除相关记录后，监测还没有运行，不等于故障已经验证消失；永久记录的消退还涉及监测确认条件，不能把服务 <code>04</code> 理解成擦除所有痕迹。</p>
+<h3 id="PID-01-的-MIL-和就绪状态"><a href="#PID-01-的-MIL-和就绪状态" class="headerlink" title="PID 01 的 MIL 和就绪状态"></a>PID 01 的 MIL 和就绪状态</h3><p><code>41 01 A B C D</code> 中，A 的最高位表示 MIL 状态，低 7 位给出相应 DTC 数量。例如 A=<code>82</code> 表示 MIL 位为 1，计数为 2。这里得到的是状态字段，不是两字节 DTC 本身。</p>
+<p>后续字段还表示监测是否支持、是否完成，并涉及点火类型对应的布局。支持某项监测与该项监测已完成是两件事。用固定掩码解析所有动力配置，很容易把“此车不支持该监测”显示成“监测未通过”。清码后出现多个未就绪项也有其状态背景，应该结合运行条件判断，不能直接当作新的故障。</p>
+<h2 id="冻结帧与实时值别放进同一个样本"><a href="#冻结帧与实时值别放进同一个样本" class="headerlink" title="冻结帧与实时值别放进同一个样本"></a>冻结帧与实时值别放进同一个样本</h2><p>冻结帧记录的是故障触发附近保存的环境数据。读取时要带相应帧编号。用第 0 帧的转速举例：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">请求应用负载：02 0C 00<br>响应应用负载：42 0C 00 1A F8<br>                 │  │  └──── 参数 A、B<br>                 │  └─────── 冻结帧编号<br>                 └────────── PID<br></code></pre></td></tr></table></figure>
+
+<p>如果套用实时服务 <code>01</code> 的解析，把 <code>00 1A</code> 当成转速数据，就会得到 6.5 rpm，结果看起来“还能算”，字段却已经错位。本文解码函数把 <code>frame</code> 作为显式参数，要求响应中的帧编号也一致。</p>
+<p>冻结帧的实际保留策略和可读取内容取决于支持情况；它未必保存你希望观察的每一个参数。分析报告应把当前工况和冻结时工况分开，不能拿停车后的实时车速去解释行驶中触发的故障。</p>
+<h2 id="服务-09-读取车辆信息：与-UDS-的-F190-对照"><a href="#服务-09-读取车辆信息：与-UDS-的-F190-对照" class="headerlink" title="服务 09 读取车辆信息：与 UDS 的 F190 对照"></a>服务 09 读取车辆信息：与 UDS 的 F190 对照</h2><p>OBD 用 <code>09 02</code> 请求 VIN，UDS 常用 <code>22 F1 90</code>。下面使用教学标识 <code>LTEST123456789012</code>，只演示 17 字节字符串，不声称它通过真实 VIN 校验。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">OBD 应用响应：49 02 01 + 17 字节标识<br>UDS 应用响应：62 F1 90 + 17 字节标识<br></code></pre></td></tr></table></figure>
+
+<p>本例 CAN 配置下，OBD 的 <code>01</code> 是该响应中的数据项计数。不能根据“两个响应都是 20 字节”，就让同一个服务头解析器处理它们。OBD 的完整传输如下：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Tester 7DF  02 09 02 55 55 55 55 55<br>ECU    7E8  10 14 49 02 01 4C 54 45<br>Tester 7E0  30 00 05 55 55 55 55 55<br>ECU    7E8  21 53 54 31 32 33 34 35<br>ECU    7E8  22 36 37 38 39 30 31 32<br></code></pre></td></tr></table></figure>
+
+<p>最后两帧是 <code>CF1</code>、<code>CF2</code>，不是 VIN 的第二、第三个数据项。ISO-TP 的长度和序号负责传输，应用层的数据项字段负责业务，两者分别校验。关于 FC、Block Size、连续帧回绕与超时，见 <a href="/2024/06/10/UDS/">UDS 诊断</a>。</p>
+<h2 id="ELM327-终端看到的不是原始-CAN-抓包"><a href="#ELM327-终端看到的不是原始-CAN-抓包" class="headerlink" title="ELM327 终端看到的不是原始 CAN 抓包"></a>ELM327 终端看到的不是原始 CAN 抓包</h2><p>ELM 类适配器在串口文本与车辆协议之间做了一层转换。先确定当前显示模式，才能解释屏幕上的字节。以下是针对<strong>已确认 11 位、500 kbit/s CAN</strong> 的配置示例，不是所有车辆通用的自动探测流程，也不是本次实车执行记录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">AT Z       复位适配器<br>AT E0      关闭命令回显<br>AT L0      关闭额外换行<br>AT S1      显示字节间空格<br>AT SP 6    选择 11 位 / 500 kbit/s CAN<br>AT CAF1    自动添加/处理 CAN 格式字段<br>AT CFC1    自动发送相应流控<br>AT H1      显示报文头，便于区分 ECU<br>01 0C      发送服务和 PID<br></code></pre></td></tr></table></figure>
+
+<p>这些注释是本文解释，输入终端时只发送左侧命令。<code>CAF1</code> 下请求端通常由适配器添加 PCI；把 <code>02 01 0C ...</code> 整帧文本再交给它，可能相当于重复封装。另一方面，<code>ATH1</code> 会影响接收显示，让输出包含更多原始字段，但并不等于同时关闭发送端的自动格式处理。<a target="_blank" rel="noopener" href="https://www.elmelectronics.com/wp-content/uploads/2016/07/ELM327DS.pdf">ELM327 原厂数据手册</a>对 <code>CAF</code>、<code>CFC</code>、<code>H</code> 的组合有单独说明。</p>
+<p>终端解析也需要状态机。命令回显、<code>SEARCHING...</code>、<code>NO DATA</code>、错误文本和最后的 <code>&gt;</code> 提示符都不属于诊断负载。一次串口 <code>read()</code> 可能只有半行，也可能包含几行回复；等到 <code>&gt;</code> 之前，应允许同一请求收到多个 ECU 的结果。</p>
+<p>另外，<code>NO DATA</code> 是适配器的一次观察结果，不能直接转换成某个 ECU 的 NRC。前者可能根本没有收到可显示的帧，后者则来自一个完整的应用层否定响应。</p>
+<h2 id="采样吞吐量：瓶颈不只有-CAN-波特率"><a href="#采样吞吐量：瓶颈不只有-CAN-波特率" class="headerlink" title="采样吞吐量：瓶颈不只有 CAN 波特率"></a>采样吞吐量：瓶颈不只有 CAN 波特率</h2><p>假设只做单帧请求、单帧响应，每个往返两帧；用每帧约 130 bit 作为包含帧开销与位填充的<strong>粗略预算值</strong>，500 kbit/s 总线的每次查询传输成本约为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">2 × 130 / 500000 = 0.00052 s = 0.52 ms<br></code></pre></td></tr></table></figure>
+
+<p>130 bit 不是每条经典 CAN 帧的固定长度；实际长度还随格式、DLC 和位填充变化。它适合做量级估算，不能替代分析仪测得的占用率。</p>
+<p>如果查询 20 个 PID、希望每项 10 Hz，那么总查询率为 200 次/s，总帧率约 400 帧/s，仅本例诊断流量就约占 <code>400 × 130 / 500000 = 10.4%</code>。这还没有计算多 ECU 回复、流控、重试、其他总线流量及仲裁等待。</p>
+<p>更实际的瓶颈可能在 ECU。若每次完整请求—响应平均耗时 20 ms，而同一目标只允许顺序处理请求，采集器上限约为 50 次/s。均匀轮询 20 个 PID，每项只能得到约 2.5 Hz。盲目缩短循环中的 <code>sleep()</code> 无法突破串行请求本身的限制。</p>
+<p><img src="/mdimg/protocol-depth/obd-polling.svg" srcset="/img/loading.gif" lazyload alt="总线预算与串行 ECU 往返共同限制轮询频率"></p>
+<p>优化前先量延迟分布：请求发出到首帧、首帧到末帧、末帧到适配器提示符各用了多久。针对高频参数单独设采集周期，低频的温度/状态降低查询频率；不要为了在界面上同时显示，就假设这些参数也在同一时刻采样。</p>
+<p>服务 <code>01</code> 在相应配置中可以请求多个 PID，但请求容量、支持组合和响应解析都需要单独验证。批量请求能减少某些开销，并不自动保证返回值来自完全同步的物理采样。</p>
+<h2 id="离线实验：从混合轨迹重组到解码"><a href="#离线实验：从混合轨迹重组到解码" class="headerlink" title="离线实验：从混合轨迹重组到解码"></a>离线实验：从混合轨迹重组到解码</h2><p>下载 <a href="/downloads/protocol-labs/diagnostic_lab.py">diagnostic_lab.py</a> 和 <a href="/downloads/protocol-labs/diagnostic_trace.jsonl">diagnostic_trace.jsonl</a>，放在同一目录。Python 3.10 及以上即可运行，不依赖车辆、CAN 设备或第三方库。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">python3 diagnostic_lab.py<br>python3 diagnostic_lab.py --trace diagnostic_trace.jsonl<br>python3 diagnostic_lab.py --<span class="hljs-built_in">test</span><br></code></pre></td></tr></table></figure>
+
+<p>脚本本地运行得到以下输出。其中时间戳和报文是人工构造的；“测试通过”表示解析器通过这些输入的检查，不代表做过实车验证。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">PID bitmap BE3EB813: 01 03 04 05 06 07 0B 0C 0D 0E 0F 11 13 14 15 1C 1F 20<br>RPM: 1726.0 rpm<br>DTC: P0133, U0123<br>OBD VIN: 49 02 01 4c 54 45 53 54 31 32 33 34 35 36 37 38 39 30 31 32 -&gt; LTEST123456789012<br></code></pre></td></tr></table></figure>
+
+<p>轨迹里有一个多帧车辆信息响应，中途穿插另一 ECU 的转速单帧。解码器先按 <code>link</code> 区分连接，再进入各自状态机，因此不会把那条单帧混进 VIN。<code>link</code> 由采集配置明确给出；脚本没有假装能仅凭一条 CAN ID 自动推断任意厂商的寻址关系。</p>
+<p>进一步可以改动附件，观察三个故障：把第一条 CF 的 <code>21</code> 改成 <code>22</code>，应触发序号错误；删去中间 FC，应触发不满足流控条件；把某个 CF 的时间戳推迟到超时之后，应终止该次重组。真实被动抓包如果存在漏采，结论应写“轨迹不完整或传输异常”，不能只凭缺一条 FC 就判定 ECU 违反协议。</p>
+<h2 id="OBD、厂商诊断与安全测试的边界"><a href="#OBD、厂商诊断与安全测试的边界" class="headerlink" title="OBD、厂商诊断与安全测试的边界"></a>OBD、厂商诊断与安全测试的边界</h2><p>接口上存在通用 OBD 服务，不意味着能读取全部车内信号。普通 CAN 周期报文通常通过 DBC 的信号定义解释；诊断报文还涉及 ISO-TP、服务、数据标识与变长记录。两类数据即使来自同一接口，也不该塞进同一套未经区分的解码逻辑。</p>
+<p>做网关或诊断代理的审计时，可以把一次请求沿链路追到底：手机/主机调用者身份，适配器连接权限，网关路由规则，目标 ECU 的服务权限。特别检查代理是否把多个客户端合并成同一个诊断身份、会话状态是否跨客户端复用、一个用户能否读取另一个用户请求的返回数据。这样得到的是可复核的访问控制问题，而不是笼统地写“OBD 没有认证”。</p>
+<p>本文聚焦经典服务号与 CAN 示例。现代排放诊断还有其他协议配置，不能把这里的服务表当作所有年份、所有市场车辆的完整能力清单。实际测试记录里保留标准版本、目标配置与原始报文，比写一个包办所有车型的自动判断规则更可靠。</p>
 <h2 id="使用-OBD-分析通信数据"><a href="#使用-OBD-分析通信数据" class="headerlink" title="使用 OBD 分析通信数据"></a>使用 OBD 分析通信数据</h2><p>原来的“接工具、发请求、收响应、解码”还需要补几项记录：</p>
 <table>
 <thead>

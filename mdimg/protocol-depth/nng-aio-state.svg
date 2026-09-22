@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 680" role="img" aria-labelledby="t d">
+  <title id="t">REP context 的 AIO 状态机与关闭屏障</title>
+  <desc id="d">接收、处理延时、发送循环；错误清理消息；关闭时先停止全部 AIO 再释放 context 和状态</desc>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10Z" fill="context-stroke"/></marker><style>.h{font:700 28px 'Microsoft YaHei',sans-serif;fill:#172033}.s{font:15px 'Microsoft YaHei',sans-serif;fill:#526071}.b{font:700 18px 'Microsoft YaHei',sans-serif;fill:#172033}.m{font:14px Consolas,monospace;fill:#334155}.l{font:600 14px 'Microsoft YaHei',sans-serif}</style></defs>
+  <rect width="1000" height="680" fill="#fff"/>
+  <text x="50" y="52" class="h">一个 worker = 一个 REP context + 一个 AIO</text>
+  <text x="50" y="82" class="s">callback 根据显式 state 解释本次完成；任何时刻只在该 AIO 上挂一个操作</text>
+  <rect x="55" y="155" width="190" height="110" rx="16" fill="#eff6ff" stroke="#60a5fa"/>
+  <text x="150" y="194" text-anchor="middle" class="b">RECV</text><text x="150" y="226" text-anchor="middle" class="m">nng_ctx_recv</text><text x="150" y="250" text-anchor="middle" class="s">取走 aio.msg</text>
+  <rect x="405" y="155" width="190" height="110" rx="16" fill="#fffbeb" stroke="#fbbf24"/>
+  <text x="500" y="194" text-anchor="middle" class="b">PROCESS / DELAY</text><text x="500" y="226" text-anchor="middle" class="m">nng_sleep_aio</text><text x="500" y="250" text-anchor="middle" class="s">msg 在 worker.processing</text>
+  <rect x="755" y="155" width="190" height="110" rx="16" fill="#ecfdf5" stroke="#4ade80"/>
+  <text x="850" y="194" text-anchor="middle" class="b">SEND</text><text x="850" y="226" text-anchor="middle" class="m">nng_ctx_send</text><text x="850" y="250" text-anchor="middle" class="s">msg 放回 aio</text>
+  <path d="M245 210H405" stroke="#2563eb" stroke-width="4" marker-end="url(#a)"/><path d="M595 210H755" stroke="#2563eb" stroke-width="4" marker-end="url(#a)"/><path d="M850 265V325H150V265" fill="none" stroke="#15803d" stroke-width="4" marker-end="url(#a)"/>
+  <text x="500" y="315" text-anchor="middle" class="l" fill="#15803d">send 成功：aio.msg 应为 NULL，再次 submit recv</text>
+  <rect x="85" y="390" width="415" height="155" rx="16" fill="#fff1f2" stroke="#fda4af"/>
+  <text x="115" y="430" class="b">错误 / 取消</text>
+  <text x="115" y="464" class="m">left = nng_aio_get_msg(aio)</text>
+  <text x="115" y="494" class="m">if (left) nng_msg_free(left)</text>
+  <text x="115" y="524" class="s">processing 与 aio.msg 分开清理，避免 double free。</text>
+  <rect x="550" y="390" width="365" height="205" rx="16" fill="#f5f3ff" stroke="#a78bfa"/>
+  <text x="580" y="430" class="b">全局 stop</text>
+  <text x="580" y="464" class="m">atomic_store(stopping, true)</text>
+  <text x="580" y="494" class="m">stop(aio[0]); stop(aio[1]); ...</text>
+  <text x="580" y="524" class="m">close(ctx[*]); free(aio[*])</text>
+  <text x="580" y="554" class="m">close(socket); free(owner)</text>
+  <text x="580" y="582" class="s">stop 返回时对应 callback 已退出。</text>
+  <path d="M500 330L310 390" stroke="#dc2626" stroke-width="3" marker-end="url(#a)"/><path d="M500 330L690 390" stroke="#7c3aed" stroke-width="3" marker-end="url(#a)"/>
+</svg>

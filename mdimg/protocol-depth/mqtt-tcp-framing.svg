@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="780" viewBox="0 0 1200 780" role="img" aria-labelledby="title desc">
+  <title id="title">TCP 字节流上的 MQTT 增量分帧</title>
+  <desc id="desc">展示 Remaining Length 被拆在两个 TCP 读取中，以及多个 MQTT 报文在一次读取中合并的情况。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L10,3 L0,6 Z" fill="#2956a3"/></marker>
+    <style>
+      .title{font:700 30px system-ui,'Microsoft YaHei',sans-serif;fill:#13213c}.h{font:700 21px system-ui,'Microsoft YaHei',sans-serif;fill:#17325f}.t{font:17px system-ui,'Microsoft YaHei',sans-serif;fill:#20324f}.m{font:16px ui-monospace,Consolas,monospace;fill:#102b4e}.small{font:14px system-ui,'Microsoft YaHei',sans-serif;fill:#52647e}.box{fill:#f7faff;stroke:#9ab3da;stroke-width:2}.byte{fill:#e7f0ff;stroke:#6c91c9;stroke-width:1.5}.warn{fill:#fff4df;stroke:#d59b38;stroke-width:2}.ok{fill:#e8f7ef;stroke:#3f9a69;stroke-width:2}.arrow{stroke:#2956a3;stroke-width:2.3;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1200" height="780" fill="#ffffff"/>
+  <text x="50" y="55" class="title">TCP 没有“一个 recv 对应一个 MQTT 报文”的边界</text>
+
+  <text x="55" y="105" class="h">场景 A：Remaining Length 和正文被拆开</text>
+  <rect x="55" y="130" width="290" height="92" rx="12" class="box"/>
+  <text x="75" y="160" class="t">recv #1：2 bytes</text>
+  <rect x="75" y="176" width="52" height="31" rx="4" class="byte"/><text x="89" y="198" class="m">30</text>
+  <rect x="133" y="176" width="52" height="31" rx="4" class="warn"/><text x="147" y="198" class="m">80</text>
+  <text x="196" y="198" class="small">RL 仍未结束</text>
+
+  <rect x="385" y="130" width="345" height="92" rx="12" class="box"/>
+  <text x="405" y="160" class="t">recv #2：15 bytes</text>
+  <rect x="405" y="176" width="52" height="31" rx="4" class="warn"/><text x="419" y="198" class="m">01</text>
+  <text x="470" y="198" class="m">78 78 78 78 …</text>
+  <text x="625" y="198" class="small">还差 114 bytes</text>
+
+  <rect x="770" y="130" width="370" height="92" rx="12" class="box"/>
+  <text x="790" y="160" class="t">recv #3：114 bytes</text>
+  <text x="790" y="198" class="m">78 78 … 78</text>
+  <text x="950" y="198" class="small">此时才得到完整报文</text>
+  <path d="M345 176 L380 176" class="arrow"/><path d="M730 176 L765 176" class="arrow"/>
+
+  <rect x="55" y="250" width="1085" height="145" rx="14" class="ok"/>
+  <text x="80" y="285" class="h">增量解析器状态</text>
+  <text x="80" y="322" class="m">first byte = 30</text>
+  <text x="330" y="322" class="m">RL bytes = 80 01</text>
+  <text x="610" y="322" class="m">Remaining Length = 128</text>
+  <text x="890" y="322" class="m">total = 1 + 2 + 128 = 131</text>
+  <text x="80" y="362" class="t">先确认 RL 在 1–4 字节内结束，再验证本地最大报文限制；缓冲区未达到 total 时继续等待。</text>
+
+  <text x="55" y="450" class="h">场景 B：一次 recv 合并两个控制报文</text>
+  <rect x="55" y="475" width="470" height="100" rx="12" class="box"/>
+  <text x="75" y="507" class="t">recv：4 bytes</text>
+  <rect x="75" y="525" width="52" height="31" rx="4" class="byte"/><text x="89" y="547" class="m">C0</text>
+  <rect x="133" y="525" width="52" height="31" rx="4" class="byte"/><text x="147" y="547" class="m">00</text>
+  <rect x="205" y="525" width="52" height="31" rx="4" class="byte"/><text x="219" y="547" class="m">E0</text>
+  <rect x="263" y="525" width="52" height="31" rx="4" class="byte"/><text x="277" y="547" class="m">00</text>
+  <text x="337" y="547" class="small">PINGREQ + DISCONNECT</text>
+
+  <path d="M525 525 L610 525" class="arrow"/>
+  <rect x="620" y="475" width="220" height="100" rx="12" class="ok"/>
+  <text x="640" y="510" class="h">报文 1</text><text x="640" y="545" class="m">C0 00</text>
+  <rect x="880" y="475" width="220" height="100" rx="12" class="ok"/>
+  <text x="900" y="510" class="h">报文 2</text><text x="900" y="545" class="m">E0 00</text>
+  <path d="M840 525 L875 525" class="arrow"/>
+
+  <rect x="55" y="620" width="1085" height="105" rx="14" class="warn"/>
+  <text x="80" y="655" class="h">边界条件</text>
+  <text x="80" y="690" class="t">RL 第四字节仍带 continuation bit → 畸形报文；声明长度超过本地上限 → 立即拒绝；不要先按对端长度分配内存。</text>
+  <text x="55" y="757" class="small">图中 split/coalesced 字节序列由 mqtt_deep_lab.py 的合成分帧测试验证，不是网络抓包截图。</text>
+</svg>

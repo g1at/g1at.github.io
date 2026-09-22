@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 650" role="img" aria-labelledby="t d">
+  <title id="t">NNG 协议、传输、pipe 与 context 的对象关系</title>
+  <desc id="d">一个 socket 固定一个协议，共享 dialer listener pipes；contexts 各自保存协议状态</desc>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10Z" fill="context-stroke"/></marker><style>.h{font:700 28px 'Microsoft YaHei',sans-serif;fill:#172033}.s{font:15px 'Microsoft YaHei',sans-serif;fill:#526071}.b{font:700 19px 'Microsoft YaHei',sans-serif;fill:#172033}.m{font:15px Consolas,monospace;fill:#334155}.l{font:600 15px 'Microsoft YaHei',sans-serif}</style></defs>
+  <rect width="1000" height="650" fill="#fff"/>
+  <text x="50" y="52" class="h">先看对象边界，再看消息路径</text>
+  <text x="50" y="82" class="s">protocol 管状态；transport 搬运帧；pipe 表示一条已建立连接；context 隔离协议会话</text>
+  <rect x="335" y="115" width="330" height="120" rx="16" fill="#eff6ff" stroke="#60a5fa" stroke-width="2"/>
+  <text x="500" y="155" text-anchor="middle" class="b">socket：一个固定 protocol</text>
+  <text x="500" y="188" text-anchor="middle" class="m">REQ / REP / PUSH / PUB ...</text>
+  <text x="500" y="215" text-anchor="middle" class="s">共享选项、endpoint 与已建立连接</text>
+  <rect x="55" y="300" width="225" height="120" rx="14" fill="#f8fafc" stroke="#94a3b8"/>
+  <text x="168" y="340" text-anchor="middle" class="b">dialer</text><text x="168" y="375" text-anchor="middle" class="s">主动建立连接</text><text x="168" y="402" text-anchor="middle" class="m">tcp:// / ipc://</text>
+  <rect x="300" y="300" width="225" height="120" rx="14" fill="#f8fafc" stroke="#94a3b8"/>
+  <text x="413" y="340" text-anchor="middle" class="b">listener</text><text x="413" y="375" text-anchor="middle" class="s">接受连接</text><text x="413" y="402" text-anchor="middle" class="m">tcp:// / ipc://</text>
+  <rect x="545" y="300" width="170" height="120" rx="14" fill="#ecfdf5" stroke="#4ade80"/>
+  <text x="630" y="340" text-anchor="middle" class="b">pipe A</text><text x="630" y="375" text-anchor="middle" class="s">一条连接</text><text x="630" y="402" text-anchor="middle" class="s">有唯一 pipe id</text>
+  <rect x="735" y="300" width="170" height="120" rx="14" fill="#ecfdf5" stroke="#4ade80"/>
+  <text x="820" y="340" text-anchor="middle" class="b">pipe B</text><text x="820" y="375" text-anchor="middle" class="s">另一条连接</text><text x="820" y="402" text-anchor="middle" class="s">可用不同 transport</text>
+  <path d="M430 235L185 300" stroke="#64748b" stroke-width="2.5" marker-end="url(#a)"/><path d="M470 235L413 300" stroke="#64748b" stroke-width="2.5" marker-end="url(#a)"/><path d="M550 235L630 300" stroke="#15803d" stroke-width="2.5" marker-end="url(#a)"/><path d="M590 235L820 300" stroke="#15803d" stroke-width="2.5" marker-end="url(#a)"/>
+  <rect x="190" y="505" width="190" height="95" rx="14" fill="#f5f3ff" stroke="#a78bfa"/>
+  <text x="285" y="542" text-anchor="middle" class="b">context 0</text><text x="285" y="574" text-anchor="middle" class="s">request id / timer</text>
+  <rect x="405" y="505" width="190" height="95" rx="14" fill="#f5f3ff" stroke="#a78bfa"/>
+  <text x="500" y="542" text-anchor="middle" class="b">context 1</text><text x="500" y="574" text-anchor="middle" class="s">独立 outstanding request</text>
+  <rect x="620" y="505" width="190" height="95" rx="14" fill="#f5f3ff" stroke="#a78bfa"/>
+  <text x="715" y="542" text-anchor="middle" class="b">context 2</text><text x="715" y="574" text-anchor="middle" class="s">独立 reply/backtrace</text>
+  <path d="M440 235L285 505" stroke="#7c3aed" stroke-width="2.5" marker-end="url(#a)"/><path d="M500 235V505" stroke="#7c3aed" stroke-width="2.5" marker-end="url(#a)"/><path d="M560 235L715 505" stroke="#7c3aed" stroke-width="2.5" marker-end="url(#a)"/>
+</svg>

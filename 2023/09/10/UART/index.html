@@ -25,7 +25,7 @@
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="https://g1at.github.io/mdimg/UART/UART.jpg">
 <meta property="article:published_time" content="2023-09-10T06:56:37.000Z">
-<meta property="article:modified_time" content="2026-09-22T09:38:47.000Z">
+<meta property="article:modified_time" content="2026-09-22T10:20:33.000Z">
 <meta property="article:author" content="g0at">
 <meta property="article:tag" content="IoT">
 <meta name="twitter:card" content="summary_large_image">
@@ -258,7 +258,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          2.7k 字
+          11k 字
         
       </span>
     
@@ -269,7 +269,7 @@
         
         
         
-          23 分钟
+          90 分钟
         
       </span>
     
@@ -319,114 +319,532 @@
             
               <div class="markdown-body">
                 
-                <p>UART 看起来只有几根线，但遇到乱码时，问题可能在电平、接线、帧格式、时钟，也可能在上层数据编码。把这些层次分开，排查会快很多。</p>
-<p>下面先确认接口，再手工解一个字节，最后解释波特率误差和常见故障。波形图根据明确的比特序列绘制，文末脚本验证位序与帧检查；这些是教学示意，不是实物逻辑分析仪采样。</p>
-<h2 id="UART-简介"><a href="#UART-简介" class="headerlink" title="UART 简介"></a>UART 简介</h2><p>UART 是 Universal Asynchronous Receiver/Transmitter，负责并行数据与异步串行数据之间的转换。异步意味着两端没有共享时钟线；接收端通过起始位重新确定一帧的采样时间，然后按自己的时钟继续取样。</p>
-<p>常见非反相 UART 逻辑信号在空闲时为高，起始位为低，停止位为高。RS-232 等接口还涉及不同的电气层，不能把接插件上的电压直接当作 MCU 的 UART 引脚电平。</p>
-<h3 id="两根信号线之外，还要确认什么"><a href="#两根信号线之外，还要确认什么" class="headerlink" title="两根信号线之外，还要确认什么"></a>两根信号线之外，还要确认什么</h3><p><img src="/mdimg/notes-2026/uart-wiring.svg" srcset="/img/loading.gif" lazyload alt="UART 交叉接线与公共参考地，供电单独处理"></p>
-<p><em>TX 接对方 RX，普通非隔离连接需要公共参考地。VCC 是否连接取决于供电设计，不能按名字直接相连。</em></p>
-<p>“两根线”通常指 TX、RX 两根数据信号线。如果只监听目标输出，可以仅连接目标 TX、接收器 RX 和参考地；RTS/CTS 硬件流控又会增加信号线。</p>
-<p>接之前先确认逻辑电平，例如 1.8 V、3.3 V 或 5 V，以及输入是否容忍对方输出电压。USB 转 TTL UART、USB 转 RS-232、USB 转 RS-485 的线缆不能因为都叫“串口线”就混用。RS-232、RS-485 是相关电气接口体系，UART 关注的起始位、数据位等并不能替代收发器。</p>
-<h2 id="UART-数据帧"><a href="#UART-数据帧" class="headerlink" title="UART 数据帧"></a>UART 数据帧</h2><p><code>115200 8N1</code> 的意思是：115200 baud、8 个数据位、无奇偶校验、1 个停止位。常见 UART 每个符号承载一位，因此这里波特率数值等于比特率；有效字节速率还要扣除帧开销。</p>
+                <p>UART 经常被当成“接上 TX、RX 就能用”的接口。</p>
+<p>真正排查乱码、偶发丢字或半双工冲突时，问题可能分布在完全不同的层：</p>
+<ul>
+<li>MCU 引脚的逻辑电平不兼容；</li>
+<li>RS-232 或 RS-485 收发器接错；</li>
+<li>数据位、校验位或停止位配置不同；</li>
+<li>分频器产生的实际波特率有误差；</li>
+<li>接收采样点在一帧内逐渐漂移；</li>
+<li>FIFO 没有及时清空，发生硬件 overrun；</li>
+<li>字节都收对了，但上层协议失去帧边界。</li>
+</ul>
+<p>这篇按这几层逐步拆开。</p>
+<p>文中的波形和误差区域由明确的理想模型生成，不是逻辑分析仪截图。<br>附件会复算文章里的数值；器件的真实采样规则、容差和错误标志，仍以对应型号的数据手册为准。</p>
+<h2 id="先把“串口”的几个层次分开"><a href="#先把“串口”的几个层次分开" class="headerlink" title="先把“串口”的几个层次分开"></a>先把“串口”的几个层次分开</h2><p>UART 是 Universal Asynchronous Receiver/Transmitter。<br>它是把并行数据转换成异步串行比特流、再把接收比特流还原为数据字的硬件模块。</p>
+<p>UART 主要定义这些内容：</p>
+<ul>
+<li>空闲、起始、数据、校验和停止位的时序；</li>
+<li>数据位宽和低位先发等规则；</li>
+<li>发送、接收寄存器或 FIFO；</li>
+<li>波特率发生器、采样器和错误标志。</li>
+</ul>
+<p>UART 本身不等于 RS-232，也不等于 RS-485。</p>
+<p><img src="/mdimg/protocol-depth/uart-physical-layer.svg" srcset="/img/loading.gif" lazyload alt="UART 逻辑帧经不同收发器转换为逻辑电平、RS-232 或 RS-485 信号"></p>
+<p>三者处在不同层次：</p>
 <table>
 <thead>
 <tr>
-<th>部分</th>
-<th>8N1 中的长度</th>
-<th>作用</th>
+<th>名称</th>
+<th>主要解决的问题</th>
+<th>典型信号</th>
 </tr>
 </thead>
 <tbody><tr>
-<td>Start</td>
-<td>1 bit</td>
-<td>从空闲高电平进入低电平，建立采样起点</td>
+<td>MCU 逻辑 UART</td>
+<td>字节怎样变成异步串行帧</td>
+<td>TXD、RXD，逻辑 0/1</td>
 </tr>
 <tr>
-<td>Data</td>
-<td>8 bit</td>
-<td>通常低位先发，依次 D0 到 D7</td>
+<td>RS-232</td>
+<td>单端线路上的电压、极性和接口</td>
+<td>TX、RX、GND，经专用收发器</td>
 </tr>
 <tr>
-<td>Parity</td>
-<td>0 bit</td>
-<td>8N1 没有这一位；8E1/8O1 会加入校验</td>
+<td>RS-485</td>
+<td>差分、多点线路与驱动使能</td>
+<td>A、B，常见 DE、RE 控制</td>
 </tr>
 <tr>
-<td>Stop</td>
-<td>1 bit</td>
-<td>在规定时间保持停止状态</td>
+<td>上层协议</td>
+<td>字节流如何划分消息、校验和重传</td>
+<td>长度、转义、CRC、序号等</td>
 </tr>
 </tbody></table>
-<p>其他配置是否支持 5～9 位数据、1.5 或 2 个停止位，要看具体外设。停止位并非必须至少两位，也不一定表现为低到高跳变：如果最后一个数据位已经为高，线路可以连续保持高电平。</p>
-<h3 id="手工解码-0x53"><a href="#手工解码-0x53" class="headerlink" title="手工解码 0x53"></a>手工解码 0x53</h3><p><code>0x53</code> 的二进制写法是 <code>01010011</code>，但在线上低位先发，因此 D0～D7 为：</p>
+<p>把 USB 转 TTL、USB 转 RS-232 和 USB 转 RS-485 都叫“串口线”，不代表它们能互换。</p>
+<h3 id="逻辑电平-UART"><a href="#逻辑电平-UART" class="headerlink" title="逻辑电平 UART"></a>逻辑电平 UART</h3><p>MCU 的 UART 引脚通常是芯片 I/O 电平，例如 1.8 V、3.3 V 或 5 V。<br>输入高低阈值、是否 5 V tolerant、上电默认状态都应查具体数据手册。</p>
+<p>普通非隔离连接通常至少需要：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">设备 A TX  -&gt; 设备 B RX<br>设备 A RX  &lt;- 设备 B TX<br>设备 A GND -- 设备 B GND<br></code></pre></td></tr></table></figure>
+
+<p><img src="/mdimg/notes-2026/uart-wiring.svg" srcset="/img/loading.gif" lazyload alt="UART 交叉接线与公共参考地，供电单独处理"></p>
+<p>VCC 不能因为针脚名字一样就直接相连。<br>两块板已经各自供电、工作电压不同，或者接口带隔离时，VCC 的处理会完全不同。</p>
+<p>只监听目标输出时，可以只接目标 TX、采集设备 RX 和参考地。<br>要进行双向通信，TX 和 RX 才都需要交叉连接。</p>
+<h3 id="RS-232-不是“更高电压的-TTL-UART”"><a href="#RS-232-不是“更高电压的-TTL-UART”" class="headerlink" title="RS-232 不是“更高电压的 TTL UART”"></a>RS-232 不是“更高电压的 TTL UART”</h3><p>RS-232 在线缆侧使用正负电压，并且线路逻辑通常相对 MCU UART 引脚反相。<br>MCU 引脚不能直接接到 RS-232 线上。</p>
+<p><a target="_blank" rel="noopener" href="https://www.analog.com/en/resources/technical-articles/fundamentals-of-rs232-serial-communications.html">Analog Devices 的 RS-232 说明</a>给出的接口边界很清楚：<br>UART 负责起始、停止、校验和串并转换，RS-232 line driver/receiver 负责电平转换与线路侧驱动。</p>
+<p>看到 DB9 接头也不能只凭外形判断针脚定义。<br>DTE/DCE、直连线与交叉线、是否使用 RTS/CTS，都要结合设备文档和实测确认。</p>
+<h3 id="RS-485-还多了总线方向问题"><a href="#RS-485-还多了总线方向问题" class="headerlink" title="RS-485 还多了总线方向问题"></a>RS-485 还多了总线方向问题</h3><p>RS-485 使用差分线路，常见两线制是半双工。<br>UART TXD/RXD 仍是逻辑信号，A/B 由 RS-485 收发器驱动和接收。</p>
+<p>半双工发送通常还要控制 DE：</p>
+<ol>
+<li>置 DE，等待驱动器进入发送状态；</li>
+<li>向 UART 写入整帧；</li>
+<li>等最后一个停止位真正离开移位寄存器；</li>
+<li>再释放 DE，让其他节点发送。</li>
+</ol>
+<p>“发送数据寄存器空”只说明可以继续写下一个字，不一定说明线上最后一位已经完成。<br>切换 DE 时应使用外设的 transmission complete 条件，而不是只看 TX empty。</p>
+<p><a target="_blank" rel="noopener" href="https://www.analog.com/en/resources/app-notes/an-960.html">Analog Devices AN-960</a>还说明了多点总线的三态驱动、终端、偏置和空闲 fail-safe。<br>终端电阻不是“有 RS-485 就随便加一个”；位置、线缆阻抗、总线长度和拓扑都要一起判断。</p>
+<p>另外，不同厂商对 A/B、+/− 的命名习惯可能造成混淆。<br>接线时应核对收发器数据手册中的 truth table，不能只按字母颜色连接。</p>
+<h2 id="UART-帧：先算清每个字节到底占多少时间"><a href="#UART-帧：先算清每个字节到底占多少时间" class="headerlink" title="UART 帧：先算清每个字节到底占多少时间"></a>UART 帧：先算清每个字节到底占多少时间</h2><p>常见非反相 UART 在空闲时为高电平。<br>一次帧通常包含：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Start | Data bits (LSB first) | optional Parity | Stop<br></code></pre></td></tr></table></figure>
+
+<p><code>115200 8N1</code> 表示：</p>
+<ul>
+<li>目标波特率 115200；</li>
+<li>8 个数据位；</li>
+<li>N：无 parity；</li>
+<li>1 个停止位。</li>
+</ul>
+<p>在普通二进制 UART 中，一个符号承载一个 bit，所以 baud 数值与 bit/s 数值相同。<br>这不表示应用层每秒能传 115200 个有效数据 bit，因为起始、校验和停止位也占时间。</p>
+<p>设：</p>
+<ul>
+<li>数据位数为 <code>D</code>；</li>
+<li>有 parity 时 <code>P=1</code>，否则 <code>P=0</code>；</li>
+<li>停止位长度为 <code>S</code>；</li>
+<li>波特率为 <code>B</code>。</li>
+</ul>
+<p>一帧的 bit 数和时间为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">N_frame = 1 + D + P + S<br>T_frame = N_frame / B<br></code></pre></td></tr></table></figure>
+
+<p>对 8N1：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">N_frame = 1 + 8 + 0 + 1 = 10 bit<br>T_byte  = 10 / 115200 = 86.8056 μs<br>R_byte  = 115200 / 10 = 11520 byte/s<br></code></pre></td></tr></table></figure>
+
+<p>它在线路层已经有 20% 的非数据开销。</p>
+<p>8E1 或 8N2 都是每帧 11 bit：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">115200 / 11 = 10472.727 byte/s<br></code></pre></td></tr></table></figure>
+
+<p>如果协议每 64 字节还加 8 字节头尾，有效负载率还要乘：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">64 / (64 + 8) = 88.89%<br></code></pre></td></tr></table></figure>
+
+<p>RTS/CTS 等流控、RS-485 换向保护时间、帧间空闲以及重传都会继续降低吞吐。</p>
+<h3 id="手工解一个-0x53"><a href="#手工解一个-0x53" class="headerlink" title="手工解一个 0x53"></a>手工解一个 0x53</h3><p><code>0x53</code> 的通常二进制写法是 <code>01010011</code>。<br>UART 数据位一般低位先发，所以线上 D0 到 D7 是：</p>
 <figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">1 1 0 0 1 0 1 0<br></code></pre></td></tr></table></figure>
 
-<p>加上起始位和停止位：</p>
+<p>加上 8N1 的起始和停止位：</p>
 <figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Start | D0 D1 D2 D3 D4 D5 D6 D7 | Stop<br>  0   |  1  1  0  0  1  0  1  0 |  1<br></code></pre></td></tr></table></figure>
 
 <p><img src="/mdimg/notes-2026/uart-wave.svg" srcset="/img/loading.gif" lazyload alt="0x53 在 8N1 下的波形与每一位的采样中心"></p>
-<p>起始边沿后的约半个位时间可以确认起始位；D0 的中心约在 <code>1.5T</code>，D1 在 <code>2.5T</code>，依此类推。真实接收器可能采用过采样、起始位确认和多数表决，具体算法要查芯片手册。</p>
-<p>115200 baud 下，一个 bit 的时间约为 <code>8.6806 μs</code>。8N1 一个字节占 10 bit，因此连续满速发送时，理论有效速率是：</p>
-<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">115200 / (1 + 8 + 0 + 1) = 11520 byte/s<br></code></pre></td></tr></table></figure>
+<p>停止位不要求一定出现新的上升沿。<br>如果最后一个数据位本来就是 1，线路可以从 D7 一直保持高到停止位和下一段空闲。</p>
+<h3 id="parity-能发现什么"><a href="#parity-能发现什么" class="headerlink" title="parity 能发现什么"></a>parity 能发现什么</h3><p>偶校验要求数据位和 parity 位中 <code>1</code> 的数量为偶数；奇校验要求总数为奇数。</p>
+<p><code>0x53</code> 有四个 <code>1</code>：</p>
+<ul>
+<li>8E1 的 parity 位是 0；</li>
+<li>8O1 的 parity 位是 1。</li>
+</ul>
+<p>一次奇数个 bit 翻转通常会改变 parity。<br>两个 bit 同时翻转可能互相抵消，所以 parity 不能替代消息级 CRC。<br>它也不能指出哪个 bit 错了，更不能提供消息认证。</p>
+<p>某些外设的“9 bit 模式”会把第九位用作普通数据、地址标记或 parity，具体寄存器语义并不统一。<br>读取数据寄存器时也要确认 parity 位是否被硬件剥离。</p>
+<h2 id="接收器怎样从一个起始沿恢复采样时刻"><a href="#接收器怎样从一个起始沿恢复采样时刻" class="headerlink" title="接收器怎样从一个起始沿恢复采样时刻"></a>接收器怎样从一个起始沿恢复采样时刻</h2><p>异步链路没有共享时钟。<br>接收器看到空闲高到起始低的下降沿后，用自己的时钟安排后续采样。</p>
+<p>一种常见实现是 16× oversampling：</p>
+<ol>
+<li>检测起始下降沿；</li>
+<li>在起始位中间验证它仍为低；</li>
+<li>之后每隔 16 个采样 tick 读取下一位；</li>
+<li>在停止位位置期望读到高电平。</li>
+</ol>
+<p><a target="_blank" rel="noopener" href="https://onlinedocs.microchip.com/oxy/GUID-22527069-B4D6-49B9-BACC-3AF1C52EB48C-en-US-21/GUID-C6342AC0-3C55-491E-8253-B114A0A38825.html">Microchip 的采样调整文档</a>给出了一个具体实现：<br>16× 模式下使用第 7、8、9 个样本做多数表决；8× 模式使用第 3、4、5 个样本。</p>
+<p>这只是一个可核对的器件实现，不是所有 UART 必须采用的算法。<br>其他外设可能使用单点采样、不同的多数表决位置、数字滤波或边沿再同步。</p>
+<h3 id="起始检测也有量化误差"><a href="#起始检测也有量化误差" class="headerlink" title="起始检测也有量化误差"></a>起始检测也有量化误差</h3><p>数据下降沿与接收器采样时钟是异步的。<br>下降沿刚好落在两个采样 tick 之间时，接收器只能在后续 tick 识别它。</p>
+<p>在理想 16× 模型中，这个初始误差可接近一个 oversample tick：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">T_tick = T_rx / 16<br>0 &lt;= δ_phase &lt; T_tick<br></code></pre></td></tr></table></figure>
 
-<p>上层协议的头部、校验、帧间间隔和流控还会继续降低有效吞吐。数据位宽为 8 或 9，并不限制应用只能传这么多位；长消息通过连续多个 UART 字节传输。</p>
-<h2 id="奇偶校验能发现什么"><a href="#奇偶校验能发现什么" class="headerlink" title="奇偶校验能发现什么"></a>奇偶校验能发现什么</h2><p>偶校验要求数据位和校验位中 <code>1</code> 的总数为偶数，奇校验则要求为奇数。上面的 <code>0x53</code> 有四个 <code>1</code>，偶校验位为 0，奇校验位为 1。</p>
-<p>单个比特翻转会改变奇偶性，两位翻转则可能互相抵消。因此 parity 能发现部分传输错误，不能纠错，也不能替代上层 CRC、帧序号或消息认证。</p>
-<p>接收端会消费起始、校验与停止信息，再把有效数据交给软件；原笔记的“丢失起始位”应理解为协议处理时剥离这些控制位，而不是通信发生了丢包。</p>
-<h2 id="波特率误差为什么会累积"><a href="#波特率误差为什么会累积" class="headerlink" title="波特率误差为什么会累积"></a>波特率误差为什么会累积</h2><p>起始位只在一帧开头提供同步。之后每过一位，发送和接收时钟之间的差异都会积累。如果接收采样点逐渐滑到相邻 bit，即使前几位正确，后面的数据和停止位也可能出错。</p>
+<p>若以起始位为第 0 个 cell，并在每个 cell 中央采样，中心位置近似为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">t_k = t_detect + (8 + 16k) × T_tick<br></code></pre></td></tr></table></figure>
+
+<p>其中 <code>k=0</code> 是起始位中心，<code>k=1</code> 是 D0，<code>k=9</code> 是 8N1 的停止位中心。</p>
+<h2 id="波特率误差为何在一帧内累积"><a href="#波特率误差为何在一帧内累积" class="headerlink" title="波特率误差为何在一帧内累积"></a>波特率误差为何在一帧内累积</h2><p>发送端和接收端只在起始沿附近重新对齐一次。<br>若两边 bit period 不同，之后每一位都会再增加一点偏移。</p>
+<p>用一阶近似表示第 <code>k</code> 个 cell 中心的偏移：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Δt_k ≈ δ_phase + (k + 0.5) × (T_rx - T_tx)<br></code></pre></td></tr></table></figure>
+
+<p>帧越长，最后一个数据位和停止位越容易靠近相邻 bit 的边界。</p>
 <p><img src="/mdimg/notes-2026/uart-drift.svg" srcset="/img/loading.gif" lazyload alt="时钟误差在同一 UART 帧内逐位累积"></p>
-<p><em>图示意接收端位时间偏长时采样点向右漂移；误差方向相反时向左漂移。</em></p>
-<p>用理想模型粗看，若停止位中心在起始边沿后的 <code>9.5T</code>，累计偏移应小于半个位宽。但真实系统还有起始检测量化、采样策略、上升下降时间和噪声余量，不能把这个粗略界限直接当作器件指标。也不能笼统说“两端允许相差 10%”。<a target="_blank" rel="noopener" href="https://www.analog.com/en/resources/technical-articles/determining-clock-accuracy-requirements-for-uart-communications.html">Analog Devices 的时钟精度分析</a>讨论了这些误差预算。</p>
-<p>如果已知分频器产生的实际波特率，可以先算：</p>
-<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">本端波特率误差 = (实际波特率 - 目标波特率) / 目标波特率<br></code></pre></td></tr></table></figure>
+<p>误差在停止位后不会无限积累。<br>下一帧新的起始沿会重新同步；真正需要覆盖的是一帧内的最坏位置。</p>
+<h3 id="为什么不能背一个“允许相差-10-”"><a href="#为什么不能背一个“允许相差-10-”" class="headerlink" title="为什么不能背一个“允许相差 10%”"></a>为什么不能背一个“允许相差 10%”</h3><p>理想情况下，中心采样点偏移半个位就会碰到边界。<br>真实链路却不能一直用到边界：</p>
+<ul>
+<li>起始检测有相位量化；</li>
+<li>上升、下降沿需要时间；</li>
+<li>阈值、噪声和抖动会减少稳定窗口；</li>
+<li>多数表决位置与滤波规则影响边界；</li>
+<li>数据位数、parity 和停止位改变一帧长度；</li>
+<li>接收器和发送器的时钟误差都要计入。</li>
+</ul>
+<p><a target="_blank" rel="noopener" href="https://www.analog.com/en/resources/technical-articles/determining-clock-accuracy-requirements-for-uart-communications.html">Analog Devices 的 UART 时钟精度分析</a>在明确假设下给出两个示例：<br>可靠采样窗口取 bit 中部 75% 时，10-bit frame 的预算约为 ±3.3%；窗口只有中部 50% 时约为 ±2%。</p>
+<p>这些数字来自对应模型，不是跨芯片通用的“UART 标准容差”。</p>
+<p>工程上更可靠的做法是建立预算表：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">链路相对误差<br>≈ 接收器时钟误差<br> - 发送器时钟误差<br> + 两边波特率分频误差<br> + 短期抖动与检测误差余量<br></code></pre></td></tr></table></figure>
 
-<p>还要把对端时钟误差一起纳入预算。<a target="_blank" rel="noopener" href="https://onlinedocs.microchip.com/oxy/GUID-8FC17F92-806A-426E-8A7C-60D2F975DE7F-en-US-7/GUID-3FD21524-1116-412C-8139-B7FBEA62950A.html">Microchip 的示例器件文档</a>按数据位数和工作模式分别列容差，说明它并不是一个通用常数。</p>
-<h2 id="收发步骤放到外设里看"><a href="#收发步骤放到外设里看" class="headerlink" title="收发步骤放到外设里看"></a>收发步骤放到外设里看</h2><p>发送时，软件把字节写入发送寄存器或 FIFO，硬件加入控制位，再由移位寄存器逐位输出。接收端完成采样和帧检查后，将数据放入接收寄存器或 FIFO，由中断、轮询或 DMA 搬走。</p>
-<p>这也解释了三类不同错误：</p>
+<p>只知道“双方都设置成 115200”不够，还要知道它们实际产生了多少。</p>
+<h2 id="一个可运行的-16×-理想采样实验"><a href="#一个可运行的-16×-理想采样实验" class="headerlink" title="一个可运行的 16× 理想采样实验"></a>一个可运行的 16× 理想采样实验</h2><p>下载 <a href="/downloads/protocol-labs/uart_timing_lab.py">uart_timing_lab.py</a>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">python3 uart_timing_lab.py --svg uart-sampling-simulation.svg<br></code></pre></td></tr></table></figure>
+
+<p>模型使用：</p>
+<ul>
+<li>瞬时、无振铃的理想边沿；</li>
+<li>固定的发送端 bit period；</li>
+<li>接收端固定频差；</li>
+<li>起始检测延迟在一个接收 oversample tick 内变化；</li>
+<li>第 7、8、9 个 tick 三点多数表决；</li>
+<li>测试字节 <code>0x55</code>，使相邻数据位频繁翻转。</li>
+</ul>
+<p><img src="/mdimg/protocol-depth/uart-sampling-simulation.svg" srcset="/img/loading.gif" lazyload alt="Python 理想模型生成的 0x55 采样漂移与成功区域"></p>
+<p>本次使用 Python 3.11 运行得到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">model: ideal edges, fixed frequency error, 16x vote at ticks 7/8/9<br>frame 0x55: [0, 1, 0, 1, 0, 1, 0, 1, 0, 1]<br>ideal all-phase pass interval: -4.85% .. +5.55% RX rate error<br>integer divider: N=26, actual=115384.615385, error=+1602.56 ppm<br>1/64 fractional divider: REG=1667 (N=26.046875), actual=115176.964607, error=-199.96 ppm<br>115200 8N1 byte time: 86.8056 us<br>16-byte FIFO no-service window: 1.3889 ms<br>256-byte ring no-consumer window: 22.2222 ms<br></code></pre></td></tr></table></figure>
+
+<p><code>-4.85%..+5.55%</code> 只属于这段代码的理想边沿、<code>0x55</code>、三点采样和相位扫描。<br>区间不对称，是因为模型把起始沿检测延迟定义为 <code>[0, 1)</code> 个接收 tick，并从检测时刻向后安排采样。</p>
+<p>它没有模拟：</p>
+<ul>
+<li>输入阈值和迟滞；</li>
+<li>传播延迟与上升下降时间；</li>
+<li>随机噪声、周期抖动和突发干扰；</li>
+<li>接收器内部滤波或重同步；</li>
+<li>收发器、隔离器与线缆的失真。</li>
+</ul>
+<p>因此，这张图适合解释“误差怎样积累”，不适合作为选型时的最大容差。</p>
+<h2 id="波特率发生器：设置值不等于实际值"><a href="#波特率发生器：设置值不等于实际值" class="headerlink" title="波特率发生器：设置值不等于实际值"></a>波特率发生器：设置值不等于实际值</h2><h3 id="整数分频"><a href="#整数分频" class="headerlink" title="整数分频"></a>整数分频</h3><p>假设 UART 输入时钟为 <code>f_clk</code>，16× 模式使用整数分频 <code>N</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">B_actual = f_clk / (16 × N)<br>N_ideal  = f_clk / (16 × B_target)<br></code></pre></td></tr></table></figure>
+
+<p>以 48 MHz 和 115200 为例：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">N_ideal = 48000000 / (16 × 115200)<br>        = 26.041666...<br><br>N = round(N_ideal) = 26<br>B_actual = 48000000 / (16 × 26)<br>         = 115384.615385<br></code></pre></td></tr></table></figure>
+
+<p>误差同时用百分比和 ppm 表示：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">error = (B_actual - B_target) / B_target<br>      = +0.160256%<br>      = +1602.56 ppm<br></code></pre></td></tr></table></figure>
+
+<h3 id="1-64-小数分频示例"><a href="#1-64-小数分频示例" class="headerlink" title="1/64 小数分频示例"></a>1/64 小数分频示例</h3><p><a target="_blank" rel="noopener" href="https://onlinedocs.microchip.com/oxy/GUID-16F5E27A-59F0-45F6-A80B-11D134E7327C-en-US-16/GUID-B48A617D-A912-430B-A8FD-98B0F38C8411.html">Microchip 的 fractional baud generator 文档</a>描述了低 6 bit 保存分频小数部分的实现。</p>
+<p>若把理想分频值乘 64 后取整：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">BAUD = round(26.041666... × 64) = 1667<br>N_fractional = 1667 / 64 = 26.046875<br><br>B_actual = 64 × 48000000 / (16 × 1667)<br>         = 115176.964607<br><br>error = -199.96 ppm = -0.019996%<br></code></pre></td></tr></table></figure>
+
+<p>小数分频把本例的量化误差从约 1603 ppm 降到约 200 ppm。<br>寄存器公式、舍入规则、oversampling 模式和允许范围依芯片而异，不能把这里的 <code>1667</code> 写到另一类外设。</p>
+<h3 id="时钟源误差仍然存在"><a href="#时钟源误差仍然存在" class="headerlink" title="时钟源误差仍然存在"></a>时钟源误差仍然存在</h3><p>波特率寄存器只解决分频量化。<br>晶振、RC 振荡器、PLL 和外设时钟树还会带来：</p>
+<ul>
+<li>初始频率误差；</li>
+<li>温度漂移；</li>
+<li>电压与老化影响；</li>
+<li>PLL 或时钟切换产生的抖动；</li>
+<li>低功耗模式下时钟源变化。</li>
+</ul>
+<p>两个端点误差方向相反时，链路相对误差会变大。<br>做最坏情况预算时，应组合两边数据手册给出的边界，而不是只加典型值。</p>
+<p>自动波特率检测也不是无限容错。<br>它依赖特定同步字符或边沿模式，得到的计数仍受输入边沿、时钟量化和实现规则影响。</p>
+<h2 id="Framing、Parity、Noise-与-Overrun-不是一类错误"><a href="#Framing、Parity、Noise-与-Overrun-不是一类错误" class="headerlink" title="Framing、Parity、Noise 与 Overrun 不是一类错误"></a>Framing、Parity、Noise 与 Overrun 不是一类错误</h2><p>接收端经常暴露多个独立标志：</p>
 <table>
 <thead>
 <tr>
-<th>错误</th>
-<th>说明</th>
-<th>优先检查</th>
+<th>标志</th>
+<th>硬件观察到的现象</th>
+<th>常见方向</th>
 </tr>
 </thead>
 <tbody><tr>
-<td>Framing error</td>
-<td>停止位采样不符合预期</td>
-<td>波特率、位宽、反相、噪声</td>
+<td>Framing error / FE</td>
+<td>在期望的停止位位置读到低</td>
+<td>波特率、位宽、反相、break、噪声</td>
 </tr>
 <tr>
-<td>Parity error</td>
-<td>奇偶检查失败</td>
-<td>奇偶配置、数据干扰</td>
+<td>Parity error / PE</td>
+<td>数据与 parity 不满足配置</td>
+<td>parity 配置不同或 bit 受干扰</td>
 </tr>
 <tr>
-<td>Overrun</td>
-<td>接收缓冲来不及被软件读走</td>
-<td>中断延迟、FIFO/DMA、应用处理速度</td>
+<td>Noise error / NE</td>
+<td>多点采样不一致或检测到噪声</td>
+<td>信号完整性、阈值、线缆与地</td>
+</tr>
+<tr>
+<td>Overrun / ORE</td>
+<td>新数据到达时前一数据未被取走</td>
+<td>FIFO、IRQ 延迟、DMA 或软件阻塞</td>
+</tr>
+<tr>
+<td>IDLE</td>
+<td>接收线在规定时间没有新帧</td>
+<td>可作为通知，不天然等于协议结尾</td>
+</tr>
+<tr>
+<td>Break</td>
+<td>线路持续低电平超过普通字符时间</td>
+<td>break 信号、短路、错误极性等</td>
 </tr>
 </tbody></table>
-<p>Overrun 发生时，线路上的波形可能完全正确。不断换波特率并不能修复软件读取不及时的问题。</p>
-<h2 id="一段离线位序验证"><a href="#一段离线位序验证" class="headerlink" title="一段离线位序验证"></a>一段离线位序验证</h2><p>下载 <a href="/downloads/notes-2026/uart_frame.py">uart_frame.py</a>：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">python3 uart_frame.py<br></code></pre></td></tr></table></figure>
+<p><a target="_blank" rel="noopener" href="https://www.st.com/resource/en/product_training/STM32L4_Peripheral_LPUART.pdf">ST 的 LPUART 培训资料</a>分别列出 overrun、parity、framing 和 noise 标志，也说明 RX ready、IDLE 和 DMA 请求属于不同事件。</p>
+<h3 id="Framing-error"><a href="#Framing-error" class="headerlink" title="Framing error"></a>Framing error</h3><p>FE 的直接含义是停止位检查失败。<br>可能原因包括：</p>
+<ul>
+<li>两端波特率差太大；</li>
+<li>8N1 与 7E1 等帧配置不一致；</li>
+<li>线路反相；</li>
+<li>起始位是噪声尖峰；</li>
+<li>break 持续低电平覆盖停止位；</li>
+<li>边沿太慢或采样窗口被噪声侵入。</li>
+</ul>
+<p>FE 不等于“某个文本字符编码错了”。<br>错误发生在 UART frame 层。</p>
+<h3 id="Parity-error"><a href="#Parity-error" class="headerlink" title="Parity error"></a>Parity error</h3><p>PE 表示硬件计算出的 parity 与接收 parity 位不一致。<br>如果一端 8N1、另一端 8E1，后续 bit 边界也可能被错误解释，同时出现 PE 或 FE。</p>
+<p>记录错误时应保存原始数据字和状态寄存器读取顺序。<br>部分外设在读取状态或数据寄存器后清除标志，具体步骤必须查参考手册。</p>
+<h3 id="Overrun"><a href="#Overrun" class="headerlink" title="Overrun"></a>Overrun</h3><p>ORE 与线路采样可能完全无关。<br>字节已经正确到达外设，但软件没有及时腾出接收寄存器或 FIFO。</p>
+<p>如果“刚开始正常，持续大流量后才丢字”，优先观察：</p>
+<ul>
+<li>中断是否被高优先级任务长时间屏蔽；</li>
+<li>ISR 是否做了日志格式化或阻塞 I/O；</li>
+<li>FIFO 阈值是否留下足够余量；</li>
+<li>DMA 是否处于 circular 模式；</li>
+<li>环形缓冲的 consumer 是否跟得上 producer；</li>
+<li>错误回调是否停止了接收却没有重新启动。</li>
+</ul>
+<h2 id="FIFO、IRQ、DMA-与环形缓冲的时间预算"><a href="#FIFO、IRQ、DMA-与环形缓冲的时间预算" class="headerlink" title="FIFO、IRQ、DMA 与环形缓冲的时间预算"></a>FIFO、IRQ、DMA 与环形缓冲的时间预算</h2><p><img src="/mdimg/protocol-depth/uart-rx-pipeline.svg" srcset="/img/loading.gif" lazyload alt="UART 接收数据从采样器、FIFO、DMA 到有界解析器的路径"></p>
+<p>设一帧占 <code>N_frame</code> bit，波特率为 <code>B</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">T_byte = N_frame / B<br></code></pre></td></tr></table></figure>
 
-<p>本地运行结果：</p>
-<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">8N1 cells: [0, 1, 1, 0, 0, 1, 0, 1, 0, 1]<br>decoded: 0x53 (S)<br>115200 baud: 8.6806 us/bit, 11520 bytes/s<br>framing error: stop bit is low<br></code></pre></td></tr></table></figure>
+<p>如果硬件 FIFO 还有 <code>F_free</code> 个空位，软件完全不服务的理论上限是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">T_fifo = F_free × T_byte<br></code></pre></td></tr></table></figure>
 
-<p>脚本的输入是已经按 bit 划分好的 0/1 序列，只验证位序和停止位检查，不包含真实波形的阈值判断、边沿检测或时钟恢复。如果拿逻辑分析仪数据来分析，需要先根据实际采样率和边沿得到这些采样值。</p>
-<h2 id="乱码排查顺序"><a href="#乱码排查顺序" class="headerlink" title="乱码排查顺序"></a>乱码排查顺序</h2><ol>
-<li>确认供电、参考地和逻辑电平，检查 TX/RX 有没有接反。</li>
-<li>查看空闲状态与边沿，判断是不是 UART、是否反相，而不是立刻穷举所有波特率。</li>
-<li>测量多个短脉冲，推测基础 bit 时间，再用连续多帧验证；一个脉冲可能跨越多个相同 bit。</li>
-<li>核对数据位、parity、停止位和流控。</li>
-<li>保留原始十六进制字节，再判断它是文本编码还是二进制协议。终端显示乱码不一定代表 UART 解码失败。</li>
-<li>若开始正常、持续发送后丢字，继续查看 overrun、缓冲区和应用读取策略。</li>
+<p>115200 8N1、FIFO 还有 16 个空位：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">T_fifo = 16 × 10 / 115200<br>       = 1.3889 ms<br></code></pre></td></tr></table></figure>
+
+<p>这不是允许 ISR 延迟 1.3889 ms 的承诺。<br>真实预算还要扣除：</p>
+<ul>
+<li>中断触发阈值已经占用的 FIFO 空间；</li>
+<li>当前字符仍在移入；</li>
+<li>总线和 DMA 竞争；</li>
+<li>临界区、关中断区间与调度抖动；</li>
+<li>错误处理和缓存一致性开销。</li>
+</ul>
+<h3 id="每字节中断"><a href="#每字节中断" class="headerlink" title="每字节中断"></a>每字节中断</h3><p>优点是简单、延迟低。<br>缺点是高波特率下中断频繁，ISR 稍重就可能抖动或 overrun。</p>
+<p>ISR 最好只做有界操作：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">读取状态<br>读取数据<br>写入 ring buffer<br>递增错误计数<br>唤醒解析任务<br>返回<br></code></pre></td></tr></table></figure>
+
+<p>不要在接收 ISR 中执行 JSON 解析、printf、Flash 写入或等待互斥锁。</p>
+<h3 id="FIFO-阈值中断"><a href="#FIFO-阈值中断" class="headerlink" title="FIFO 阈值中断"></a>FIFO 阈值中断</h3><p>FIFO 可以降低中断频率，但阈值越高，触发时剩余空间越少。<br>选择阈值时要同时看吞吐和最坏中断延迟。</p>
+<p>高阈值不自动提高可靠性。<br>如果一次 ISR 只取一个字节，反而可能一直处于临界状态。</p>
+<h3 id="Circular-DMA-ring-buffer"><a href="#Circular-DMA-ring-buffer" class="headerlink" title="Circular DMA + ring buffer"></a>Circular DMA + ring buffer</h3><p>DMA 可以持续把 RDR 数据搬到内存，但 DMA 数组本身仍是有限环。<br>软件要维护“DMA 已写到哪里”和“解析器已读到哪里”。</p>
+<p>一个常见思路是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">write_pos = (buffer_size - dma_remaining) % buffer_size<br><br>while read_pos != write_pos:<br>    consume(buffer[read_pos])<br>    read_pos = (read_pos + 1) % buffer_size<br></code></pre></td></tr></table></figure>
+
+<p>工程实现还要处理：</p>
+<ul>
+<li>读取 DMA 计数时的竞态；</li>
+<li>HT、TC、IDLE 回调可能连续发生；</li>
+<li>cacheable 内存上的一致性；</li>
+<li>consumer 落后一整圈时怎样识别；</li>
+<li>溢出后丢新数据、丢旧数据还是重置协议；</li>
+<li>多核或 ISR/任务之间的内存顺序。</li>
+</ul>
+<p>只用取模后的 <code>head == tail</code> 无法区分空缓冲和整圈覆盖。<br>可以保留一个空槽、维护单调递增计数，或额外记录 generation。</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/STMicroelectronics/STM32CubeF4/blob/master/Projects/STM32446E-Nucleo/Examples/UART/UART_ReceptionToIdle_CircularDMA/readme.txt">ST 官方的 Receive-to-IDLE Circular DMA 示例</a>展示了 HT、TC 和 IDLE 三类通知以及回调中的索引含义。<br>示例中的 IDLE 是接收线在最后一个字节后保持一个 frame time 空闲触发。</p>
+<p>IDLE 很适合通知“当前有一批字节可处理”，但它不是普适消息边界：</p>
+<ul>
+<li>协议允许消息内部停顿时，IDLE 会提前出现；</li>
+<li>连续消息之间没有空闲时，IDLE 不会分开它们；</li>
+<li>调度延迟会让多个事件在处理时合并。</li>
+</ul>
+<h2 id="UART-只提供字节流，上层必须自己定义消息"><a href="#UART-只提供字节流，上层必须自己定义消息" class="headerlink" title="UART 只提供字节流，上层必须自己定义消息"></a>UART 只提供字节流，上层必须自己定义消息</h2><p>假设连续收到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">01 10 00 05 00 07 41 7E 42 7D 43 36 56<br></code></pre></td></tr></table></figure>
+
+<p>UART 不知道：</p>
+<ul>
+<li>第一个字节是不是帧头；</li>
+<li><code>00 05</code> 是不是长度；</li>
+<li><code>7E</code> 是数据还是分隔符；</li>
+<li>最后两个字节是不是 CRC；</li>
+<li>一次 read 返回的是半帧、一帧还是多帧。</li>
+</ul>
+<p>应用协议必须选一种可重同步的结构。</p>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>优点</th>
+<th>主要风险</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>固定长度</td>
+<td>状态最简单</td>
+<td>扩展困难，错一字节后需要外部重同步</td>
+</tr>
+<tr>
+<td>分隔符</td>
+<td>人类可读，容易找边界</td>
+<td>数据中出现分隔符时需要转义</td>
+</tr>
+<tr>
+<td>长度字段</td>
+<td>支持二进制和变长 payload</td>
+<td>损坏长度可导致等待过久或越界</td>
+</tr>
+<tr>
+<td>空闲间隔</td>
+<td>某些总线协议实现方便</td>
+<td>调度和链路停顿可能破坏边界</td>
+</tr>
+<tr>
+<td>编码帧，如 COBS</td>
+<td>边界明确，开销可控</td>
+<td>双方必须实现同一编码规则</td>
+</tr>
+</tbody></table>
+<p>实际协议常组合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">SOF + header(length/sequence/type) + escaped payload + CRC<br></code></pre></td></tr></table></figure>
+
+<h2 id="一个有界、可重同步的解析示例"><a href="#一个有界、可重同步的解析示例" class="headerlink" title="一个有界、可重同步的解析示例"></a>一个有界、可重同步的解析示例</h2><p>下载 <a href="/downloads/protocol-labs/uart_packet_parser.py">uart_packet_parser.py</a>。</p>
+<p>示例定义如下，不把“CRC16”写成含糊名字：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs text">start delimiter : 0x7E<br>escape byte     : 0x7D<br>escaped value   : original XOR 0x20<br><br>unescaped body:<br>version:u8 | type:u8 | payload_len:u16be | sequence:u16be | payload | crc:u16be<br><br>CRC-16/CCITT-FALSE:<br>width   = 16<br>poly    = 0x1021<br>init    = 0xFFFF<br>refin   = false<br>refout  = false<br>xorout  = 0x0000<br>check(&quot;123456789&quot;) = 0x29B1<br></code></pre></td></tr></table></figure>
+
+<p>解析器在读到长度后立即检查：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs python">payload_len = <span class="hljs-built_in">int</span>.from_bytes(body[<span class="hljs-number">2</span>:<span class="hljs-number">4</span>], <span class="hljs-string">&quot;big&quot;</span>)<br><span class="hljs-keyword">if</span> payload_len &gt; MAX_PAYLOAD:<br>    length_errors += <span class="hljs-number">1</span><br>    reset()<br></code></pre></td></tr></table></figure>
+
+<p>这一步必须发生在：</p>
+<ul>
+<li>按长度分配内存之前；</li>
+<li>等待剩余 payload 之前；</li>
+<li>进行 <code>header + length</code> 算术而未检查溢出之前。</li>
+</ul>
+<p>收到新的 <code>0x7E</code> 时，解析器丢弃未完成旧帧并重新开始。<br>CRC 错误和超长长度不会让它无限缓存数据。</p>
+<p>运行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">python3 uart_packet_parser.py<br></code></pre></td></tr></table></figure>
+
+<p>本次输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">CRC check vector: 123456789 -&gt; 0x29B1<br>escaped frame seq=7: 7e 01 10 00 05 00 07 41 7d 5e 42 7d 5d 43 36 56<br>accepted: type=0x10 seq=7 payload=b&#x27;A~B&#125;C&#x27;<br>accepted: type=0x11 seq=10 payload=b&#x27;recovered&#x27;<br>counters: accepted=2 crc_errors=1 length_errors=1 restarts=1<br></code></pre></td></tr></table></figure>
+
+<p>测试流故意包含：</p>
+<ul>
+<li>分块输入，模拟一次 read 只返回部分字节；</li>
+<li>payload 内的 <code>0x7E</code> 和 <code>0x7D</code>；</li>
+<li>一帧 CRC 损坏；</li>
+<li>一个超出 <code>MAX_PAYLOAD</code> 的长度；</li>
+<li>一帧被截断后又出现新 SOF；</li>
+<li>噪声之后的两个合法帧。</li>
+</ul>
+<p>CRC 能发现常见传输错误，但不提供认证。<br>攻击者可以修改数据并重算 CRC；有对抗性需求时应使用经过审查的消息认证或 AEAD 设计，并同时考虑重放和密钥管理。</p>
+<h2 id="解析器的工程边界"><a href="#解析器的工程边界" class="headerlink" title="解析器的工程边界"></a>解析器的工程边界</h2><h3 id="不要把一次-read-当成一帧"><a href="#不要把一次-read-当成一帧" class="headerlink" title="不要把一次 read 当成一帧"></a>不要把一次 read 当成一帧</h3><p>无论是串口驱动、DMA 回调还是操作系统 <code>read()</code>：</p>
+<ul>
+<li>可能只返回半个 header；</li>
+<li>可能返回恰好一帧；</li>
+<li>可能一次返回三帧再加下一帧开头。</li>
+</ul>
+<p>正确解析器应跨调用保存状态，并在一个 chunk 中循环取出所有完整帧。</p>
+<h3 id="为每个等待状态设置上限"><a href="#为每个等待状态设置上限" class="headerlink" title="为每个等待状态设置上限"></a>为每个等待状态设置上限</h3><p>除了 <code>MAX_PAYLOAD</code>，还可记录：</p>
+<ul>
+<li>从 SOF 开始已经接收的字节数；</li>
+<li>当前帧开始时间；</li>
+<li>连续 escape 的异常情况；</li>
+<li>CRC、长度和重同步计数；</li>
+<li>序号跳变与重复帧。</li>
+</ul>
+<p>若协议允许长时间停顿，timeout 不能替代长度与容量边界。<br>timeout 只是另一项状态清理策略。</p>
+<h3 id="错误后如何恢复要写进协议"><a href="#错误后如何恢复要写进协议" class="headerlink" title="错误后如何恢复要写进协议"></a>错误后如何恢复要写进协议</h3><p>只说“CRC 错就丢包”还不完整。<br>还要说明下一步怎样找到新边界：</p>
+<ul>
+<li>等待下一个未转义 SOF；</li>
+<li>丢弃固定长度；</li>
+<li>使用编码保证分隔符唯一；</li>
+<li>通过序号确认是否需要重传。</li>
+</ul>
+<p>如果帧头可能自然出现在未转义 payload 中，扫描一个 magic 值并不能可靠重同步。</p>
+<h2 id="从症状反推层次"><a href="#从症状反推层次" class="headerlink" title="从症状反推层次"></a>从症状反推层次</h2><h3 id="完全没有字节"><a href="#完全没有字节" class="headerlink" title="完全没有字节"></a>完全没有字节</h3><p>依次确认：</p>
+<ol>
+<li>目标是否真的发送；</li>
+<li>测量点是在 MCU 逻辑侧还是收发器线路侧；</li>
+<li>TX/RX 是否交叉；</li>
+<li>是否共地或正确隔离；</li>
+<li>逻辑电平、反相和收发器使能；</li>
+<li>引脚复用与外设时钟；</li>
+<li>RS-485 DE/RE 和总线偏置。</li>
 </ol>
-<p>UART 解决字节怎么传，上层协议还要解决消息从哪开始、长度是多少、是否完整、属于哪次请求。分析串口日志时，这两部分最好分别记录。</p>
-<h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><ul>
-<li><a target="_blank" rel="noopener" href="https://www.analog.com/en/resources/analog-dialogue/articles/uart-a-hardware-communication-protocol.html">Analog Devices：UART 帧与收发过程</a></li>
-<li><a target="_blank" rel="noopener" href="https://www.circuitbasics.com/basics-uart-communication/">原笔记参考：Circuit Basics UART 入门</a></li>
+<h3 id="每个字节都像固定变换后的乱码"><a href="#每个字节都像固定变换后的乱码" class="headerlink" title="每个字节都像固定变换后的乱码"></a>每个字节都像固定变换后的乱码</h3><p>检查：</p>
+<ul>
+<li>线路是否反相；</li>
+<li>7/8/9 数据位和 parity 是否不同；</li>
+<li>bit order 是否被上层错误解释；</li>
+<li>终端是否把二进制当 UTF-8 或 GBK 显示；</li>
+<li>实际波特率而不只是配置值。</li>
+</ul>
+<p>先保存十六进制原始字节。<br>终端显示不正常，不等于 UART 解码错误。</p>
+<h3 id="前面正确，越到帧尾越容易错"><a href="#前面正确，越到帧尾越容易错" class="headerlink" title="前面正确，越到帧尾越容易错"></a>前面正确，越到帧尾越容易错</h3><p>这很像采样时钟差在帧内积累。<br>测量多个 bit 宽度、计算双方实际分频、查看 FE，并与器件容差表比较。</p>
+<p>不要只测一个低脉冲。<br>连续几个相同 bit 会合并成更宽的电平区间，看起来像一个“很慢的 bit”。</p>
+<h3 id="低流量正常，持续流量丢字"><a href="#低流量正常，持续流量丢字" class="headerlink" title="低流量正常，持续流量丢字"></a>低流量正常，持续流量丢字</h3><p>优先看 ORE、FIFO watermark、最大关中断时间、DMA 环覆盖和解析任务吞吐。</p>
+<p>可以给每一级留计数器：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">uart_fe<br>uart_pe<br>uart_ne<br>uart_ore<br>dma_wrap<br>ring_overflow<br>protocol_length_error<br>protocol_crc_error<br>protocol_resync<br></code></pre></td></tr></table></figure>
+
+<p>把硬件错误和协议错误分开计数，才知道该换探头、改时钟还是改软件。</p>
+<h3 id="RS-485-只在自己发送后出错"><a href="#RS-485-只在自己发送后出错" class="headerlink" title="RS-485 只在自己发送后出错"></a>RS-485 只在自己发送后出错</h3><p>检查：</p>
+<ul>
+<li>DE 是否过早释放，截断最后停止位；</li>
+<li>DE 是否太晚释放，与对端响应冲突；</li>
+<li>本机接收器是否回读自己的发送；</li>
+<li>多节点是否同时驱动；</li>
+<li>终端和偏置是否合适；</li>
+<li>协议是否规定 turnaround 时间。</li>
+</ul>
+<p>用 TX complete 而不是 TX register empty 判断最后一位发完。</p>
+<h2 id="采集与复现时应记录什么"><a href="#采集与复现时应记录什么" class="headerlink" title="采集与复现时应记录什么"></a>采集与复现时应记录什么</h2><p>一次能复核的 UART 问题记录至少包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">测量位置：MCU TXD/RXD 侧，还是 RS-232/RS-485 线缆侧<br>硬件：MCU、收发器、隔离器、线缆长度、终端与偏置<br>配置：外设时钟、baud 寄存器、oversampling、data/parity/stop<br>方向：全双工，或 RS-485 DE/RE 时序<br>采集：逻辑分析仪采样率、阈值、探头参考地<br>软件：FIFO 深度与阈值、IRQ 优先级、DMA 模式、ring 大小<br>错误：FE/PE/NE/ORE 与协议错误计数<br>原始数据：带时间戳的十六进制，不只保留终端文本<br></code></pre></td></tr></table></figure>
+
+<p>逻辑分析仪采样率应足够高，阈值也要与测量侧电平匹配。<br>软件 UART decoder 的自动 baud 猜测只能作为线索，最好用长采样中的多个边沿复算 bit period。</p>
+<p>在 RS-232 或 RS-485 线路侧采集时，普通逻辑分析仪可能既不耐受电压范围，也不能正确解释差分信号。<br>应使用相应探头、接收器或在线路收发器逻辑侧测量。</p>
+<h2 id="本文实验的可复核边界"><a href="#本文实验的可复核边界" class="headerlink" title="本文实验的可复核边界"></a>本文实验的可复核边界</h2><table>
+<thead>
+<tr>
+<th>项目</th>
+<th>本文做了什么</th>
+<th>没有声称什么</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>8N1 波形</td>
+<td>从确定 bit 序列绘制</td>
+<td>不是实物采样</td>
+</tr>
+<tr>
+<td>16× timing lab</td>
+<td>扫描固定频差与检测相位</td>
+<td>不是芯片最大容差</td>
+</tr>
+<tr>
+<td>baud divider</td>
+<td>复算 48 MHz 的整数与 1/64 示例</td>
+<td>不代表其他寄存器格式</td>
+</tr>
+<tr>
+<td>FIFO 时间</td>
+<td>按完全无人消费计算理论窗口</td>
+<td>不代替实时调度分析</td>
+</tr>
+<tr>
+<td>packet parser</td>
+<td>测试分块、转义、CRC、长度和重同步</td>
+<td>CRC 不提供认证</td>
+</tr>
+<tr>
+<td>RS-232/RS-485</td>
+<td>说明收发器与控制边界</td>
+<td>不给具体板卡接线结论</td>
+</tr>
+</tbody></table>
+<p>附件使用标准库，可在没有串口硬件时复算：</p>
+<ul>
+<li><a href="/downloads/protocol-labs/uart_timing_lab.py">uart_timing_lab.py</a></li>
+<li><a href="/downloads/protocol-labs/uart_packet_parser.py">uart_packet_parser.py</a></li>
+</ul>
+<p>真正接入设备后，应把理想模型替换为：</p>
+<ul>
+<li>目标 MCU 参考手册中的采样与容差公式；</li>
+<li>时钟源在电压、温度和寿命范围内的误差；</li>
+<li>收发器、隔离器、终端和线缆参数；</li>
+<li>设备上观测到的错误标志、DMA 指针和原始波形。</li>
+</ul>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://www.analog.com/en/resources/analog-dialogue/articles/uart-a-hardware-communication-protocol.html">Analog Devices：UART — A Hardware Communication Protocol</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.analog.com/en/resources/technical-articles/determining-clock-accuracy-requirements-for-uart-communications.html">Analog Devices：Determining Clock Accuracy Requirements for UART Communications</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.analog.com/en/resources/technical-articles/fundamentals-of-rs232-serial-communications.html">Analog Devices：Fundamentals of RS-232 Serial Communications</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.analog.com/en/resources/app-notes/an-960.html">Analog Devices AN-960：RS-485/RS-422 Circuit Implementation Guide</a></li>
+<li><a target="_blank" rel="noopener" href="https://onlinedocs.microchip.com/oxy/GUID-22527069-B4D6-49B9-BACC-3AF1C52EB48C-en-US-21/GUID-C6342AC0-3C55-491E-8253-B114A0A38825.html">Microchip：USART Sample Adjustment</a></li>
+<li><a target="_blank" rel="noopener" href="https://onlinedocs.microchip.com/oxy/GUID-16F5E27A-59F0-45F6-A80B-11D134E7327C-en-US-16/GUID-B48A617D-A912-430B-A8FD-98B0F38C8411.html">Microchip：The Fractional Baud Rate Generator</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.st.com/resource/en/product_training/STM32L4_Peripheral_LPUART.pdf">ST：STM32 LPUART training material</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/STMicroelectronics/STM32CubeF4/blob/master/Projects/STM32446E-Nucleo/Examples/UART/UART_ReceptionToIdle_CircularDMA/readme.txt">ST：UART Reception-to-IDLE Circular DMA example</a></li>
 </ul>
 
                 

@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 650" role="img" aria-labelledby="title desc">
+  <title id="title">UART 接收路径中的 FIFO、DMA 与环形缓冲</title>
+  <desc id="desc">从线路采样到硬件 FIFO，再由中断或 DMA 搬入内存环形缓冲，解析器在任务上下文消费字节；标出 overrun 发生位置。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" fill="#2563eb"/></marker>
+    <marker id="redarrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" fill="#c2413c"/></marker>
+    <style>
+      text{font-family:Inter,"Noto Sans SC","Microsoft YaHei",sans-serif;fill:#172033}
+      .title{font-size:30px;font-weight:700}.sub{font-size:16px;fill:#5f6b7a}.h{font-size:19px;font-weight:700}.p{font-size:15px}.tiny{font-size:13px;fill:#5f6b7a}.mono{font:600 14px Consolas,monospace}
+    </style>
+  </defs>
+  <rect width="960" height="650" fill="#fff"/>
+  <text x="48" y="52" class="title">从 RX 引脚到协议解析器：每一级都要有容量预算</text>
+  <text x="48" y="80" class="sub">线路波形正确并不能排除 overrun；关键是最坏服务延迟内会积累多少字节。</text>
+
+  <rect x="45" y="140" width="155" height="145" rx="13" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="69" y="178" class="h">采样 / 移位</text>
+  <text x="69" y="211" class="p">16× 采样</text>
+  <text x="69" y="238" class="p">起始、parity、stop</text>
+  <text x="69" y="264" class="tiny">输出一个数据字</text>
+
+  <line x1="200" y1="212" x2="250" y2="212" stroke="#2563eb" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <rect x="250" y="125" width="165" height="175" rx="13" fill="#fff7ed" stroke="#b96800" stroke-width="2"/>
+  <text x="274" y="163" class="h">RDR / RX FIFO</text>
+  <text x="274" y="196" class="p">深度 F 字节</text>
+  <text x="274" y="223" class="p">RXNE / threshold</text>
+  <text x="274" y="250" class="p">FE / PE / ORE</text>
+  <text x="274" y="279" class="tiny">硬件容量最小，先溢出</text>
+
+  <line x1="415" y1="212" x2="482" y2="212" stroke="#2563eb" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="448" y="194" text-anchor="middle" class="tiny">IRQ 或 DMA</text>
+
+  <rect x="482" y="125" width="185" height="175" rx="13" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="506" y="163" class="h">内存环形缓冲</text>
+  <text x="506" y="196" class="p">producer = DMA / ISR</text>
+  <text x="506" y="223" class="p">consumer = parser</text>
+  <text x="506" y="250" class="p">单调 head / tail</text>
+  <text x="506" y="279" class="tiny">满时必须有明确策略</text>
+
+  <line x1="667" y1="212" x2="735" y2="212" stroke="#2563eb" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="701" y="194" text-anchor="middle" class="tiny">任务消费</text>
+
+  <rect x="735" y="140" width="180" height="145" rx="13" fill="#ecfdf5" stroke="#16845b" stroke-width="2"/>
+  <text x="759" y="178" class="h">有界帧解析器</text>
+  <text x="759" y="211" class="p">长度上限 / timeout</text>
+  <text x="759" y="238" class="p">转义 / CRC / 重同步</text>
+  <text x="759" y="264" class="tiny">不要在 ISR 做完整业务</text>
+
+  <path d="M330 305 V350 H220" fill="none" stroke="#c2413c" stroke-width="3" marker-end="url(#redarrow)"/>
+  <rect x="45" y="330" width="175" height="90" rx="12" fill="#fff1f2" stroke="#c2413c" stroke-width="2"/>
+  <text x="69" y="365" class="h" fill="#c2413c">硬件 Overrun</text>
+  <text x="69" y="394" class="p">新字到达时 FIFO 已满</text>
+
+  <path d="M575 305 V385 H690" fill="none" stroke="#c2413c" stroke-width="3" marker-end="url(#redarrow)"/>
+  <rect x="690" y="340" width="225" height="90" rx="12" fill="#fff1f2" stroke="#c2413c" stroke-width="2"/>
+  <text x="714" y="375" class="h" fill="#c2413c">软件缓冲溢出</text>
+  <text x="714" y="404" class="p">producer 追上 consumer</text>
+
+  <rect x="80" y="475" width="800" height="125" rx="14" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="105" y="514" class="h">115200 8N1 的无服务窗口</text>
+  <text x="105" y="550" class="mono">T_byte = 10 / 115200 = 86.8056 μs</text>
+  <text x="105" y="580" class="mono">16-byte FIFO:  16 × T_byte = 1.3889 ms</text>
+  <text x="505" y="580" class="mono">256-byte ring: 256 × T_byte = 22.2222 ms</text>
+  <text x="480" y="630" text-anchor="middle" class="tiny">这是“完全无人消费”的上限；真实预算还要扣除触发阈值、竞争、临界区与调度抖动。</text>
+</svg>
