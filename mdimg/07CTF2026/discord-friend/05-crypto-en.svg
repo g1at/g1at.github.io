@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1010" viewBox="0 0 1200 1010" role="img" aria-labelledby="title desc">
+<title id="title">Secret → key → authentication → decryption</title><desc id="desc">Decode hex constants to raw bytes; keep machine-id as ASCII with its trailing newline removed.</desc>
+<rect x="0" y="0" width="1200" height="1010" rx="0" fill="#F7F6F2"/>
+<text x="48" y="40" font-family="Microsoft YaHei,Arial,sans-serif" font-size="14" fill="#087D78" font-weight="700">DISCORD FRIEND  /  07CTF  /  FIG. 05</text>
+<text x="48" y="86" font-family="Microsoft YaHei,Arial,sans-serif" font-size="32" fill="#14283F" font-weight="700">Secret → key → authentication → decryption</text>
+<text x="48" y="122" font-family="Microsoft YaHei,Arial,sans-serif" font-size="18" fill="#617584" font-weight="400">Decode hex constants to raw bytes; keep machine-id as ASCII with its trailing newline removed.</text>
+<line x1="48" y1="145" x2="1152" y2="145" stroke="#D9E1E4" stroke-width="1"/>
+<rect x="48" y="172" width="1104" height="174" rx="12" fill="#FFFFFF" stroke="#D9E1E4"/>
+<text x="70" y="206" font-family="Consolas,monospace" font-size="23" fill="#087D78" font-weight="700">01   seed = bytes(p0) XOR bytes(p1)</text>
+<text x="70" y="245" font-family="Consolas,monospace" font-size="18" fill="#31485B" font-weight="400">p0    24a5fc36c1a0a128a68ff8b3d01a4ef990f13a555dc5e0bd3e2cb4d4a58bc51f</text>
+<text x="70" y="278" font-family="Consolas,monospace" font-size="18" fill="#31485B" font-weight="400">p1    729a6f698dfe8675acdd0f1ef04ed181a7add7bc5d06082fbad9c1d5754c3298</text>
+<text x="70" y="316" font-family="Consolas,monospace" font-size="18" fill="#14283F" font-weight="700">seed  563f935f4c5e275d0a52f7ad20549f78375cede900c3e89284f57501d0c7f787</text>
+<line x1="600" y1="351" x2="600" y2="370" stroke="#087D78" stroke-width="2"/>
+<polygon points="600.00,370.00 595.69,362.10 604.31,362.10" fill="#087D78"/>
+<rect x="48" y="377" width="1104" height="238" rx="12" fill="#E7F4F1" stroke="#D9E1E4"/>
+<text x="70" y="413" font-family="Consolas,monospace" font-size="21" fill="#087D78" font-weight="700">02   key = SHA256(seed_raw || machine_id_ASCII || context_ASCII || salt_raw)</text>
+<text x="70" y="456" font-family="Consolas,monospace" font-size="18" fill="#617584" font-weight="400">machine-id</text>
+<text x="245" y="456" font-family="Consolas,monospace" font-size="18" fill="#14283F" font-weight="400">2e1481aad781941b9f4d4b1da0308022</text>
+<text x="70" y="494" font-family="Consolas,monospace" font-size="18" fill="#617584" font-weight="400">context</text>
+<text x="245" y="494" font-family="Consolas,monospace" font-size="18" fill="#14283F" font-weight="400">|forgesync-network-cache-v2|</text>
+<text x="70" y="532" font-family="Consolas,monospace" font-size="18" fill="#617584" font-weight="400">salt</text>
+<text x="245" y="532" font-family="Consolas,monospace" font-size="18" fill="#14283F" font-weight="400">7488222b0e2cb592852521e36a3b6795</text>
+<text x="70" y="570" font-family="Consolas,monospace" font-size="18" fill="#617584" font-weight="400">key</text>
+<text x="245" y="570" font-family="Consolas,monospace" font-size="18" fill="#14283F" font-weight="700">d01b8e579499eec454c10f97e9554ea886270e1ba3219163335697631ce51eb3</text>
+<line x1="600" y1="621" x2="600" y2="639" stroke="#087D78" stroke-width="2"/>
+<polygon points="600.00,639.00 595.69,631.10 604.31,631.10" fill="#087D78"/>
+<rect x="48" y="647" width="535" height="230" rx="12" fill="#FFFFFF" stroke="#D9E1E4"/>
+<text x="70" y="686" font-family="Microsoft YaHei,Arial,sans-serif" font-size="22" fill="#14283F" font-weight="700">03   Verify HMAC-SHA256</text>
+<text x="70" y="724" font-family="Microsoft YaHei,Arial,sans-serif" font-size="18" fill="#087D78" font-weight="400">HMAC(key, blob[0:10284])</text>
+<text x="70" y="755" font-family="Microsoft YaHei,Arial,sans-serif" font-size="18" fill="#087D78" font-weight="400">== blob[10284:10316]</text>
+<text x="70" y="786" font-family="Microsoft YaHei,Arial,sans-serif" font-size="18" fill="#087D78" font-weight="400">Match: the recovered bytes authenticate.</text>
+<text x="70" y="837" font-family="Microsoft YaHei,Arial,sans-serif" font-size="23" fill="#087D78" font-weight="700">Authentication: PASS</text>
+<rect x="617" y="647" width="535" height="230" rx="12" fill="#FFFFFF" stroke="#D9E1E4"/>
+<text x="639" y="686" font-family="Microsoft YaHei,Arial,sans-serif" font-size="22" fill="#14283F" font-weight="700">04   Decrypt AES-256-CTR</text>
+<text x="639" y="724" font-family="Microsoft YaHei,Arial,sans-serif" font-size="18" fill="#31485B" font-weight="400">IV = 876d09f1a918fbd9ecfed2aad75c199b</text>
+<text x="639" y="755" font-family="Microsoft YaHei,Arial,sans-serif" font-size="18" fill="#31485B" font-weight="400">10,240-byte ciphertext → 10,240-byte tar</text>
+<text x="639" y="786" font-family="Microsoft YaHei,Arial,sans-serif" font-size="18" fill="#31485B" font-weight="400">dev/shm/.ncache-result</text>
+<text x="639" y="837" font-family="Microsoft YaHei,Arial,sans-serif" font-size="23" fill="#087D78" font-weight="700">Read the flag from the archive</text>
+<text x="48" y="927" font-family="Microsoft YaHei,Arial,sans-serif" font-size="18" fill="#617584" font-weight="400">The sample uses the same derived key for AES and HMAC; this reconstruction matches its implementation.</text>
+<line x1="48" y1="954" x2="1152" y2="954" stroke="#D9E1E4" stroke-width="1"/>
+<text x="48" y="981" font-family="Microsoft YaHei,Arial,sans-serif" font-size="14" fill="#617584" font-weight="400">Sources: real installer constants, image /etc/machine-id, NCACHE1 fields and offline verification.</text>
+</svg>

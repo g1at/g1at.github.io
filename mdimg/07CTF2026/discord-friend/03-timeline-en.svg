@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="910" viewBox="0 0 1200 910" role="img" aria-labelledby="title desc">
+<title id="title">Timeline of the decisive events</title><desc id="desc">2026-09-18 · UTC · Linux events are kept separate from the inconsistent browser timestamp.</desc>
+<rect x="0" y="0" width="1200" height="910" rx="0" fill="#F7F6F2"/>
+<text x="48" y="40" font-family="Microsoft YaHei,Arial,sans-serif" font-size="14" fill="#087D78" font-weight="700">DISCORD FRIEND  /  07CTF  /  FIG. 03</text>
+<text x="48" y="86" font-family="Microsoft YaHei,Arial,sans-serif" font-size="32" fill="#14283F" font-weight="700">Timeline of the decisive events</text>
+<text x="48" y="122" font-family="Microsoft YaHei,Arial,sans-serif" font-size="18" fill="#617584" font-weight="400">2026-09-18 · UTC · Linux events are kept separate from the inconsistent browser timestamp.</text>
+<line x1="48" y1="145" x2="1152" y2="145" stroke="#D9E1E4" stroke-width="1"/>
+<line x1="80" y1="193" x2="80" y2="683" stroke="#D9E1E4" stroke-width="3"/>
+<circle cx="80" cy="194" r="7" fill="#087D78"/>
+<text x="109" y="199" font-family="Consolas,monospace" font-size="19" fill="#087D78" font-weight="700">08:12–08:13</text>
+<text x="400" y="199" font-family="Microsoft YaHei,Arial,sans-serif" font-size="20" fill="#14283F" font-weight="400">Download and inspect the saved installer</text>
+<line x1="399" y1="221" x2="1149" y2="221" stroke="#D9E1E4" stroke-width="1"/>
+<circle cx="80" cy="254" r="7" fill="#087D78"/>
+<text x="109" y="259" font-family="Consolas,monospace" font-size="19" fill="#087D78" font-weight="700">08:14:16–17</text>
+<text x="400" y="259" font-family="Microsoft YaHei,Arial,sans-serif" font-size="20" fill="#14283F" font-weight="400">Create malicious scripts; start network-cache.path</text>
+<line x1="399" y1="281" x2="1149" y2="281" stroke="#D9E1E4" stroke-width="1"/>
+<circle cx="80" cy="314" r="7" fill="#087D78"/>
+<text x="109" y="319" font-family="Consolas,monospace" font-size="19" fill="#087D78" font-weight="700">09:29:00.625727</text>
+<text x="400" y="319" font-family="Microsoft YaHei,Arial,sans-serif" font-size="20" fill="#14283F" font-weight="400">Release-start log; marker created immediately before</text>
+<line x1="399" y1="341" x2="1149" y2="341" stroke="#D9E1E4" stroke-width="1"/>
+<circle cx="80" cy="374" r="7" fill="#087D78"/>
+<text x="109" y="379" font-family="Consolas,monospace" font-size="19" fill="#087D78" font-weight="700">09:29:00.628</text>
+<text x="400" y="379" font-family="Microsoft YaHei,Arial,sans-serif" font-size="20" fill="#14283F" font-weight="400">network-cache.service starts</text>
+<line x1="399" y1="401" x2="1149" y2="401" stroke="#D9E1E4" stroke-width="1"/>
+<circle cx="80" cy="434" r="7" fill="#087D78"/>
+<text x="109" y="439" font-family="Consolas,monospace" font-size="19" fill="#087D78" font-weight="700">09:29:00.648–650</text>
+<text x="400" y="439" font-family="Microsoft YaHei,Arial,sans-serif" font-size="20" fill="#14283F" font-weight="400">Access times update on the three credential files</text>
+<line x1="399" y1="461" x2="1149" y2="461" stroke="#D9E1E4" stroke-width="1"/>
+<circle cx="80" cy="494" r="7" fill="#A95F06"/>
+<text x="109" y="499" font-family="Consolas,monospace" font-size="19" fill="#A95F06" font-weight="700">09:29:00.681</text>
+<text x="400" y="499" font-family="Microsoft YaHei,Arial,sans-serif" font-size="20" fill="#14283F" font-weight="400">Historical mtime of the NCACHE1 encrypted blob</text>
+<line x1="399" y1="521" x2="1149" y2="521" stroke="#D9E1E4" stroke-width="1"/>
+<circle cx="80" cy="554" r="7" fill="#087D78"/>
+<text x="109" y="559" font-family="Consolas,monospace" font-size="19" fill="#087D78" font-weight="700">09:29:00.932</text>
+<text x="400" y="559" font-family="Microsoft YaHei,Arial,sans-serif" font-size="20" fill="#14283F" font-weight="400">Log: retiring one-shot components</text>
+<line x1="399" y1="581" x2="1149" y2="581" stroke="#D9E1E4" stroke-width="1"/>
+<circle cx="80" cy="614" r="7" fill="#087D78"/>
+<text x="109" y="619" font-family="Consolas,monospace" font-size="19" fill="#087D78" font-weight="700">09:29:01</text>
+<text x="400" y="619" font-family="Microsoft YaHei,Arial,sans-serif" font-size="20" fill="#14283F" font-weight="400">Components cleaned up; service finishes</text>
+<line x1="399" y1="641" x2="1149" y2="641" stroke="#D9E1E4" stroke-width="1"/>
+<circle cx="80" cy="674" r="7" fill="#087D78"/>
+<text x="109" y="679" font-family="Consolas,monospace" font-size="19" fill="#087D78" font-weight="700">09:48–09:52</text>
+<text x="400" y="679" font-family="Microsoft YaHei,Arial,sans-serif" font-size="20" fill="#14283F" font-weight="400">External authentication, hotfix publication and tag update</text>
+<rect x="48" y="742" width="1104" height="90" rx="12" fill="#FFF0D8"/>
+<text x="70" y="776" font-family="Microsoft YaHei,Arial,sans-serif" font-size="21" fill="#A95F06" font-weight="700">Timestamp mismatch kept explicit</text>
+<text x="70" y="810" font-family="Microsoft YaHei,Arial,sans-serif" font-size="18" fill="#31485B" font-weight="400">Browser History: 22:18 UTC that day. The cache proves the lure content, not the Linux chronology.</text>
+<line x1="48" y1="854" x2="1152" y2="854" stroke="#D9E1E4" stroke-width="1"/>
+<text x="48" y="881" font-family="Microsoft YaHei,Arial,sans-serif" font-size="14" fill="#617584" font-weight="400">Times come from file metadata, systemd logs and registry-audit.jsonl.</text>
+</svg>
